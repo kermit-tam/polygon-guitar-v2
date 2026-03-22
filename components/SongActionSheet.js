@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Link from '@/components/Link';
 import { Copy, Heart, User, Pencil, Music } from 'lucide-react';
+import { CONTENT_MAX_WIDTH_CLASS } from '@/lib/layoutConstants';
 
 const InstagramIcon = ({ className }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -72,14 +73,16 @@ export default function SongActionSheet({
   return createPortal(
     <>
       <div className="fixed inset-0 bg-black/60 z-[9999]" onClick={close} aria-hidden />
-      <div
-        className="fixed bottom-0 left-0 right-0 bg-[#121212] rounded-t-3xl z-[9999] max-h-[85vh] flex flex-col overflow-hidden animate-slide-up"
-        style={{
-          paddingBottom,
-          transform: `translateY(${dragY}px)`,
-          transition: dragY === 0 ? 'transform 0.2s ease-out' : 'none'
-        }}
-      >
+      {/* 與 Layout 主欄同寬；兩側撳遮罩仍可關閉 */}
+      <div className="fixed bottom-0 left-0 right-0 z-[9999] flex justify-center pointer-events-none">
+        <div
+          className={`pointer-events-auto w-full ${CONTENT_MAX_WIDTH_CLASS} bg-[#121212] rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden animate-slide-up`}
+          style={{
+            paddingBottom,
+            transform: `translateY(${dragY}px)`,
+            transition: dragY === 0 ? 'transform 0.2s ease-out' : 'none'
+          }}
+        >
         <div
           className="flex flex-col flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
           onTouchStart={handleDragStart}
@@ -157,6 +160,7 @@ export default function SongActionSheet({
               </span>
             </Link>
           )}
+        </div>
         </div>
       </div>
     </>,

@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { extractChords, ChordDiagramModal, SingleChordDiagram, ChordWithHover, ChordLineWithHover } from './ChordDiagram';
+import { extractChords, SingleChordDiagram, ChordWithHover, ChordLineWithHover } from './ChordDiagram';
+import ChordDiagramBottomSheet from './ChordDiagramBottomSheet';
 import GpSegmentPlayer from './GpSegmentPlayer';
+import { calculateTransposeSemitones } from '@/lib/keyUtils';
+import { transposeChord, transposeSlashBassOnly, preferFlatsForDisplayKey } from '@/lib/chordUtils';
 
 const NotationAlphaTabPreview = dynamic(
   () => import('@/components/NotationEditor/NotationAlphaTabPreview'),
@@ -62,72 +65,8 @@ const KEY_TO_SEMITONE = {
   'Fm': 5, 'F#m': 6, 'Gm': 7, 'G#m': 8, 'Am': 9, 'Bbm': 10, 'Bm': 11
 };
 
-/** 用戶揀嘅顯示調係「降號調」時，轉調後和弦名用 Bb/Eb 等（唔用 A#/D#） */
-function preferFlatsForDisplayKey(key) {
-  if (key == null || key === '') return false;
-  const k = String(key).trim();
-  if (!k) return false;
-  const flatMajors = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb']);
-  const flatMinors = new Set(['Dm', 'Gm', 'Cm', 'Fm', 'Bbm', 'Ebm', 'Abm']);
-  if (/m$/i.test(k)) return flatMinors.has(k);
-  return flatMajors.has(k);
-}
-
 // Semitone 對應的 Key (優先使用 flat)
 const SEMITONE_TO_KEY = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-
-// ============ 和弦轉調工具 ============
-const CHORDS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const CHORDS_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-
-// 轉調單個和弦（支援 slash chord，如 C/E）
-function transposeChord(chord, semitones, preferFlats = false) {
-  const names = preferFlats ? CHORDS_FLAT : CHORDS;
-  // 處理 slash chord，例如 C/E, D7/F#
-  const slashMatch = chord.match(/^([A-G][#b]?[^\/]*)(?:\/([A-G][#b]?))?$/);
-  if (!slashMatch) return chord;
-  
-  const [, mainChord, bassNote] = slashMatch;
-  
-  // 轉調主和弦
-  const mainMatch = mainChord.match(/^([A-G][#b]?)(.*)$/);
-  if (!mainMatch) return chord;
-  
-  const [, root, suffix] = mainMatch;
-  let index = CHORDS.indexOf(root);
-  if (index === -1) index = CHORDS_FLAT.indexOf(root);
-  if (index === -1) return chord;
-  
-  const newIndex = (index + semitones + 12) % 12;
-  const newRoot = names[newIndex];
-  
-  // 轉調 bass note（如果有）
-  let newBass = '';
-  if (bassNote) {
-    let bassIndex = CHORDS.indexOf(bassNote);
-    if (bassIndex === -1) bassIndex = CHORDS_FLAT.indexOf(bassNote);
-    if (bassIndex !== -1) {
-      const newBassIndex = (bassIndex + semitones + 12) % 12;
-      newBass = '/' + names[newBassIndex];
-    }
-  }
-  
-  return newRoot + suffix + newBass;
-}
-
-/** 延續低音寫法：空格後嘅「/B」「/G」等同 slash chord 嘅低音部，單獨出現時只轉低音 */
-function transposeSlashBassOnly(token, semitones, preferFlats = false) {
-  if (!semitones || semitones === 0) return token
-  const names = preferFlats ? CHORDS_FLAT : CHORDS
-  const m = token.match(/^\/([A-G][#b]?)$/)
-  if (!m) return token
-  const bassNote = m[1]
-  let bassIndex = CHORDS.indexOf(bassNote)
-  if (bassIndex === -1) bassIndex = CHORDS_FLAT.indexOf(bassNote)
-  if (bassIndex === -1) return token
-  const newBassIndex = (bassIndex + semitones + 12) % 12
-  return '/' + names[newBassIndex]
-}
 
 /** 是否為「延續低音」token：/ 後跟根音，常見於「C /B」表示 C over B */
 function isSlashBassContinuationToken(tokenName) {
@@ -497,12 +436,6 @@ function calculateCapo(originalKey, selectedKey) {
   let capo = (originalSemitone - selectedSemitone) % 12;
   if (capo < 0) capo += 12;
   return capo;
-}
-
-function calculateTransposeSemitones(originalKey, selectedKey) {
-  const originalSemitone = getSemitoneFromKey(originalKey);
-  const selectedSemitone = getSemitoneFromKey(selectedKey);
-  return (selectedSemitone - originalSemitone + 12) % 12;
 }
 
 function getCapoSuggestion(capo) {
@@ -1561,7 +1494,9 @@ const TabContent = ({
   externalHideBrackets,
   onHideNotationChange,
   onHideBracketsChange,
-  scrollSmoothRef
+  scrollSmoothRef,
+  /** 樂譜頁：撳和弦字時彈出指法圖（唔再播放試聽） */
+  onChordPress
 }) => {
   // 緩存 YouTube src，防止轉調時重新渲染 iframe
   const youtubeSrc = useMemo(() => {
@@ -1910,6 +1845,30 @@ const TabContent = ({
             const lineHeight = (isFollowedByLyric || isPrecededByChord) ? '1.3' : '1';
             const marginBottom = isFollowedByLyric ? '0em' : '0.3em';
             const marginTop = isPrecededByChord ? '0em' : '0';
+            
+            // Arial：和弦行要用可撳嘅 ChordLineWithHover（之前淨係純文字，撳落無反應）
+            if (isChordLine) {
+              const { prefix, suffix, cleanLine } = extractSectionMarkers(line, false);
+              const chordLineDisplay =
+                transposeSemitones !== 0
+                  ? transposeChordLine(cleanLine, transposeSemitones, false, preferFlats)
+                  : cleanLine;
+              return (
+                <div key={idx} style={{ marginTop, marginBottom, lineHeight, whiteSpace: 'pre-wrap' }}>
+                  <ChordLineWithHover
+                    chordLine={chordLineDisplay}
+                    prefix={prefix}
+                    suffix={suffix}
+                    fontSize={fontSize}
+                    theme={theme}
+                    displayFont="arial"
+                    chordColor={colors.chord}
+                    prefixSuffixColor={colors.prefixSuffix}
+                    onChordPress={onChordPress}
+                  />
+                </div>
+              );
+            }
             
             // 判斷顏色：歌詞行用白色，和弦行用黃色
             const lineColor = isLyricLine ? colors.lyricInside : colors.chord;
@@ -2305,9 +2264,17 @@ const TabContent = ({
                       <span style={{ visibility: 'hidden', whiteSpace: 'pre', userSelect: 'none' }}>{preBracketForChordOnly}</span>
                     </span>
                   )}
-                  {p && <span style={{ color: colors.prefixSuffix, fontStyle: 'italic', fontSize: `${lineFontSize * 0.85}px` }}>{p}</span>}
-                  {transposedChordOnly}
-                  {s && <span style={{ color: colors.prefixSuffix, fontStyle: 'italic', fontSize: `${lineFontSize * 0.85}px` }}>{s}</span>}
+                  <ChordLineWithHover
+                    chordLine={transposedChordOnly}
+                    prefix={p}
+                    suffix={s}
+                    fontSize={lineFontSize}
+                    theme={theme}
+                    displayFont={displayFont}
+                    chordColor={colors.chord}
+                    prefixSuffixColor={colors.prefixSuffix}
+                    onChordPress={onChordPress}
+                  />
                 </div>
               );
             }
@@ -2503,7 +2470,7 @@ const TabContent = ({
                               ...(seg.mode === 'overflow' ? { width: 0, overflow: 'visible', display: 'flex', justifyContent: 'flex-start' } : {}),
                             }}>
                               {seg.chord.isBarStart && <span>|</span>}
-                              <ChordWithHover chord={seg.chord.displayName} theme={theme} displayFont={displayFont} chordColor={colors.chord} />
+                              <ChordWithHover chord={seg.chord.displayName} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
                             </span>
                           )}
                         </span>
@@ -2519,7 +2486,8 @@ const TabContent = ({
                               <span style={{ gridRow: 1, gridColumn: 1, justifySelf: 'stretch', display: 'flex', justifyContent: 'space-evenly' }}>
                                 {seg.chord.trailing.map((t, tIdx) => (
                                   <span key={tIdx} style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
-                                    {t.isBarStart && '|'}{t.name}
+                                    {t.isBarStart && '|'}
+                                    <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
                                   </span>
                                 ))}
                               </span>
@@ -2529,7 +2497,8 @@ const TabContent = ({
                           <span style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
                             {seg.chord.trailing.map((t, tIdx) => (
                               <span key={tIdx}>
-                                {t.isBarStart && '|'}{t.name}
+                                {t.isBarStart && '|'}
+                                <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
                               </span>
                             ))}
                           </span>
@@ -2542,9 +2511,12 @@ const TabContent = ({
                         {res.alignedChords.slice(res.lyricSplit.segments.length).map((chord, extraIdx) => (
                           <span key={`extra-${extraIdx}`} style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
                             {chord.isBarStart && '|'}
-                            <ChordWithHover chord={chord.displayName} theme={theme} displayFont={displayFont} chordColor={colors.chord} />
+                            <ChordWithHover chord={chord.displayName} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
                             {chord.trailing && chord.trailing.length > 0 && chord.trailing.map((t, tIdx) => (
-                              <span key={tIdx}>{' '}{t.isBarStart && '|'}{t.name}</span>
+                              <span key={tIdx}>
+                                {' '}{t.isBarStart && '|'}
+                                <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
+                              </span>
                             ))}
                             {' '}
                           </span>
@@ -2569,6 +2541,7 @@ const TabContent = ({
                       displayFont={displayFont}
                       chordColor={colors.chord}
                       prefixSuffixColor={colors.prefixSuffix}
+                      onChordPress={onChordPress}
                     />
                   </div>
                 ) : (
@@ -2581,6 +2554,7 @@ const TabContent = ({
                     displayFont={displayFont}
                     chordColor={colors.chord}
                     prefixSuffixColor={colors.prefixSuffix}
+                    onChordPress={onChordPress}
                   />
                 ))}
 
@@ -2769,10 +2743,22 @@ const TabContent = ({
     const setShowInfo = externalSetShowInfo || setInternalShowInfo;
     const [showChordDiagram, setShowChordDiagram] = useState(false);
     
-    // 提取本曲所有獨特和弦
+    // 提取本曲所有獨特和弦（與譜面顯示一致：依目前 PLAY Key 轉調）
     const uniqueChords = (() => {
       if (!content) return [];
-      return extractChords(content);
+      const raw = extractChords(content);
+      if (!raw.length) return [];
+      if (transposeSemitones === 0) return raw;
+      const seen = new Set();
+      const out = [];
+      for (const c of raw) {
+        const t = transposeChord(c, transposeSemitones, preferFlats);
+        if (!seen.has(t)) {
+          seen.add(t);
+          out.push(t);
+        }
+      }
+      return out;
     })();
     
     const chordStats = (() => {
@@ -2939,8 +2925,8 @@ const TabContent = ({
           )}
         </div>
         
-        {/* 和弦圖彈窗 */}
-        <ChordDiagramModal 
+        {/* 和弦圖 - 從底向上彈出 carousel */}
+        <ChordDiagramBottomSheet
           chords={uniqueChords}
           isOpen={showChordDiagram}
           onClose={() => setShowChordDiagram(false)}

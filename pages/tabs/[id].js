@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { pacificTime } from '@/lib/logTime'
 import { auth } from '@/lib/firebase'
 import { useRouter } from 'next/router'
@@ -36,7 +36,8 @@ import Head from 'next/head'
 import { generateTabTitle, generateTabDescription, generateTabSchema, generateBreadcrumbSchema, getAbsoluteOgImage } from '@/lib/seo'
 import { siteConfig } from '@/lib/seo'
 import { calculateCapo, getKeyOptions } from '@/lib/keyUtils'
-import { extractChords, ChordDiagramModal } from '@/components/ChordDiagram'
+import { getTransposedUniqueChordsFromContent } from '@/lib/chordUtils'
+import ChordDiagramBottomSheet, { CHORD_SHEET_MAX_HEIGHT } from '@/components/ChordDiagramBottomSheet'
 import { tabUploaderPenNameMatchesUser } from '@/lib/tabEditPermission'
 
 // 主題顏色配置
@@ -111,6 +112,10 @@ export default function TabDetail({ initialTab, artist }) {
   const [tabPageScrollSpeed, setTabPageScrollSpeed] = useState(2)
   const [tabPageHideNotation, setTabPageHideNotation] = useState(true)
   const [showChordDiagram, setShowChordDiagram] = useState(false)
+  /** null = 本曲和弦預設順序（FAB）；非 null = 該和弦排第一 + 膠囊黃色（譜內點字） */
+  const [chordSheetLeadChord, setChordSheetLeadChord] = useState(null)
+  /** 和弦面板實際高度（px），用於 FAB 對位；唔好用 CHORD_SHEET_MAX_HEIGHT 以免內容較矮時空隙過大 */
+  const [chordSheetHeightPx, setChordSheetHeightPx] = useState(null)
   const [showFloatingControls, setShowFloatingControls] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [ytPlaying, setYtPlaying] = useState(false)
@@ -135,6 +140,20 @@ export default function TabDetail({ initialTab, artist }) {
   const pageWrapRef = useRef(null)
   // Fallback: when tab has no artistPhoto, get from search-data API (cache, no extra Firestore reads). Remove after backfill.
   const [fallbackArtistPhoto, setFallbackArtistPhoto] = useState(null)
+
+  const handleChordSheetHeight = useCallback((h) => {
+    if (typeof h === 'number' && h > 0) setChordSheetHeightPx(h)
+  }, [])
+
+  const handleChordPressFromTab = useCallback((chord) => {
+    if (!chord) return
+    setChordSheetLeadChord(chord)
+    setShowChordDiagram(true)
+  }, [])
+
+  useEffect(() => {
+    if (!showChordDiagram) setChordSheetHeightPx(null)
+  }, [showChordDiagram])
 
   // Render-phase cache check — runs before paint so no skeleton flash on cache hit
   // 若有 ?updated=1 唔用 initialTab/cache，強制之後 useEffect 從 Firestore 重載
@@ -808,7 +827,11 @@ export default function TabDetail({ initialTab, artist }) {
       : (resolvedSingleName || resolvedArtistName || '')
 
   const hasSongInfo = tab.songYear || tab.composer || tab.lyricist || tab.arranger || tab.producer || tab.album || tab.uploaderPenName
-  const tabChords = tab.content ? extractChords(tab.content) : []
+  const baseKeyForChords = tab.playKey || tab.originalKey || 'C'
+  const selectedKeyForChords = currentKey || tab.playKey || tab.originalKey || 'C'
+  const tabChords = tab.content
+    ? getTransposedUniqueChordsFromContent(tab.content, baseKeyForChords, selectedKeyForChords)
+    : []
 
   // SEO 配置
   const seoTitle = generateTabTitle(tab.title, artistDisplayName)
@@ -1206,6 +1229,7 @@ export default function TabDetail({ initialTab, artist }) {
           externalHideNotation={tabPageHideNotation}
           onHideNotationChange={setTabPageHideNotation}
           scrollSmoothRef={pageWrapRef}
+          onChordPress={handleChordPressFromTab}
         />
 
         {/* 星星評分 */}
@@ -1260,14 +1284,6 @@ export default function TabDetail({ initialTab, artist }) {
             {toastMessage}
           </div>
         )}
-
-        {/* 本曲使用和弦 Pop-up */}
-        <ChordDiagramModal
-          chords={tabChords}
-          isOpen={showChordDiagram}
-          onClose={() => setShowChordDiagram(false)}
-          theme={theme}
-        />
 
         {/* 加入歌單 Modal */}
         {showAddToPlaylist && (
@@ -1372,86 +1388,131 @@ export default function TabDetail({ initialTab, artist }) {
           </>
         )}
       </div>
+      {/* 本曲和弦 sheet：必須喺 pageWrapRef 外，否則自動滾動嘅 transform 會令 fixed 相對錯位 */}
+      <ChordDiagramBottomSheet
+        chords={tabChords}
+        leadChord={chordSheetLeadChord}
+        isOpen={showChordDiagram}
+        onClose={() => {
+          setShowChordDiagram(false)
+          setChordSheetLeadChord(null)
+        }}
+        theme={theme}
+        onSheetHeightChange={handleChordSheetHeight}
+      />
       {/* 浮動按鈕放喺 pageWrapRef 之外，避免 transform 影響 fixed 定位 */}
       {showFloatingControls && (
         <div className="fixed inset-0" style={{ zIndex: 29 }} onClick={() => setShowFloatingControls(false)} />
       )}
-      <div className="fixed bottom-20 right-4 z-30 md:bottom-20 md:right-6 flex flex-col items-end gap-3" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>
-        {showFloatingControls ? (
-          <div className="rounded-2xl bg-[#1a1a1a] shadow-xl p-3 w-[190px] border border-neutral-700">
-            <div className="space-y-3">
-              {/* 字體大小：A − 16 + */}
-              <div className="flex items-center">
-                <span className="w-8 shrink-0 flex items-center justify-center text-neutral-400 relative left-4">
-                  <svg className="w-6 h-6" viewBox="0 0 37.47 45.21" fill="currentColor" stroke="currentColor" strokeWidth="2">
+      <div
+        className={`fixed right-4 md:right-6 flex flex-row items-end gap-2 transition-all duration-300 ease-out ${
+          showChordDiagram && showFloatingControls
+            ? 'z-[107]'
+            : showChordDiagram
+              ? 'z-[107] bottom-20 md:bottom-20'
+              : 'z-30 bottom-20 md:bottom-20'
+        }`}
+        style={{
+          /* 開和弦 panel 時唔加 paddingBottom：bottom 已計 nav+safe area，再 env(safe-area) 會喺手機頂高 FAB、空隙變好大；desktop 通常 safe-area=0 所以先覺得冇事 */
+          paddingBottom: showChordDiagram ? 0 : 'env(safe-area-inset-bottom, 0)',
+          /* 和弦 sheet：用實際量度高度 + 10px；未量度前先用 max 高度避免閃爍 */
+          ...(showChordDiagram
+            ? {
+                bottom:
+                  chordSheetHeightPx != null
+                    ? `calc(4rem + min(env(safe-area-inset-bottom, 0px), 30px) + ${chordSheetHeightPx}px + 10px)`
+                    : `calc(4rem + min(env(safe-area-inset-bottom, 0px), 30px) + ${CHORD_SHEET_MAX_HEIGHT} + 10px)`,
+              }
+            : {}),
+        }}
+      >
+        {showFloatingControls && (
+          <div
+            className="rounded-2xl bg-[#1a1a1a] shadow-xl border border-neutral-700 shrink-0 w-[142px] px-0 py-3.5 md:w-[168px] md:px-0.5 md:py-4.5"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="顯示設定"
+          >
+            <div className="space-y-2 md:space-y-3">
+              <div className="space-y-3.5 md:space-y-4 pb-2 pl-1">
+              {/* 字體大小：A − 16 +（手機版更緊湊） */}
+              <div className="flex items-center justify-center gap-0.5 md:gap-1">
+                <span className="w-6 md:w-7 shrink-0 flex items-center justify-center text-neutral-400">
+                  <svg className="w-5 h-5 md:w-6 md:h-6" viewBox="0 0 37.47 45.21" fill="currentColor" stroke="currentColor" strokeWidth="2">
                     <path d="M37.36,43.14L20.12.93c-.23-.56-.78-.93-1.39-.93s-1.16.37-1.39.93L.11,43.14c-.31.77.05,1.64.82,1.96.77.32,1.64-.05,1.96-.82l8.24-20.17h15.22l8.24,20.17c.24.58.8.93,1.39.93.19,0,.38-.04.57-.11.77-.31,1.13-1.19.82-1.96ZM12.35,21.11l6.38-15.64,6.38,15.64h-12.77Z"/>
                   </svg>
                 </span>
-                <div className="flex-1 flex items-center justify-center gap-2 relative -top-2 left-2">
+                <div className="flex items-center gap-0.5 translate-y-0.5 ml-1.5 md:ml-2">
                   <button
+                    type="button"
                     onClick={() => setTabPageFontSize(Math.max(12, tabPageFontSize - 1))}
-                    className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-white transition text-xl"
+                    className="w-5 h-5 md:w-6 md:h-6 flex items-center justify-center text-neutral-400 hover:text-white transition text-lg md:text-xl"
                   >−</button>
-                  <span className="text-[#FFD700] text-xl font-medium w-6 text-center">{tabPageFontSize}</span>
+                  <span className="text-[#FFD700] text-lg md:text-xl font-medium min-w-[1.25rem] md:min-w-[1.5rem] text-center tabular-nums">{tabPageFontSize}</span>
                   <button
+                    type="button"
                     onClick={() => setTabPageFontSize(Math.min(24, tabPageFontSize + 1))}
-                    className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-white transition text-xl"
+                    className="w-5 h-5 md:w-6 md:h-6 flex items-center justify-center text-neutral-400 hover:text-white transition text-lg md:text-xl"
                   >+</button>
                 </div>
               </div>
 
               {/* 自動滾動速度：↓ − 2 + */}
-              <div className="flex items-center">
+              <div className="flex items-center justify-center gap-0.5 md:gap-1">
                 <button
+                  type="button"
                   onClick={() => setTabPageIsAutoScroll(!tabPageIsAutoScroll)}
-                  className={`w-8 shrink-0 flex items-center justify-center transition relative left-4 ${tabPageIsAutoScroll ? 'text-[#FFD700]' : 'text-neutral-400'}`}
+                  className={`w-6 md:w-7 shrink-0 flex items-center justify-center transition ${tabPageIsAutoScroll ? 'text-[#FFD700]' : 'text-neutral-400'}`}
                   title={tabPageIsAutoScroll ? '關閉自動滾動' : '開啟自動滾動'}
                 >
-                  <svg className="w-8 h-8" viewBox="0 0 35.38 47.33" fill="currentColor" stroke="none">
+                  <svg className="w-7 h-7 md:w-8 md:h-8" viewBox="0 0 35.38 47.33" fill="currentColor" stroke="none">
                     <path d="M21.9,23.81l-.02-8.2c0-.78-.55-1.37-1.26-1.41-.68-.04-1.44.51-1.44,1.32l-.02,5.55c0,.76-.7,1.27-1.38,1.24-.61-.03-1.29-.54-1.29-1.33V4.15c0-.83-.54-1.42-1.3-1.44s-1.38.56-1.38,1.45v24.9c0,.84-.68,1.35-1.32,1.37-.86.02-1.38-.63-1.38-1.48v-1.87c0-.81-.67-1.37-1.34-1.37-.84,0-1.38.65-1.37,1.51l.04,5.18c.04,4.77,3.59,9.65,7.34,12.4.64.47.97,1.2.47,1.97-.35.53-1.26.83-1.95.32-4.67-3.41-8.36-8.72-8.59-14.7l.03-5.59c.01-2.66,2.7-4.37,5.36-3.63l.07-19.57C11.15,1.49,13.19.04,15.05,0c1.99-.05,4.04,1.44,4.06,3.55l.09,8.11c2.35-.69,4.56.54,5.25,2.79,1.26-.45,2.51-.33,3.67.36.93.55,1.58,1.74,1.89,2.89,1.19-.2,2.62-.25,3.75.65.89.71,1.64,1.86,1.64,3.21v4.85c-.02,5.64-.7,16.41-5.04,20.46-.61.57-1.5.58-2.01,0-.58-.65-.4-1.49.24-2.08,2.55-2.38,3.49-8.8,3.82-12.21.34-3.58.29-7.08.29-10.68,0-.83-.34-1.52-1.16-1.63-.75-.1-1.53.44-1.53,1.33v3.3c0,.84-.59,1.45-1.34,1.44-.8,0-1.36-.6-1.36-1.44v-6.73c0-.77-.73-1.29-1.35-1.28-.67,0-1.34.52-1.35,1.29l-.03,5.58c0,.7-.64,1.19-1.25,1.24-.53.05-1.41-.41-1.41-1.21Z"/>
                     <path d="M5.07,21.53c-.6.6-1.45.61-2.02.04l-2.71-2.73c-.56-.57-.39-1.49.12-1.9.68-.56,1.41-.37,2.22.34V1.5c0-.83.48-1.42,1.22-1.49s1.49.46,1.49,1.35v16c.62-.72,1.45-1,2.14-.49s.73,1.47.07,2.13l-2.54,2.54Z"/>
                   </svg>
                 </button>
-                <div className="flex-1 flex items-center justify-center gap-2 relative -top-2 left-2">
+                <div className="flex items-center gap-0.5 translate-y-0.5 ml-1.5 md:ml-2">
                   <button
+                    type="button"
                     onClick={() => { setTabPageScrollSpeed(Math.max(1, tabPageScrollSpeed - 1)); if (!tabPageIsAutoScroll) setTabPageIsAutoScroll(true); }}
-                    className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-white transition text-xl"
+                    className="w-5 h-5 md:w-6 md:h-6 flex items-center justify-center text-neutral-400 hover:text-white transition text-lg md:text-xl"
                   >−</button>
-                  <span className="text-[#FFD700] text-xl font-medium w-6 text-center">{tabPageScrollSpeed}</span>
+                  <span className="text-[#FFD700] text-lg md:text-xl font-medium min-w-[1.25rem] md:min-w-[1.5rem] text-center tabular-nums">{tabPageScrollSpeed}</span>
                   <button
+                    type="button"
                     onClick={() => { setTabPageScrollSpeed(Math.min(5, tabPageScrollSpeed + 1)); if (!tabPageIsAutoScroll) setTabPageIsAutoScroll(true); }}
-                    className="w-6 h-6 flex items-center justify-center text-neutral-400 hover:text-white transition text-xl"
+                    className="w-5 h-5 md:w-6 md:h-6 flex items-center justify-center text-neutral-400 hover:text-white transition text-lg md:text-xl"
                   >+</button>
                 </div>
               </div>
+              </div>
 
-              {/* 分隔線 */}
-              <div className="border-b border-neutral-600" />
+              {/* 分隔線（縮短長度、置中） */}
+              <div className="mx-auto w-[75%] md:w-[86%] border-b border-neutral-600 max-md:my-0" />
 
-              {/* 底部 3 個圓形按鈕：模式 → 隱藏簡譜 → 本曲和弦（固定 gap，唔用 justify-between 拉散） */}
-              <div className="flex items-center justify-center gap-4">
+              {/* 底部 2 個圓形按鈕：模式 → 隱藏簡譜（本曲和弦改為第三粒浮動掣） */}
+              <div className="flex items-center justify-center gap-2.5 md:gap-4">
                 <button
                   onClick={() => setTheme(theme === 'night' ? 'day' : 'night')}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition ${theme === 'night' ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600 hover:text-white' : 'bg-[#FFD700] text-black'}`}
+                  className={`w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center shrink-0 transition ${theme === 'night' ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600 hover:text-white' : 'bg-[#FFD700] text-black'}`}
                   title={theme === 'night' ? '日間模式' : '夜間模式'}
                 >
                   {theme === 'night' ? (
-                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-6 h-6 md:w-7 md:h-7 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-6 h-6 md:w-7 md:h-7 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                   )}
                 </button>
                 <button
                   onClick={() => setTabPageHideNotation(!tabPageHideNotation)}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition ${tabPageHideNotation ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600' : 'bg-[#FFD700] text-black'}`}
+                  className={`w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center shrink-0 transition ${tabPageHideNotation ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600' : 'bg-[#FFD700] text-black'}`}
                   title={tabPageHideNotation ? '顯示簡譜' : '隱藏簡譜'}
                 >
                   {tabPageHideNotation ? (
-                    <svg className="w-9 h-9 shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                    <svg className="w-9 h-9 md:w-11 md:h-11 shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                       <path fill="currentColor" d="M11.87,14.35l-.73-.73h-.58c0,.41-.07.76-.2,1.06-.14.29-.31.53-.53.73-.21.19-.46.34-.73.43-.27.1-.55.15-.84.15v1.31c.27,0,.52-.03.78-.08.25-.06.48-.14.68-.25.21-.11.38-.24.53-.41.15-.16.25-.34.31-.55v4.71h-1.34v1.18h3.98v-1.18h-1.33v-6.37Z" />
                       <polygon fill="currentColor" points="16.62 20.72 17.45 19.93 16.58 19.06 14.91 20.67 14.91 21.9 19.42 21.9 18.24 20.72 16.62 20.72" />
                       <path fill="currentColor" d="M17.69,14.66c.16,0,.33.02.49.07.17.04.31.11.44.21.13.1.24.23.32.39.08.15.12.34.12.56,0,.18-.03.37-.12.57l.94.94c.07-.11.13-.21.19-.32.21-.41.31-.81.31-1.19s-.07-.74-.22-1.05c-.14-.3-.34-.55-.59-.75s-.53-.35-.86-.45c-.32-.11-.66-.16-1.02-.16-.56,0-1.04.09-1.44.29l.95.95c.15-.04.31-.06.49-.06Z" />
@@ -1459,39 +1520,18 @@ export default function TabDetail({ initialTab, artist }) {
                       <path fill="currentColor" d="M19.18,18.26l-.87-.87-2.04-2.04-.9-.9-3.71-3.71c-.25-.25-.67-.25-.92,0s-.25.66,0,.92l4.1,4.1.71.71,1.83,1.83.86.86.81.81,1.19,1.19,3.63,3.63c.13.13.29.19.46.19s.33-.06.46-.19c.25-.26.25-.67,0-.92l-5.61-5.61Z" />
                     </svg>
                   ) : (
-                    <svg className="w-9 h-9 shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                    <svg className="w-9 h-9 md:w-11 md:h-11 shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                       <path fill="currentColor" d="M13.2,21.91h-3.97v-1.18h1.33v-4.71c-.06.21-.16.39-.31.55-.15.16-.32.3-.53.4-.21.11-.43.19-.69.25-.25.06-.51.09-.78.09v-1.31c.29,0,.57-.05.84-.14.27-.1.52-.24.73-.44s.39-.44.52-.73c.13-.29.2-.65.2-1.06h1.31v7.1h1.33v1.18Z" />
                       <path fill="currentColor" d="M20.38,15.89c0,.39-.1.79-.31,1.19s-.49.79-.86,1.16l-2.59,2.49h2.43v-1.14h1.19v2.32h-5.33v-1.24l3.33-3.19c.29-.3.5-.57.62-.83.13-.26.19-.51.19-.75,0-.22-.04-.4-.12-.56s-.19-.28-.32-.38c-.13-.1-.28-.17-.44-.22-.17-.04-.33-.07-.49-.07-.52,0-.93.15-1.23.46s-.45.76-.45,1.35h-1.23c0-.94.25-1.67.75-2.2s1.22-.79,2.16-.79c.36,0,.7.05,1.02.16.33.1.61.25.86.45.25.2.44.45.59.76.15.3.22.65.22,1.04Z" />
                       <path fill="currentColor" d="M27.27,19.66c0,.36-.07.69-.22.99-.15.29-.35.54-.59.75-.25.21-.53.37-.86.48-.32.11-.66.17-1.02.17-.4,0-.78-.05-1.12-.16s-.65-.27-.91-.49c-.26-.22-.48-.5-.64-.85s-.26-.76-.3-1.24l1.23-.2c.04.55.22.98.53,1.29.31.32.72.47,1.21.47.42,0,.75-.11,1-.33.25-.22.38-.51.38-.88,0-.5-.16-.85-.48-1.06-.32-.21-.88-.32-1.69-.32v-1.18c.28,0,.55-.03.79-.08s.46-.14.64-.25c.18-.11.33-.24.43-.4s.16-.34.16-.54c0-.35-.1-.63-.31-.84-.21-.21-.51-.32-.91-.32-.52,0-.92.14-1.2.42-.28.28-.42.73-.42,1.35h-1.25c0-.49.07-.91.21-1.28s.33-.68.58-.92c.25-.25.55-.43.9-.56.35-.12.74-.19,1.17-.19.36,0,.69.05.99.16.31.11.58.26.81.47s.41.45.54.74c.13.29.19.61.19.98,0,.23-.04.45-.11.66-.07.21-.18.39-.32.55s-.31.29-.51.39-.43.16-.68.17c.29.03.54.1.76.22.22.12.41.28.56.46s.27.4.35.63.12.48.12.74Z" />
                     </svg>
                   )}
                 </button>
-                <button
-                  onClick={() => setShowChordDiagram(true)}
-                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition bg-neutral-700 text-neutral-400 hover:bg-neutral-600 hover:text-white"
-                  title="本曲使用和弦"
-                >
-                  <svg className="w-9 h-9 shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                    <g>
-                      <rect x="11.28" y="9.78" width="12.97" height="16.08" fill="none" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                      <rect x="11.28" y="9.78" width="12.97" height="1.21" fill="currentColor" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                      <line x1="11.28" y1="16" x2="24.26" y2="16" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                      <line x1="21.66" y1="9.52" x2="21.66" y2="26.02" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                      <line x1="19.07" y1="9.52" x2="19.07" y2="26.02" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                      <line x1="16.47" y1="9.52" x2="16.47" y2="26.02" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                      <line x1="13.88" y1="9.52" x2="13.88" y2="26.02" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                      <line x1="11.28" y1="21.02" x2="24.26" y2="21.02" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                    </g>
-                    <circle cx="21.66" cy="13.68" r="0.52" fill="currentColor" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                    <circle cx="16.47" cy="18.53" r="0.52" fill="currentColor" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                    <circle cx="13.88" cy="23.45" r="0.52" fill="currentColor" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
-                  </svg>
-                </button>
               </div>
             </div>
           </div>
-        ) : (
-          <>
+        )}
+        <div className="flex flex-col items-end gap-3 shrink-0">
             <button
               type="button"
               onClick={() => setTabPageIsAutoScroll(!tabPageIsAutoScroll)}
@@ -1512,17 +1552,49 @@ export default function TabDetail({ initialTab, artist }) {
               )}
             </button>
             <button
-              onClick={() => setShowFloatingControls(true)}
-              className="w-14 h-14 rounded-full bg-[#FFD700] text-black shadow-lg flex items-center justify-center hover:bg-yellow-400 transition opacity-60 hover:opacity-100 focus:opacity-100"
-              title="顯示設定"
-              aria-label="展開顯示設定"
+              type="button"
+              onClick={() => {
+                setShowChordDiagram((wasOpen) => {
+                  if (wasOpen) {
+                    setChordSheetLeadChord(null)
+                    return false
+                  }
+                  setChordSheetLeadChord(null)
+                  return true
+                })
+              }}
+              className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition opacity-60 hover:opacity-100 focus:opacity-100 ${showChordDiagram ? 'bg-[#FFD700] text-black hover:bg-yellow-400' : 'bg-neutral-800 border border-neutral-600 text-neutral-400 hover:bg-neutral-700 hover:text-white'}`}
+              title={showChordDiagram ? '關閉本曲和弦' : '本曲使用和弦'}
+              aria-label={showChordDiagram ? '關閉本曲和弦' : '本曲使用和弦'}
+            >
+              <svg className="w-14 h-14 shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                <g>
+                  <rect x="11.28" y="9.78" width="12.97" height="16.08" fill="none" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+                  <rect x="11.28" y="9.78" width="12.97" height="1.21" fill="currentColor" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+                  <line x1="11.28" y1="16" x2="24.26" y2="16" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+                  <line x1="21.66" y1="9.52" x2="21.66" y2="26.02" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+                  <line x1="19.07" y1="9.52" x2="19.07" y2="26.02" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+                  <line x1="16.47" y1="9.52" x2="16.47" y2="26.02" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+                  <line x1="13.88" y1="9.52" x2="13.88" y2="26.02" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+                  <line x1="11.28" y1="21.02" x2="24.26" y2="21.02" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+                </g>
+                <circle cx="21.66" cy="13.68" r="0.52" fill="currentColor" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+                <circle cx="16.47" cy="18.53" r="0.52" fill="currentColor" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+                <circle cx="13.88" cy="23.45" r="0.52" fill="currentColor" stroke="currentColor" strokeWidth={0.7} strokeMiterlimit={10} />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFloatingControls((v) => !v)}
+              className={`w-14 h-14 rounded-full bg-[#FFD700] text-black shadow-lg flex items-center justify-center hover:bg-yellow-400 transition opacity-60 hover:opacity-100 focus:opacity-100 ${showFloatingControls ? 'ring-2 ring-white/50' : ''}`}
+              title={showFloatingControls ? '收合顯示設定' : '顯示設定'}
+              aria-label={showFloatingControls ? '收合顯示設定' : '展開顯示設定'}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
               </svg>
             </button>
-          </>
-        )}
+        </div>
       </div>
       <div ref={ytContainerRef} className="fixed -left-full top-0 w-px h-px overflow-hidden pointer-events-none" aria-hidden="true" />
     </Layout>

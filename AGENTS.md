@@ -46,6 +46,15 @@
 
 ## 技術架構
 
+### 和弦指法資料（`lib`）
+
+| 來源 | 用途 |
+|------|------|
+| `@tombatossals/chords-db` | 主資料庫（多 positions） |
+| `lib/chordSlashFallbacks.json` | chords-db 無嘅 slash（如 `m7/G`） |
+| `lib/chordThumbVoicings.json` | 精選拇指／Hendrix／民謠式指法，合併入 `getChordAlternatives`（預設 append；`d/f#` 等 `THUMB_VOICINGS_PREPEND_FIRST` 會 **排最前** 且預揀第一格）；`fingers[]` 可用 0–4 或 **`"T"` / `"thumb"`**（SVG **T**） |
+| `lib/chordDb.js` 內 `POSITION_OVERRIDES` | 覆寫某和弦第一式（與 chords-db 同欄位） |
+
 ### 頁面結構 (Pages Router)
 
 ```
@@ -461,6 +470,7 @@ vercel --prod
 ---
 
 ### 編碼風格
+- **說明／註解／AI 回覆**：用**繁體中文**（粵語口語可），**唔好用簡體字**
 - 使用 JavaScript（非 TypeScript）
 - Tailwind CSS 優先
 - 手機版優先設計（Mobile First）
