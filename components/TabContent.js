@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { extractChords, ChordWithHover, ChordLineWithHover } from './ChordDiagram';
+import { parseNotationMarkerLine, contentHasNotationAnchors } from '@/lib/notationMarkers';
+import { extractChords, ChordDiagramModal, SingleChordDiagram, ChordWithHover, ChordLineWithHover } from './ChordDiagram';
 import ChordDiagramBottomSheet from './ChordDiagramBottomSheet';
 import GpSegmentPlayer from './GpSegmentPlayer';
 import { calculateTransposeSemitones } from '@/lib/keyUtils';
@@ -1535,8 +1536,10 @@ const TabContent = ({
   gpSegments = [],
   // GP 顯示主題
   gpTheme = 'dark',
-  // 記譜編輯器匯出之六線譜（alphaTex）
+  // 記譜編輯器匯出之六線譜（alphaTex）— 舊單一欄位
   notationAlphaTex = '',
+  /** 多段六線譜 [{ id, notationAlphaTex }]；有則優先於單一 notationAlphaTex */
+  notationBlocks = null,
   // 外部控制的 showInfo（由父組件傳入，確保轉調時 YouTube 唔會閂）
   showInfo: externalShowInfo,
   setShowInfo: externalSetShowInfo,
@@ -1779,6 +1782,22 @@ const TabContent = ({
     return parts;
   };
 
+  /** 依陣列索引對應 [六線譜 N]（含未填 alphaTex 嘅位） */
+  const notationBlocksList = useMemo(() => {
+    if (Array.isArray(notationBlocks) && notationBlocks.length > 0) {
+      return notationBlocks
+    }
+    if ((notationAlphaTex || '').trim()) {
+      return [{ id: 'block_0', notationAlphaTex, notationStaffSnapshot: null }]
+    }
+    return []
+  }, [notationBlocks, notationAlphaTex])
+
+  const contentHasNotationAnchorsMemo = useMemo(
+    () => contentHasNotationAnchors(content),
+    [content]
+  )
+
   const renderContent = () => {
     if (!content) return null;
 
@@ -1822,6 +1841,18 @@ const TabContent = ({
       return (
         <div style={{ fontFamily: "Arial, Helvetica, sans-serif", lineHeight: '1' }}>
           {lines.map((line, idx) => {
+            const notationSlot = parseNotationMarkerLine(line)
+            if (notationSlot) {
+              const block = notationBlocksList[notationSlot.slot - 1]
+              if (block && (block.notationAlphaTex || '').trim()) {
+                return (
+                  <div key={idx} className="mb-[25px]">
+                    <NotationAlphaTabPreview alphaTex={block.notationAlphaTex} noTopMargin transparent />
+                  </div>
+                )
+              }
+              return null
+            }
             // 檢查是否為 Section Marker
             const sectionCheck = extractSectionMarker(line);
             if (sectionCheck.hasMarker) {
@@ -1968,6 +1999,25 @@ const TabContent = ({
         continue;
       }
       
+      const notationParsed = parseNotationMarkerLine(line)
+      if (notationParsed) {
+        const lineFontSize = getLineFontSize(line)
+        const block = notationBlocksList[notationParsed.slot - 1]
+        if (block && (block.notationAlphaTex || '').trim()) {
+          elements.push(
+            <div key={`${i}-notation-anchor`} className="mb-[25px]">
+              <NotationAlphaTabPreview
+                alphaTex={block.notationAlphaTex}
+                noTopMargin
+                transparent
+              />
+            </div>
+          )
+        }
+        i++
+        continue
+      }
+
       // 計算當前行的字體大小
       const lineFontSize = getLineFontSize(line);
       
@@ -3180,13 +3230,32 @@ const TabContent = ({
               {songInfo.remark.trim()}
             </div>
           )}
-          {(notationAlphaTex || '').trim() ? (
-            <div
-              className={`mb-4 rounded-lg border overflow-hidden ${theme === 'day' ? 'border-neutral-300 bg-neutral-100' : 'border-neutral-700 bg-[#1a1a1a]'}`}
-            >
-              <NotationAlphaTabPreview alphaTex={notationAlphaTex} />
-            </div>
-          ) : null}
+          {(() => {
+            if (contentHasNotationAnchorsMemo) return null
+            const blocks =
+              Array.isArray(notationBlocks) && notationBlocks.length > 0
+                ? notationBlocks.filter((b) => (b?.notationAlphaTex || '').trim())
+                : (notationAlphaTex || '').trim()
+                  ? [{ id: 'block_0', notationAlphaTex }]
+                  : []
+            if (blocks.length === 0) return null
+            return (
+              <div>
+                {blocks.map((b, bi) => (
+                  <div
+                    key={b.id ? `${b.id}-${bi}` : `nb-${bi}`}
+                    className="mb-[25px]"
+                  >
+                    <NotationAlphaTabPreview
+                      alphaTex={b.notationAlphaTex}
+                      noTopMargin
+                      transparent
+                    />
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
           {renderContent()}
         </div>
       </div>

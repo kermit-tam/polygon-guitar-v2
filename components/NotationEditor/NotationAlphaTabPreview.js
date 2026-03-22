@@ -34,7 +34,7 @@ const COLORS = {
   staffLineColor: '#FFFFFF',
   barSeparatorColor: '#FFFFFF',
   barNumberColor: '#FFFFFF',
-  // Web/legacy keys still applied by the runtime for tab-specific painting
+  // Web keys still applied by the runtime for tab-specific painting
   fretNumberColor: '#FFFFFF',
   chordNameColor: '#FFFFFF',
   timeSignatureColor: '#FFFFFF',
@@ -78,14 +78,15 @@ function styleAlphaTabWatermark(container) {
       textEl.setAttribute('font-weight', 'normal')
 
       const svg = textEl.closest('svg')
-      const wrapper = svg?.parentElement
-      if (!wrapper || !container.contains(wrapper)) return
+      if (!svg || !container.contains(svg)) return
+      const wrapper = svg.parentElement
+      if (!wrapper) return
 
       Object.assign(wrapper.style, {
         position: 'absolute',
-        left: 'auto',
+        left: '0',
         top: 'auto',
-        right: '12px',
+        right: 'auto',
         bottom: '12px',
         width: 'auto',
         height: 'auto',
@@ -103,9 +104,9 @@ function styleAlphaTabWatermark(container) {
           const h = Math.ceil(bb.height + pad * 2)
           svg.setAttribute('width', String(w))
           svg.setAttribute('height', String(h))
-          textEl.setAttribute('x', String(w - pad))
+          textEl.setAttribute('x', String(pad))
           textEl.setAttribute('y', String(pad))
-          textEl.setAttribute('text-anchor', 'end')
+          textEl.setAttribute('text-anchor', 'start')
           textEl.setAttribute('dominant-baseline', 'hanging')
         } catch (_) {
           /* getBBox can fail if svg not laid out */
@@ -121,27 +122,21 @@ function styleAlphaTabWatermark(container) {
 /**
  * Renders alphaTex with dynamically imported @coderline/alphatab (no SSR bundle bloat).
  */
-/** alphaTab `currentTime` / `endTime` / `api.endTime` are in milliseconds — no fractional seconds in the label. */
-function formatPlaybackTimeMs(ms) {
-  if (ms == null || Number.isNaN(ms)) return '00:00'
-  const totalSec = Math.max(0, Math.floor(Number(ms) / 1000))
-  const h = Math.floor(totalSec / 3600)
-  const m = Math.floor((totalSec % 3600) / 60)
-  const s = totalSec % 60
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  }
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
-export default function NotationAlphaTabPreview({ alphaTex, onError }) {
+export default function NotationAlphaTabPreview({
+  alphaTex,
+  onError,
+  hideBorder = false,
+  noTopMargin = false,
+  /** No border or outer/inner chrome bg (e.g. tab read view) */
+  transparent = false,
+  /** With transparent, still show outer border (e.g. 記譜器 modal preview). */
+  outlined = false,
+}) {
   const containerRef = useRef(null)
   const apiRef = useRef(null)
   const [loadError, setLoadError] = useState(null)
   const [ready, setReady] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
 
   useEffect(() => {
     if (!alphaTex?.trim() || !containerRef.current) return undefined
@@ -152,8 +147,6 @@ export default function NotationAlphaTabPreview({ alphaTex, onError }) {
       setLoadError(null)
       setReady(false)
       setIsPlaying(false)
-      setCurrentTime(0)
-      setDuration(0)
       try {
         const AlphaTab = await import('@coderline/alphatab')
         if (cancelled || !containerRef.current) return
@@ -207,7 +200,7 @@ export default function NotationAlphaTabPreview({ alphaTex, onError }) {
               guitarTuning: false, // hide “Guitar Standard Tuning” (NotationElement.GuitarTuning)
               effectTempo: false,
               effectDynamics: false, // hide f (forte), p, mf, etc. (NotationElement.EffectDynamics)
-              effectBeatTimer: false, // hide per-beat timer text on score (we use one control-bar timer)
+              effectBeatTimer: false, // hide per-beat timer text on score
               trackNames: false,
             },
           },
@@ -233,40 +226,17 @@ export default function NotationAlphaTabPreview({ alphaTex, onError }) {
           const state = typeof arg === 'string' ? arg : arg?.state
           setIsPlaying(state === 'playing')
         })
-        api.playerPositionChanged.on((e) => {
-          if (cancelled) return
-          setCurrentTime(e?.currentTime ?? 0)
-          const end = e?.endTime
-          if (typeof end === 'number' && end > 0) {
-            setDuration(end)
-          }
-        })
         api.scoreLoaded.on((score) => {
           if (score?.stylesheet) {
             score.stylesheet.globalDisplayTuning = false
           }
           hideGuitarTabClefGlyph(score, AlphaTab)
-          // Total length is in ms on the API (`score.duration` is not reliable); `endTime` fills after tick lookup.
-          if (!cancelled) {
-            const endMs = api.endTime
-            if (typeof endMs === 'number' && endMs > 0) {
-              setDuration(endMs)
-            }
-          }
           try {
             api.render()
           } catch (_) {
             /* ignore */
           }
           if (!cancelled) setReady(true)
-          // `endTime` is sometimes 0 until after render/tick build — pick it up on the next tick.
-          if (!cancelled) {
-            queueMicrotask(() => {
-              if (cancelled) return
-              const t = api.endTime
-              if (typeof t === 'number' && t > 0) setDuration(t)
-            })
-          }
         })
         api.renderFinished.on(() => {
           if (cancelled || !containerRef.current) return
@@ -307,6 +277,20 @@ export default function NotationAlphaTabPreview({ alphaTex, onError }) {
     }
   }, [alphaTex])
 
+  /** Tab/embed transparent mode: re-apply watermark after layout (avoids clipped / missed credit). */
+  useEffect(() => {
+    if (!ready || !containerRef.current) return
+    const el = containerRef.current
+    const run = () => styleAlphaTabWatermark(el)
+    run()
+    const raf = requestAnimationFrame(run)
+    const t = setTimeout(run, 120)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(t)
+    }
+  }, [ready, alphaTex, transparent])
+
   const handlePlayPause = useCallback(() => {
     const api = apiRef.current
     if (!api) return
@@ -328,84 +312,58 @@ export default function NotationAlphaTabPreview({ alphaTex, onError }) {
     }
   }, [])
 
-  const handleSpeedChange = useCallback((speed) => {
-    const api = apiRef.current
-    if (api) api.playbackSpeed = speed
-  }, [])
-
   if (!alphaTex?.trim()) return null
 
+  const showBorder = !hideBorder && (!transparent || outlined)
+  const outerBg = transparent ? 'bg-transparent' : 'bg-[#121212]'
+
   return (
-    <div className="notation-alphatab-preview rounded-xl border border-neutral-800 overflow-hidden bg-[#121212]">
-      {ready && !loadError && (
-        <div
-          className="py-2 border-b border-neutral-800 px-4 flex flex-wrap items-center justify-end gap-3"
-          style={{ backgroundColor: COLORS.backgroundColor }}
-        >
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0 justify-end">
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handlePlayPause}
-                className="bg-[#FFD700] hover:bg-yellow-400 rounded-full flex items-center justify-center text-black transition shrink-0"
-                style={{ width: '1.4rem', height: '1.4rem' }}
-                aria-label={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? (
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-                    <rect x="6" y="4" width="4" height="16" />
-                    <rect x="14" y="4" width="4" height="16" />
-                  </svg>
-                ) : (
-                  <svg className="w-3 h-3 ml-px" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={handleStop}
-                className="w-8 h-8 hover:bg-neutral-700 rounded-full flex items-center justify-center text-neutral-400 hover:text-white transition shrink-0"
-                aria-label="Stop"
-              >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-                  <rect x="6" y="6" width="12" height="12" />
-                </svg>
-              </button>
-            </div>
-            <span
-              className="text-xs text-neutral-300 tabular-nums shrink-0"
-              title="Elapsed / duration"
-            >
-              {formatPlaybackTimeMs(currentTime)} / {formatPlaybackTimeMs(duration)}
-            </span>
-            <label className="flex items-center gap-1.5 text-xs text-neutral-400 shrink-0">
-              <span className="hidden sm:inline">Speed</span>
-              <select
-                defaultValue="1"
-                onChange={(e) => handleSpeedChange(Number.parseFloat(e.target.value) || 1)}
-                className="bg-black border border-neutral-700 rounded px-2 py-1 text-xs text-white max-w-[4.5rem]"
-              >
-                <option value="0.5">0.5×</option>
-                <option value="0.75">0.75×</option>
-                <option value="1">1×</option>
-                <option value="1.25">1.25×</option>
-                <option value="1.5">1.5×</option>
-                <option value="2">2×</option>
-              </select>
-            </label>
-          </div>
-        </div>
-      )}
+    <div
+      className={`notation-alphatab-preview ${noTopMargin ? '' : 'mt-[25px]'} rounded-xl ${transparent ? 'overflow-visible' : 'overflow-hidden'} ${outerBg} ${showBorder ? 'border border-neutral-800' : ''} ${outlined ? 'px-4 pt-4' : ''}`}
+    >
       {loadError && (
         <div className="py-3 text-sm text-red-400 bg-red-950/40 px-0">{loadError}</div>
       )}
       <div
-        className="relative w-full min-h-[220px] p-4"
-        style={{ backgroundColor: COLORS.backgroundColor }}
+        className="relative w-full min-h-[220px]"
+        style={{ backgroundColor: transparent ? 'transparent' : COLORS.backgroundColor }}
       >
+        {ready && !loadError && (
+          <div className="absolute top-0 left-0 z-20 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePlayPause}
+              className="bg-[#FFD700] hover:bg-yellow-400 rounded-full flex items-center justify-center text-black transition shrink-0"
+              style={{ width: '1.4rem', height: '1.4rem' }}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? (
+                <svg className="w-[1rem] h-[1rem]" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <rect x="6" y="4" width="4" height="16" />
+                  <rect x="14" y="4" width="4" height="16" />
+                </svg>
+              ) : (
+                <svg className="w-[1rem] h-[1rem]" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleStop}
+              className="w-8 h-8 hover:bg-neutral-700 rounded-full flex items-center justify-center text-neutral-200 hover:text-white transition shrink-0"
+              aria-label="Stop"
+            >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <rect x="6" y="6" width="12" height="12" />
+              </svg>
+            </button>
+          </div>
+        )}
         {!ready && !loadError && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center text-[#B3B3B3] text-sm bg-[#121212]/90">
+          <div
+            className={`absolute inset-0 z-10 flex items-center justify-center text-[#B3B3B3] text-sm ${transparent ? 'bg-transparent' : 'bg-[#121212]/90'}`}
+          >
             Loading alphaTab…
           </div>
         )}

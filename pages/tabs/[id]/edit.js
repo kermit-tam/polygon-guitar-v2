@@ -6,6 +6,7 @@ import { getTab, updateTab, deleteTab, parseCollaborators, normalizeArtistId, cl
 import { parseCreditBlock } from '@/lib/tabCredits'
 import { useAuth } from '@/contexts/AuthContext'
 import Layout from '@/components/Layout'
+import NotationEditorModal from '@/components/NotationEditor/NotationEditorModal'
 import ArtistAutoFill from '@/components/ArtistAutoFill'
 import ArtistInputSimple, { RELATION_OPTIONS } from '@/components/ArtistInputSimple'
 import GpSegmentUploader, { SEGMENT_TYPES } from '@/components/GpSegmentUploader'
@@ -18,12 +19,51 @@ import { auth, db } from '@/lib/firebase'
 import { clearArtistMapCache } from '@/lib/useArtistMap'
 import { doc, getDoc, updateDoc } from '@/lib/firestore-tracked'
 import { ArrowLeft, Music, Moon, Sun, Loader2 } from 'lucide-react'
-import { setNotationEditorReturnPath, peekPendingNotationTex, clearPendingNotationTex } from '@/lib/notationEditorBridge'
+import {
+  peekPendingNotationTex,
+  clearPendingNotationTex,
+  peekPendingNotationStaffSnapshot,
+  clearPendingNotationStaffSnapshot,
+  NOTATION_PENDING_BLOCK_ID_SESSION_KEY,
+  consumeNotationReturnHandoff,
+} from '@/lib/notationEditorBridge'
+import { buildNotationEditorSeedFromForm } from '@/lib/notationEditorSeed'
+import {
+  newNotationBlockId,
+  blocksFromTabDoc,
+  firstNotationFromBlocks,
+  hasAnyNotationTex,
+  mergeServerNotationWithClientOnly,
+  mergePendingNotationIntoBlocks,
+  mergeCachedAndPrevNotationBlocks,
+} from '@/lib/notationBlocks'
+import {
+  readTabEditNotationCache,
+  writeTabEditNotationCache,
+  clearTabEditNotationCache,
+} from '@/lib/tabEditNotationCache'
 
 const NotationAlphaTabPreview = dynamic(
   () => import('@/components/NotationEditor/NotationAlphaTabPreview'),
   { ssr: false }
 )
+
+function readPendingNotationBlockIdFromSession() {
+  if (typeof window === 'undefined') return null
+  try {
+    const v = sessionStorage.getItem(NOTATION_PENDING_BLOCK_ID_SESSION_KEY)
+    return v != null && v !== '' ? v : null
+  } catch (_) {
+    return null
+  }
+}
+
+function clearPendingNotationBlockIdFromSession() {
+  if (typeof window === 'undefined') return
+  try {
+    sessionStorage.removeItem(NOTATION_PENDING_BLOCK_ID_SESSION_KEY)
+  } catch (_) {}
+}
 
 // Key 對應的 semitone 位置 (C = 0)
 const KEY_TO_SEMITONE = {
@@ -116,7 +156,8 @@ function FormSection({ title, children, className = '' }) {
 
 export default function EditTab() {
   const router = useRouter()
-  const { id } = router.query
+  const rawId = router.query.id
+  const id = Array.isArray(rawId) ? rawId[0] : rawId
   const { user, isAuthenticated, isAdmin } = useAuth()
   const [formData, setFormData] = useState({
     title: '',
@@ -164,7 +205,7 @@ export default function EditTab() {
     spotifyAlbumId: null,
     spotifyArtistId: null,
     spotifyUrl: null,
-    notationAlphaTex: ''
+    notationBlocks: []
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -195,7 +236,8 @@ export default function EditTab() {
   // 撳「獲取歌曲資訊」後，未成功獲取資料嘅輸入欄閃紅框
   const [spotifyFlashRedFields, setSpotifyFlashRedFields] = useState(new Set())
   const spotifyJustAppliedRef = useRef(false)
-  const [showNotationCard, setShowNotationCard] = useState(false)
+  /** 防止 loadTab 並行時搶先 consume 記譜 handoff */
+  const loadTabGenerationRef = useRef(0)
 
   // Spotify 歌曲搜尋狀態
   const [isSpotifyModalOpen, setIsSpotifyModalOpen] = useState(false)
@@ -203,7 +245,19 @@ export default function EditTab() {
   // YouTube Modal 狀態
   const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false)
   const [youTubeAutoSelect, setYouTubeAutoSelect] = useState(false) // 自動選擇第一個結果
-  
+
+  const [notationEditorOpen, setNotationEditorOpen] = useState(false)
+  const [notationEditorBlockId, setNotationEditorBlockId] = useState(null)
+
+  const notationEditorSeed = useMemo(() => {
+    if (!notationEditorOpen || !notationEditorBlockId) return null
+    const block = (formData.notationBlocks || []).find((b) => b.id === notationEditorBlockId)
+    return buildNotationEditorSeedFromForm({
+      notationStaffSnapshot: block?.notationStaffSnapshot,
+      notationAlphaTex: block?.notationAlphaTex,
+    })
+  }, [notationEditorOpen, notationEditorBlockId, formData.notationBlocks])
+
   // 相似歌手狀態
   const [similarArtists, setSimilarArtists] = useState([])
   const [useExistingArtistSelected, setUseExistingArtistSelected] = useState(false)
@@ -285,8 +339,20 @@ export default function EditTab() {
     if (id && isAuthenticated) {
       loadTab()
     }
-    // user.penName 可能稍後先由 Firestore 合併；要重新檢查出譜者名稱權限
-  }, [id, isAuthenticated, user?.penName])
+    // 唔好將 user?.penName 放依度：會觸發第二次 loadTab，搶先 consume session handoff 後再用 server-only 覆寫 form
+  }, [id, isAuthenticated])
+
+  /**
+   * 未寫入 Firestore 嘅六線譜段落：全頁重新整理時 prev 會清空，要靠 session 保留。
+   * 記譜器已改為頁內 Modal，唔再靠呢個做 edit↔記譜器導航。
+   * 必須等 loadTab 完成（!isLoading）；否則初次 render 時 notationBlocks 仍係 [] 會覆寫掉之前 cache 入面嘅第二段。
+   */
+  useEffect(() => {
+    if (!id || typeof window === 'undefined' || isLoading) return
+    try {
+      writeTabEditNotationCache(id, formData.notationBlocks || [])
+    } catch (_) {}
+  }, [id, formData.notationBlocks, isLoading])
 
   // 點擊外部關閉類型、地區、Key 下拉
   useEffect(() => {
@@ -323,8 +389,10 @@ export default function EditTab() {
   }, [isAdmin, formData.uploaderPenName])
 
   const loadTab = async () => {
+    const gen = ++loadTabGenerationRef.current
     try {
       const data = await getTab(id, { skipCache: true })
+      if (gen !== loadTabGenerationRef.current) return
       if (!data) {
         router.push('/')
         return
@@ -338,6 +406,7 @@ export default function EditTab() {
         router.push(`/tabs/${id}`)
         return
       }
+      if (gen !== loadTabGenerationRef.current) return
 
       setIsAuthorized(true)
       setIsOwner(
@@ -383,6 +452,7 @@ export default function EditTab() {
           console.log('獲取歌手相片失敗:', e)
         }
       }
+      if (gen !== loadTabGenerationRef.current) return
 
       // 將舊資料轉換為新多歌手格式：每位歌手用 search-data 解析 display name；stored role → form relation（feat → 合唱/featuring 下拉）
       const resolveRegionFromMatch = (m) => {
@@ -419,63 +489,102 @@ export default function EditTab() {
         })
       }
 
-      setFormData({
-        title: data.title,
-        artist: resolvedArtistName || (parsedArtists[0]?.name) || data.artist || data.artistName || '',
-        artists: parsedArtists,
-        artistType: fallbackArtistType,
-        originalKey: data.originalKey || 'C',
-        capo: data.capo || '',
-        playKey: (() => {
-          const o = data.originalKey || 'C'
-          const p = data.playKey || ''
-          if (!p) return ''
-          if (o.endsWith('m') !== p.endsWith('m')) return '' // major/minor 唔一致時當「同原調」
-          return p
-        })(),
-        content: data.content,
-        artistPhoto: artistPhoto || data.artistPhoto || '',
-        artistBio: data.artistBio || '',
-        artistYear: data.artistYear || '',
-        artistBirthYear: data.artistBirthYear || '',
-        artistDebutYear: data.artistDebutYear || '',
-        region: fallbackRegion,
-        songYear: data.songYear || '',
-        composer: data.composer || '',
-        lyricist: data.lyricist || '',
-        arranger: data.arranger || '',
-        producer: data.producer || '',
-        album: data.album || '',
-        bpm: data.bpm || '',
-        youtubeUrl: data.youtubeUrl || '',
-        youtubeVideoId: data.youtubeVideoId || '',
-        youtubeVideoTitle: data.youtubeVideoTitle || '',
-        youtubeChannelTitle: data.youtubeChannelTitle || '',
-        uploaderPenName: data.uploaderPenName || '',
-        remark: data.remark || '',
-        viewCount: data.viewCount || 0,
-        createdAt: data.createdAt,
-        albumImage: data.albumImage || '',
-        coverImage: data.coverImage || '',
-        displayFont: data.displayFont || 'mono',
-        inputFont: data.displayFont || 'mono', // 統一使用 displayFont 作為輸入字體
-        gpSegments: data.gpSegments || [],
-        gpTheme: data.gpTheme || 'dark',
-        // Spotify 資訊（載入時帶入 spotifyFilled* 以便歌曲年份／專輯顯示綠色框）
-        spotifyTrackId: data.spotifyTrackId || null,
-        spotifyAlbumId: data.spotifyAlbumId || null,
-        spotifyArtistId: data.spotifyArtistId || null,
-        spotifyUrl: data.spotifyUrl || null,
-        spotifyFilledSongYear: data.spotifyTrackId ? (data.songYear ?? '') : '',
-        spotifyFilledAlbum: data.spotifyTrackId ? (data.album ?? '') : '',
-        notationAlphaTex: data.notationAlphaTex || ''
-      })
-      const pendingTex = peekPendingNotationTex()
-      if (pendingTex) {
-        setFormData((prev) => ({ ...prev, notationAlphaTex: pendingTex }))
-        setShowNotationCard(true)
+      if (gen !== loadTabGenerationRef.current) return
+
+      /** 單一 atomic handoff（獨立 /notation-editor 頁 Save 返回）— Modal 路徑唔用；必須喺 setFormData 之前、全部 await 之後先讀 */
+      let notationHandoff = null
+      if (typeof window !== 'undefined') {
+        const atomic = consumeNotationReturnHandoff()
+        if (atomic && atomic.v === 1 && (atomic.alphaTex || atomic.staffSnapshot)) {
+          notationHandoff = {
+            tex: atomic.alphaTex ?? '',
+            staff: atomic.staffSnapshot ?? null,
+            blockId: atomic.blockId ?? null,
+          }
+          clearPendingNotationTex()
+          clearPendingNotationStaffSnapshot()
+          clearPendingNotationBlockIdFromSession()
+        } else {
+          const pendingTex = peekPendingNotationTex()
+          const pendingStaff = peekPendingNotationStaffSnapshot()
+          const pendingBlockId = readPendingNotationBlockIdFromSession()
+          if (pendingTex || pendingStaff) {
+            notationHandoff = { tex: pendingTex || '', staff: pendingStaff, blockId: pendingBlockId }
+            clearPendingNotationTex()
+            clearPendingNotationStaffSnapshot()
+            clearPendingNotationBlockIdFromSession()
+          }
+        }
       }
-      setTimeout(() => clearPendingNotationTex(), 5000)
+
+      if (gen !== loadTabGenerationRef.current) return
+
+      setFormData((prev) => {
+        if (gen !== loadTabGenerationRef.current) return prev
+        const serverBlocks = blocksFromTabDoc(data)
+        const cachedBlocks = readTabEditNotationCache(id)
+        const clientMerged = mergeCachedAndPrevNotationBlocks(cachedBlocks, prev.notationBlocks)
+        let notationBlocks = mergeServerNotationWithClientOnly(serverBlocks, clientMerged)
+        if (notationHandoff && (notationHandoff.tex || notationHandoff.staff)) {
+          notationBlocks = mergePendingNotationIntoBlocks(
+            notationBlocks,
+            notationHandoff.tex,
+            notationHandoff.staff,
+            notationHandoff.blockId
+          )
+        }
+        return {
+          title: data.title,
+          artist: resolvedArtistName || (parsedArtists[0]?.name) || data.artist || data.artistName || '',
+          artists: parsedArtists,
+          artistType: fallbackArtistType,
+          originalKey: data.originalKey || 'C',
+          capo: data.capo || '',
+          playKey: (() => {
+            const o = data.originalKey || 'C'
+            const p = data.playKey || ''
+            if (!p) return ''
+            if (o.endsWith('m') !== p.endsWith('m')) return '' // major/minor 唔一致時當「同原調」
+            return p
+          })(),
+          content: data.content,
+          artistPhoto: artistPhoto || data.artistPhoto || '',
+          artistBio: data.artistBio || '',
+          artistYear: data.artistYear || '',
+          artistBirthYear: data.artistBirthYear || '',
+          artistDebutYear: data.artistDebutYear || '',
+          region: fallbackRegion,
+          songYear: data.songYear || '',
+          composer: data.composer || '',
+          lyricist: data.lyricist || '',
+          arranger: data.arranger || '',
+          producer: data.producer || '',
+          album: data.album || '',
+          bpm: data.bpm || '',
+          youtubeUrl: data.youtubeUrl || '',
+          youtubeVideoId: data.youtubeVideoId || '',
+          youtubeVideoTitle: data.youtubeVideoTitle || '',
+          youtubeChannelTitle: data.youtubeChannelTitle || '',
+          uploaderPenName: data.uploaderPenName || '',
+          remark: data.remark || '',
+          viewCount: data.viewCount || 0,
+          createdAt: data.createdAt,
+          albumImage: data.albumImage || '',
+          coverImage: data.coverImage || '',
+          displayFont: data.displayFont || 'mono',
+          inputFont: data.displayFont || 'mono', // 統一使用 displayFont 作為輸入字體
+          gpSegments: data.gpSegments || [],
+          gpTheme: data.gpTheme || 'dark',
+          // Spotify 資訊（載入時帶入 spotifyFilled* 以便歌曲年份／專輯顯示綠色框）
+          spotifyTrackId: data.spotifyTrackId || null,
+          spotifyAlbumId: data.spotifyAlbumId || null,
+          spotifyArtistId: data.spotifyArtistId || null,
+          spotifyUrl: data.spotifyUrl || null,
+          spotifyFilledSongYear: data.spotifyTrackId ? (data.songYear ?? '') : '',
+          spotifyFilledAlbum: data.spotifyTrackId ? (data.album ?? '') : '',
+          notationBlocks,
+        }
+      })
       if (data.spotifyTrackId) {
         const artist = (data.artist || '').trim()
         const title = (data.title || '').trim()
@@ -541,7 +650,7 @@ export default function EditTab() {
       newErrors.artist = '請輸入歌手名'
     }
     const hasText = !!formData.content.trim()
-    const hasNotation = !!(formData.notationAlphaTex || '').trim()
+    const hasNotation = hasAnyNotationTex(formData.notationBlocks)
     if (!hasText && !hasNotation) {
       newErrors.content = '請輸入譜內容或加入六線譜'
     }
@@ -549,106 +658,114 @@ export default function EditTab() {
     return Object.keys(newErrors).length === 0
   }
 
+  const prepareSubmitPayload = async () => {
+    let penNameToUse = (formData.uploaderPenName || '').trim() || '結他友'
+    if (!isAdmin) {
+      try {
+        const userRef = doc(db, 'users', user.uid)
+        const userSnap = await getDoc(userRef)
+        if (userSnap.exists()) {
+          const userData = userSnap.data()
+          const fromProfile = (userData.penName || '').trim()
+          if (fromProfile) {
+            penNameToUse = fromProfile
+          } else {
+            penNameToUse = (userData.displayName || '').trim() || (userData.email || '').split('@')[0]?.trim() || '結他友'
+            await updateDoc(userRef, { penName: penNameToUse, updatedAt: new Date().toISOString() })
+          }
+        }
+      } catch (_) {}
+    }
+    const artistDisplay = (formData.artist || getArtistDisplayName(formData.artists) || '').trim()
+    const firstNotation = firstNotationFromBlocks(formData.notationBlocks)
+    const rawData = {
+      ...formData,
+      artist: artistDisplay,
+      artists: formData.artists,
+      uploaderPenName: penNameToUse,
+      inputFont: formData.displayFont,
+      notationBlocks: formData.notationBlocks || [],
+      notationAlphaTex: firstNotation.notationAlphaTex,
+      notationStaffSnapshot: firstNotation.notationStaffSnapshot,
+    }
+
+    const content = (rawData.content || '').trim()
+    const parsedCredits = content ? parseCreditBlock(content) : null
+    if (parsedCredits) {
+      const empty = (v) => (v === undefined || v === null || String(v).trim() === '')
+      if (empty(rawData.composer) && parsedCredits.composer) rawData.composer = parsedCredits.composer
+      if (empty(rawData.lyricist) && parsedCredits.lyricist) rawData.lyricist = parsedCredits.lyricist
+      if (empty(rawData.arranger) && parsedCredits.arranger) rawData.arranger = parsedCredits.arranger
+      if (empty(rawData.producer) && parsedCredits.producer) rawData.producer = parsedCredits.producer
+    }
+
+    const submitData = Object.fromEntries(Object.entries(rawData).filter(([_, v]) => v !== undefined))
+
+    if (submitData.gpSegments) {
+      submitData.gpSegments = submitData.gpSegments.map((seg) => {
+        const cleanSeg = { ...seg }
+        Object.keys(cleanSeg).forEach((key) => {
+          if (cleanSeg[key] === undefined) delete cleanSeg[key]
+        })
+        return cleanSeg
+      })
+    }
+
+    return submitData
+  }
+
+  const runTabUpdatePipeline = async (submitData) => {
+    const updatedTab = await updateTab(id, submitData, user.uid, isAdmin, user?.penName || '')
+    try { sessionStorage.setItem('pg_tab_just_updated', id) } catch (e) {}
+    if (typeof window !== 'undefined') {
+      clearTabCache(id)
+      invalidateArtistCaches()
+      const primaryName = (formData.artists?.[0]?.name || formData.artist || '').trim()
+      const artistId = formData.artists?.[0]?.id || updatedTab?.artistId || (primaryName && normalizeArtistId(primaryName))
+      if (artistId) {
+        try { localStorage.removeItem(`pg_artist_${artistId}`) } catch (e) {}
+        invalidateArtistTabsCache(artistId)
+      }
+      try {
+        await fetch('/api/search-data?bust=1')
+      } catch (e) {}
+      try {
+        const token = await auth.currentUser?.getIdToken?.()
+        if (token) {
+          const patchRes = await fetch('/api/patch-caches-on-new-tab', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ tab: updatedTab || { id, ...submitData }, action: 'update' })
+          })
+          if (!patchRes.ok) {
+            const j = await patchRes.json().catch(() => ({}))
+            console.warn('[patch-caches] update failed:', patchRes.status, j)
+          }
+        }
+      } catch (e) {
+        console.warn('[patch-caches] update patch error:', e)
+      }
+      try {
+        await fetch(`/api/revalidate-tab?id=${id}`)
+      } catch (e) {}
+      clearArtistMapCache()
+    }
+    return updatedTab
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!validate()) return
 
     setIsSubmitting(true)
     try {
-      // 強制出譜者名稱：管理員用手動輸入；一般用戶用個人主頁嘅出譜者名稱
-      let penNameToUse = (formData.uploaderPenName || '').trim() || '結他友'
-      if (!isAdmin) {
-        try {
-          const userRef = doc(db, 'users', user.uid)
-          const userSnap = await getDoc(userRef)
-          if (userSnap.exists()) {
-            const userData = userSnap.data()
-            const fromProfile = (userData.penName || '').trim()
-            if (fromProfile) {
-              penNameToUse = fromProfile
-            } else {
-              penNameToUse = (userData.displayName || '').trim() || (userData.email || '').split('@')[0]?.trim() || '結他友'
-              await updateDoc(userRef, { penName: penNameToUse, updatedAt: new Date().toISOString() })
-            }
-          }
-        } catch (_) {}
-      }
-      // 若 artist 字串為空，用 artists 陣列組出顯示名（與驗證一致）
-      const artistDisplay = (formData.artist || getArtistDisplayName(formData.artists) || '').trim()
-      const rawData = {
-        ...formData,
-        artist: artistDisplay,
-        artists: formData.artists, // 保存多歌手陣列
-        uploaderPenName: penNameToUse,
-        inputFont: formData.displayFont // 統一使用 displayFont
-      }
-
-      // 若曲詞編監為空而譜內容有相關資料，自動從內容解析並填入
-      const content = (rawData.content || '').trim()
-      const parsedCredits = content ? parseCreditBlock(content) : null
-      if (parsedCredits) {
-        const empty = (v) => (v === undefined || v === null || String(v).trim() === '')
-        if (empty(rawData.composer) && parsedCredits.composer) rawData.composer = parsedCredits.composer
-        if (empty(rawData.lyricist) && parsedCredits.lyricist) rawData.lyricist = parsedCredits.lyricist
-        if (empty(rawData.arranger) && parsedCredits.arranger) rawData.arranger = parsedCredits.arranger
-        if (empty(rawData.producer) && parsedCredits.producer) rawData.producer = parsedCredits.producer
-      }
-      
-      // 清理 undefined 值
-      const submitData = Object.fromEntries(
-        Object.entries(rawData).filter(([_, v]) => v !== undefined)
-      )
-
-      // 清理 gpSegments 中的 undefined
-      if (submitData.gpSegments) {
-        submitData.gpSegments = submitData.gpSegments.map(seg => {
-          const cleanSeg = { ...seg }
-          Object.keys(cleanSeg).forEach(key => {
-            if (cleanSeg[key] === undefined) {
-              delete cleanSeg[key]
-            }
-          })
-          return cleanSeg
-        })
-      }
-      
+      const submitData = await prepareSubmitPayload()
       console.log('Submitting data:', submitData)
-      const updatedTab = await updateTab(id, submitData, user.uid, isAdmin, user?.penName || '')
-      try { sessionStorage.setItem('pg_tab_just_updated', id) } catch (e) {}
-      if (typeof window !== 'undefined') {
-        clearTabCache(id)
-        invalidateArtistCaches()
-        const primaryName = (formData.artists?.[0]?.name || formData.artist || '').trim()
-        const artistId = formData.artists?.[0]?.id || updatedTab?.artistId || (primaryName && normalizeArtistId(primaryName))
-        if (artistId) {
-          try { localStorage.removeItem(`pg_artist_${artistId}`) } catch (e) {}
-          invalidateArtistTabsCache(artistId)
-        }
-        try {
-          await fetch('/api/search-data?bust=1')
-        } catch (e) {}
-        try {
-          const token = await auth.currentUser?.getIdToken?.()
-          if (token) {
-            const patchRes = await fetch('/api/patch-caches-on-new-tab', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ tab: updatedTab || { id, ...submitData }, action: 'update' })
-            })
-            if (!patchRes.ok) {
-              const j = await patchRes.json().catch(() => ({}))
-              console.warn('[patch-caches] update failed:', patchRes.status, j)
-            }
-          }
-        } catch (e) {
-          console.warn('[patch-caches] update patch error:', e)
-        }
-        try {
-          await fetch(`/api/revalidate-tab?id=${id}`)
-        } catch (e) {}
-        clearArtistMapCache()
-      }
+      await runTabUpdatePipeline(submitData)
+      try {
+        clearTabEditNotationCache(id)
+      } catch (_) {}
       router.push(`/tabs/${id}?updated=1`)
     } catch (error) {
       console.error('Update tab error:', error)
@@ -656,6 +773,49 @@ export default function EditTab() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const openNotationEditorForBlock = (blockId) => {
+    setNotationEditorBlockId(blockId)
+    setNotationEditorOpen(true)
+  }
+
+  const handleNotationEditorSave = ({ notationAlphaTex, notationStaffSnapshot, blockId }) => {
+    const bid = blockId || notationEditorBlockId
+    if (!bid) return
+    setFormData((prev) => ({
+      ...prev,
+      notationBlocks: (prev.notationBlocks || []).map((b) =>
+        b.id === bid ? { ...b, notationAlphaTex, notationStaffSnapshot } : b
+      ),
+    }))
+  }
+
+  const closeNotationEditor = () => {
+    setNotationEditorOpen(false)
+    setNotationEditorBlockId(null)
+  }
+
+  const handleAddNotationBlock = () => {
+    const nid = newNotationBlockId()
+    setFormData((prev) => {
+      const prevBlocks = prev.notationBlocks || []
+      const nextBlocks = [
+        ...prevBlocks,
+        { id: nid, notationAlphaTex: '', notationStaffSnapshot: null },
+      ]
+      return {
+        ...prev,
+        notationBlocks: nextBlocks,
+      }
+    })
+  }
+
+  const removeNotationBlock = (blockId) => {
+    setFormData((prev) => ({
+      ...prev,
+      notationBlocks: (prev.notationBlocks || []).filter((b) => b.id !== blockId),
+    }))
   }
 
   // 刪除樂譜
@@ -677,6 +837,9 @@ export default function EditTab() {
           })
         }
       } catch (e) { console.warn('[patch-caches] delete patch failed:', e) }
+      try {
+        clearTabEditNotationCache(id)
+      } catch (_) {}
       alert('✅ 樂譜已刪除')
       router.push('/library')
     } catch (error) {
@@ -1846,83 +2009,6 @@ E|----------------------------------------------------------------|
                   </div>
                 </div>
 
-                {!showNotationCard && !(formData.notationAlphaTex || '').trim() && (
-                  <div className="flex justify-end w-full">
-                    <button
-                      type="button"
-                      onClick={() => setShowNotationCard(true)}
-                      className="text-xs text-[#FFD700] hover:text-yellow-300"
-                    >
-                      加入六線譜
-                    </button>
-                  </div>
-                )}
-
-                {(showNotationCard || (formData.notationAlphaTex || '').trim()) && id && (
-                  <div className="w-full rounded-lg border border-neutral-700 bg-black shadow-lg overflow-hidden">
-                    {(formData.notationAlphaTex || '').trim() ? (
-                      <>
-                        <div className="bg-[#1a1a1a] border-b border-neutral-800">
-                          <NotationAlphaTabPreview alphaTex={formData.notationAlphaTex} />
-                        </div>
-                        <div className="flex flex-wrap gap-2 justify-end p-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setNotationEditorReturnPath(`/tabs/${id}/edit`)
-                              router.push('/notation-editor')
-                            }}
-                            className="px-4 py-2 rounded-lg bg-[#FFD700] text-black text-sm font-semibold hover:bg-yellow-400 shadow-md"
-                          >
-                            編輯
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormData((prev) => ({ ...prev, notationAlphaTex: '' }))
-                              setShowNotationCard(false)
-                            }}
-                            className="px-4 py-2 rounded-lg bg-[#282828] text-white text-sm font-medium border border-neutral-600 hover:bg-[#3E3E3E]"
-                          >
-                            移除
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-wrap items-center gap-3 p-2">
-                        <img
-                          src="/notation-editor.png"
-                          alt=""
-                          className="h-[80px] w-auto object-contain block shrink-0"
-                          draggable={false}
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setNotationEditorReturnPath(`/tabs/${id}/edit`)
-                              router.push('/notation-editor')
-                            }}
-                            className="px-4 py-2 rounded-lg bg-[#FFD700] text-black text-sm font-semibold hover:bg-yellow-400 shadow-md"
-                          >
-                            編輯
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormData((prev) => ({ ...prev, notationAlphaTex: '' }))
-                              setShowNotationCard(false)
-                            }}
-                            className="px-4 py-2 rounded-lg bg-[#282828] text-white text-sm font-medium border border-neutral-600 hover:bg-[#3E3E3E]"
-                          >
-                            移除
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 <div>
                   <textarea
                     id="content"
@@ -1973,6 +2059,76 @@ Chord會自動追蹤歌詞中( )位置
                 <span>{formData.displayFont === 'mono' ? 'Chord會自動追蹤歌詞中( )位置，用戶不用自己加空格對位' : formData.displayFont === 'manual' ? '人手在結他譜輸入的空格 和 網站結他譜空格顯示會一致' : 'for copy CHORD LOG 結他譜 only'}</span>
               </div>
             </div>
+            </FormSection>
+
+            <FormSection title="六線譜">
+              <div className="space-y-4">
+                <p className="pl-1 text-xs text-[#B3B3B3] leading-relaxed">
+                  每份六線譜會有一個 ID 如{' '}
+                  <span className="text-[#FFD700] font-mono text-[12px]">[六線譜 1]</span>
+                  ，ID 連括號放進譜內容中。
+                </p>
+                <div className="flex justify-start w-full">
+                  <button
+                    type="button"
+                    onClick={handleAddNotationBlock}
+                    disabled={!id}
+                    className="inline-flex items-center gap-1 text-xs text-[#FFD700] hover:text-yellow-300 disabled:opacity-40"
+                  >
+                    <span className="text-sm font-medium leading-none" aria-hidden>+</span>
+                    加入六線譜
+                  </button>
+                </div>
+                {id && (formData.notationBlocks || []).length > 0 && (
+                  <div className="space-y-3 w-full">
+                    {(formData.notationBlocks || []).map((block, index) => (
+                      <div
+                        key={`${block.id}-${index}`}
+                        className="w-full rounded-lg border border-neutral-700 bg-black shadow-lg overflow-hidden"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 pl-3 pr-[0.5rem] py-2 border-b border-neutral-800 bg-neutral-900/40">
+                          <span className="text-md font-medium text-[#B3B3B3]">[六線譜 {index + 1}]</span>
+                          <div className="flex flex-wrap gap-2 justify-end shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => openNotationEditorForBlock(block.id)}
+                              className="px-[0.6rem] py-2 rounded-lg bg-[#FFD700] text-black text-sm font-semibold leading-4 hover:bg-yellow-400 shadow-md"
+                            >
+                              編輯
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeNotationBlock(block.id)}
+                              className="px-[0.6rem] py-2 rounded-lg bg-[#282828] text-white text-sm font-medium leading-4 border border-neutral-600 hover:bg-[#3E3E3E]"
+                            >
+                              移除
+                            </button>
+                          </div>
+                        </div>
+                        {(block.notationAlphaTex || '').trim() ? (
+                          <div className="px-4">
+                            <NotationAlphaTabPreview
+                              alphaTex={block.notationAlphaTex}
+                              transparent
+                              noTopMargin
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-3 p-3">
+                            <img
+                              src="/notation-editor.png"
+                              alt=""
+                              className="h-[80px] w-auto object-contain block shrink-0"
+                              draggable={false}
+                            />
+                            <p className="text-sm text-[#737373]">尚未編輯 — 按「編輯」開啟記譜器</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </FormSection>
 
             {/* Submit */}
@@ -2039,6 +2195,16 @@ Chord會自動追蹤歌詞中( )位置
         songTitle={formData.title}
         onSelect={handleUseSpotifyTrack}
       />
+
+      {notationEditorOpen && notationEditorBlockId && (
+        <NotationEditorModal
+          open
+          onClose={closeNotationEditor}
+          draftScopeId={notationEditorBlockId}
+          initialSeed={notationEditorSeed}
+          onSave={handleNotationEditorSave}
+        />
+      )}
     </Layout>
   )
 }

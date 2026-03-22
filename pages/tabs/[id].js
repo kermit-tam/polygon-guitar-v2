@@ -1217,6 +1217,9 @@ export default function TabDetail({ initialTab, artist }) {
           gpSegments={tab.gpSegments || []}
           gpTheme={tab.gpTheme || 'dark'}
           notationAlphaTex={tab.notationAlphaTex || ''}
+          notationBlocks={
+            Array.isArray(tab.notationBlocks) && tab.notationBlocks.length > 0 ? tab.notationBlocks : null
+          }
           showInfo={showInfo}
           setShowInfo={toggleShowInfo}
           hideKeyRowAndBottomBar

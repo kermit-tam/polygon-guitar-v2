@@ -56,7 +56,8 @@ const DIVISION_ORDER = [DIVISION_IDS.DOTTED, DIVISION_IDS.TIE, DIVISION_IDS.TUPL
 
 const btnBase = 'flex items-center justify-center rounded transition-colors border border-transparent'
 const btnSelected = 'bg-neutral-300 text-neutral-800 border-neutral-400'
-const btnUnselected = 'text-neutral-600 hover:bg-neutral-200 hover:text-neutral-800'
+const btnUnselected =
+  'text-neutral-700 hover:bg-neutral-200 hover:text-neutral-900'
 
 function ToolButton({ selected, onClick, label, children, className = '' }) {
   return (
@@ -80,6 +81,8 @@ export default function NotationToolbar({
   onToggleDivision,
   timeSignatureId,
   onSelectTimeSignature,
+  bpm = 100,
+  onBpmChange,
 }) {
   const [tupletImgFailed, setTupletImgFailed] = useState(false)
   const [beatsPopupOpen, setBeatsPopupOpen] = useState(false)
@@ -102,11 +105,11 @@ export default function NotationToolbar({
   const currentTs = TIME_SIGNATURES.find((t) => t.id === timeSignatureId) ?? TIME_SIGNATURES[2]
 
   return (
-    <div className="p-3 bg-neutral-200 border-b border-neutral-300" style={{ fontFamily: NOTO_MUSIC }}>
+    <div
+      className="bg-white py-3 px-4 rounded-t-xl border-x border-t border-neutral-300 border-b border-neutral-300"
+      style={{ fontFamily: NOTO_MUSIC }}
+    >
       <div className="flex flex-wrap items-center gap-1">
-        <span className="text-xs font-medium text-neutral-600 px-2 py-1.5 uppercase tracking-wide w-20 shrink-0">
-          Duration
-        </span>
         {DURATION_ORDER.map((id) => (
           <ToolButton
             key={id}
@@ -117,7 +120,7 @@ export default function NotationToolbar({
             <span className="text-2xl" aria-hidden>{DURATION_SYMBOLS[id]}</span>
           </ToolButton>
         ))}
-        <div className="w-px h-10 bg-black shrink-0 self-center" aria-hidden />
+        <div className="w-px h-10 bg-neutral-300 shrink-0 self-center" aria-hidden />
         <ToolButton
           selected={divisionFlags[DIVISION_IDS.DOTTED]}
           onClick={() => onToggleDivision(DIVISION_IDS.DOTTED)}
@@ -151,7 +154,7 @@ export default function NotationToolbar({
             )}
           </span>
         </ToolButton>
-        <div className="w-px h-10 bg-black shrink-0 self-center" aria-hidden />
+        <div className="w-px h-10 bg-neutral-300 shrink-0 self-center" aria-hidden />
         <div className="relative shrink-0" ref={beatsButtonRef}>
           <button
             type="button"
@@ -194,6 +197,28 @@ export default function NotationToolbar({
             </div>
           )}
         </div>
+        <span
+          className="text-lg font-light text-neutral-400 px-1 select-none self-center leading-none"
+          aria-hidden
+        >
+          |
+        </span>
+        <label
+          className="flex items-center gap-2 shrink-0 text-xs font-medium text-neutral-600 uppercase tracking-wide"
+          style={{ fontFamily: 'system-ui, sans-serif' }}
+        >
+          BPM
+          <input
+            type="number"
+            min={1}
+            max={480}
+            step={1}
+            value={bpm}
+            onChange={(e) => onBpmChange?.(e.target.value)}
+            className="w-16 h-9 rounded border border-neutral-300 bg-white px-2 text-sm tabular-nums text-black [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            aria-label="Beats per minute"
+          />
+        </label>
       </div>
     </div>
   )

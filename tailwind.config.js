@@ -7,6 +7,9 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontSize: {
+        md: ['1rem', { lineHeight: '1.5rem' }],
+      },
       fontFamily: {
         mono: ['Consolas', 'Monaco', 'Courier New', 'monospace'],
       },
