@@ -504,7 +504,7 @@ function isNumericNotationLine(line) {
   
   // 匹配完整簡譜音符：數字 + 可選的一個修飾符 ' 或 # 或 ,（如 1', 5#, 6, 7,）
   // 使用 ? 而不是 *，避免 2'1' 被當作一個音符
-  const notationPattern = /\d['#,]?/g;
+  const notationPattern = /\d['#,b]?/g;
   const notationMatches = line.match(notationPattern) || [];
   const notationCount = notationMatches.length;
   
@@ -530,7 +530,7 @@ function isNumericNotationLine(line) {
   
   // 舊版兼容：有括號數字模式（半形或全形），支援 (7,) 低音等
   if (line.includes('(') || line.includes('（')) {
-    const numericBracketPattern = /[\(（]\d+['#,.]?[\)）]/g;
+    const numericBracketPattern = /[\(（]\d+['#,.b]?[\)）]/g;
     const numericBrackets = line.match(numericBracketPattern) || [];
     if (numericBrackets.length >= 1 && (notationCount > 3 || digits > 3) && chineseChars < 3 && otherLetters.length <= digits) {
       return true;
@@ -552,7 +552,7 @@ function isBracketsOnlyNumberedNotationLine(line) {
   while ((match = bracketContentRegex.exec(line)) !== null) {
     const inner = match[1].trim();
     if (inner.length > 0) {
-      if (/^\d+['#,.]?$/.test(inner)) hasNotation = true;
+      if (/^\d+['#,.b]?$/.test(inner)) hasNotation = true;
       else allNotationOrEmpty = false;
     }
   }
@@ -568,7 +568,7 @@ function extractNotationNumbers(line) {
   const numbers = [];
   // 匹配完整簡譜音符：數字 + 可選的一個修飾符 ' 或 # 或 ,（高音/升號/低音）
   // 使用 ? 而不是 *，避免 2'1' 被當作一個音符
-  const regex = /\d['#,]?/g;
+  const regex = /\d['#,b]?/g;
   let match;
   while ((match = regex.exec(line)) !== null) {
     numbers.push({
@@ -813,10 +813,11 @@ function processNumericNotationLine(line) {
   return parts;
 }
 
-// 將簡譜文字中的 1'（高音）/ 5,（低音）渲染為數字上方/下方加點
+// 將簡譜文字中的 1'（高音）/ 5,（低音）/ 6b（降）/ 5#（升）渲染為視覺化符號
 function renderNotationToken(text, color, keyPrefix = '') {
   if (!text) return null;
-  const tokenRegex = /(\d)([',])/g;
+  // 匹配：數字+高音' / 數字+低音, / 數字+降b / 數字+升#
+  const tokenRegex = /(\d)([',b#])/g;
   const result = [];
   let lastIndex = 0;
   let match;
@@ -830,7 +831,7 @@ function renderNotationToken(text, color, keyPrefix = '') {
     if (modifier === "'") {
       result.push(
         <span key={`${keyPrefix}h${idx++}`} style={{ position: 'relative', display: 'inline-block', textAlign: 'center', color, width: '0.6em' }}>
-          <span style={{ position: 'absolute', top: '-0.5em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.7em' }}>{'\u2022'}</span>
+          <span style={{ position: 'absolute', top: '-0.6em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.5em' }}>{'\u2022'}</span>
           {digit}
         </span>
       );
@@ -838,7 +839,19 @@ function renderNotationToken(text, color, keyPrefix = '') {
       result.push(
         <span key={`${keyPrefix}l${idx++}`} style={{ position: 'relative', display: 'inline-block', textAlign: 'center', color, width: '0.6em' }}>
           {digit}
-          <span style={{ position: 'absolute', bottom: '-0.3em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.7em' }}>{'\u2022'}</span>
+          <span style={{ position: 'absolute', bottom: '-0.55em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.5em' }}>{'\u2022'}</span>
+        </span>
+      );
+    } else if (modifier === 'b') {
+      result.push(
+        <span key={`${keyPrefix}f${idx++}`} style={{ color }}>
+          {digit}<span style={{ fontSize: '0.75em' }}>{'\u266D'}</span>
+        </span>
+      );
+    } else if (modifier === '#') {
+      result.push(
+        <span key={`${keyPrefix}s${idx++}`} style={{ color }}>
+          {digit}<span style={{ fontSize: '0.75em' }}>{'\u266F'}</span>
         </span>
       );
     }
@@ -1125,8 +1138,8 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
     if (tokenName) {
       let displayName = tokenName;
       const isSlashBassOnly = isSlashBassContinuationToken(tokenName)
-      let isChord = /^[A-G]/.test(tokenName) || /^N\.?C\.?$/i.test(tokenName) || isSlashBassOnly;
-      let isDash = tokenName === '-' || tokenName === '*' || /^\d+\/\d+$/.test(tokenName);
+      let isChord = /^[A-G]/.test(tokenName) || isSlashBassOnly;
+      let isDash = tokenName === '-' || tokenName === '*' || /^\d+\/\d+$/.test(tokenName) || /^N\.?C\.?$/i.test(tokenName);
       
       // 如果是和弦，處理轉調
       if (isChord && transposeSemitones !== 0) {
@@ -1478,7 +1491,7 @@ function ChordLyricBlockWithWrap({ pair, result, processPair, renderBlock, pairM
               marginBottom: idx === 0 ? (pairMarginBottom ?? '0.05em') : 0,
             }}
           >
-            {renderBlock(processPair(p), null, null)}
+            {renderBlock(processPair(p), null, idx === 0 ? notationContent : null)}
           </div>
         ))}
       </>
@@ -2342,7 +2355,7 @@ const TabContent = ({
               const notationFontSize = getLineFontSize(notationLine);
               const aligned = alignNotationWithLyrics(notationLine, lyricLine);
               const hasRealLyric = lyricLine && (/[\u4e00-\u9fff]/.test(lyricLine) || /[a-zA-Z]+/.test(lyricLine)) && !isNumericNotationLine(lyricLine);
-              const notationMarginBottom = hasRealLyric ? '2px' : '0em';
+              const notationMarginBottom = hasRealLyric ? '0.35em' : '0em';
               if (aligned) {
                 return (
                   <div key={index} style={{ marginBottom: notationMarginBottom, lineHeight: '1.1', maxWidth: '100%', minWidth: 0 }}>
@@ -2407,7 +2420,7 @@ const TabContent = ({
                     if (hideBrackets && part.type === 'inside') {
                       content = content.replace(/^[\(（]/, ' ').replace(/[\)）]$/, ' ');
                     }
-                    const innerOnlyNotation = part.type === 'inside' && /^[\(（]\d+['#,.]?[\)）]$/.test(part.content);
+                    const innerOnlyNotation = part.type === 'inside' && /^[\(（]\d+['#,.b]?[\)）]$/.test(part.content);
                     const partColor = innerOnlyNotation ? colors.numericNotation : (part.type === 'inside' ? colors.lyricInside : colors.numericNotation);
                     return <span key={idx}>{renderNotationToken(content, partColor, `fn-${idx}-`)}</span>;
                   })}
@@ -2441,8 +2454,10 @@ const TabContent = ({
                     if (!s.chord || s.cw <= s.bw) {
                       return { ...s, mode: 'fit', trimmedRemainder: s.remainder };
                     }
+                    // chord 有 trailing tokens 時強制 expand，避免 overflow 同 trailing 重疊
+                    const hasTrailing = s.chord.trailing && s.chord.trailing.length > 0;
                     const excess = s.cw - s.bw;
-                    if (excess + 1 <= s.rw) {
+                    if (!hasTrailing && excess + 1 <= s.rw) {
                       return { ...s, mode: 'overflow', trimmedRemainder: s.remainder };
                     }
                     return { ...s, mode: 'expand', trimmedRemainder: s.remainder };
@@ -2489,7 +2504,7 @@ const TabContent = ({
                           </span>
                           {seg.mode === 'expand' && seg.chord && (
                             <span style={{ gridRow: 1, gridColumn: 1, visibility: 'hidden', whiteSpace: 'pre', userSelect: 'none', pointerEvents: 'none', fontFamily: chordFontFamily }}>
-                              {'\u00A0'.repeat(seg.cw - seg.rw + 1)}
+                              {'\u00A0'.repeat(Math.max(0, seg.cw - seg.rw + 1))}
                             </span>
                           )}
                           {seg.chord && (
@@ -2512,16 +2527,16 @@ const TabContent = ({
                           <span style={{ display: 'inline-grid', gridTemplateColumns: '1fr', verticalAlign: 'top' }}>
                             <span style={{
                               gridRow: 1, gridColumn: 1, visibility: 'hidden', whiteSpace: 'pre', userSelect: 'none', pointerEvents: 'none',
-                              ...(remainderAfterLastChord ? { width: 0, minWidth: 0, overflow: 'hidden' } : {}),
+                              ...((remainderAfterLastChord && !(seg.chord && seg.chord.trailing && seg.chord.trailing.length > 0)) ? { width: 0, minWidth: 0, overflow: 'hidden' } : {}),
                             }}>
                               {seg.trimmedRemainder != null ? seg.trimmedRemainder : seg.remainder}
                             </span>
                             {seg.chord && seg.chord.trailing && seg.chord.trailing.length > 0 && (
-                              <span style={{ gridRow: 1, gridColumn: 1, justifySelf: 'stretch', display: 'flex', justifyContent: 'space-evenly' }}>
+                              <span style={{ gridRow: 1, gridColumn: 1, justifySelf: 'start', display: 'flex', gap: '0.5em' }}>
                                 {seg.chord.trailing.map((t, tIdx) => (
                                   <span key={tIdx} style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
                                     {t.isBarStart && '|'}
-                                    <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
+                                    {t.isChord ? <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} /> : t.name}
                                   </span>
                                 ))}
                               </span>
@@ -2532,7 +2547,7 @@ const TabContent = ({
                             {seg.chord.trailing.map((t, tIdx) => (
                               <span key={tIdx}>
                                 {t.isBarStart && '|'}
-                                <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
+                                {t.isChord ? <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} /> : t.name}
                               </span>
                             ))}
                           </span>
@@ -2549,7 +2564,7 @@ const TabContent = ({
                             {chord.trailing && chord.trailing.length > 0 && chord.trailing.map((t, tIdx) => (
                               <span key={tIdx}>
                                 {' '}{t.isBarStart && '|'}
-                                <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
+                                {t.isChord ? <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} /> : t.name}
                               </span>
                             ))}
                             {' '}
@@ -2696,8 +2711,9 @@ const TabContent = ({
                   });
                   const layout = segs.map((s) => {
                     if (!s.chord || s.cw <= s.bw) return { ...s, mode: 'fit', trimmedRemainder: s.remainder };
+                    const hasTrailing = s.chord.trailing && s.chord.trailing.length > 0;
                     const excess = s.cw - s.bw;
-                    if (excess + 1 <= s.rw) return { ...s, mode: 'overflow', trimmedRemainder: s.remainder };
+                    if (!hasTrailing && excess + 1 <= s.rw) return { ...s, mode: 'overflow', trimmedRemainder: s.remainder };
                     return { ...s, mode: 'expand', trimmedRemainder: s.remainder };
                   });
                   const lastChordSegIdx = layout.reduce((last, s, idx2) => (s.chord ? idx2 : last), -1);
@@ -2724,7 +2740,7 @@ const TabContent = ({
                               }}>{seg.bracketPart}</span>
                               {seg.mode === 'expand' && seg.chord && (
                                 <span style={{ gridRow: 1, gridColumn: 1, visibility: 'hidden', whiteSpace: 'pre', userSelect: 'none', pointerEvents: 'none', fontFamily: chordFontFamily }}>
-                                  {'\u00A0'.repeat(seg.cw - seg.rw + 1)}
+                                  {'\u00A0'.repeat(Math.max(0, seg.cw - seg.rw + 1))}
                                 </span>
                               )}
                               {seg.chord && (
@@ -2743,13 +2759,13 @@ const TabContent = ({
                               <span style={{ display: 'inline-grid', gridTemplateColumns: '1fr', verticalAlign: 'top' }}>
                                 <span style={{
                                   gridRow: 1, gridColumn: 1, visibility: 'hidden', whiteSpace: 'pre', userSelect: 'none', pointerEvents: 'none',
-                                  ...(remainderAfterLastChord ? { width: 0, minWidth: 0, overflow: 'hidden' } : {}),
+                                  ...((remainderAfterLastChord && !(seg.chord && seg.chord.trailing && seg.chord.trailing.length > 0)) ? { width: 0, minWidth: 0, overflow: 'hidden' } : {}),
                                 }}>{seg.trimmedRemainder != null ? seg.trimmedRemainder : seg.remainder}</span>
                                 {seg.chord && seg.chord.trailing && seg.chord.trailing.length > 0 && (
-                                  <span style={{ gridRow: 1, gridColumn: 1, justifySelf: 'stretch', display: 'flex', justifyContent: 'space-evenly' }}>
+                                  <span style={{ gridRow: 1, gridColumn: 1, justifySelf: 'start', display: 'flex', gap: '0.5em' }}>
                                     {seg.chord.trailing.map((t, tIdx) => (
                                       <span key={tIdx} style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
-                                        {t.isBarStart && '|'}<ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
+                                        {t.isBarStart && '|'}{t.isChord ? <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} /> : t.name}
                                       </span>
                                     ))}
                                   </span>
@@ -2758,7 +2774,7 @@ const TabContent = ({
                             ) : seg.chord && seg.chord.trailing && seg.chord.trailing.length > 0 ? (
                               <span style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
                                 {seg.chord.trailing.map((t, tIdx) => (
-                                  <span key={tIdx}>{t.isBarStart && '|'}<ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} /></span>
+                                  <span key={tIdx}>{t.isBarStart && '|'}{t.isChord ? <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} /> : t.name}</span>
                                 ))}
                               </span>
                             ) : null}
@@ -2771,7 +2787,7 @@ const TabContent = ({
                             <span key={`extra-${extraIdx}`} style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
                               {chord.isBarStart && '|'}<ChordWithHover chord={chord.displayName} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
                               {chord.trailing && chord.trailing.length > 0 && chord.trailing.map((t, tIdx) => (
-                                <span key={tIdx}> {t.isBarStart && '|'}<ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} /></span>
+                                <span key={tIdx}> {t.isBarStart && '|'}{t.isChord ? <ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} /> : t.name}</span>
                               ))}{' '}
                             </span>
                           ))}
@@ -2808,7 +2824,7 @@ const TabContent = ({
                           const bracketOpen = bracketPart[0] || '';
                           const bracketClose = bracketPart[bracketPart.length - 1] || '';
                           const bracketInside = bracketPart.substring(1, bracketPart.length - 1);
-                          const innerOnlyNotation = /^\d+['#,.]?$/.test(bracketInside.trim());
+                          const innerOnlyNotation = /^\d+['#,.b]?$/.test(bracketInside.trim());
                           const insideColor = innerOnlyNotation ? colors.numericNotation : colors.lyricInside;
                           return (
                             <span key={segIdx} style={{ whiteSpace: 'pre-wrap' }}>
@@ -2834,7 +2850,7 @@ const TabContent = ({
                         if (hideBrackets && part.type === 'inside') {
                           content = content.replace(/^[\(（]/, ' ').replace(/[\)）]$/, ' ');
                         }
-                        const innerOnlyNotation = part.type === 'inside' && /^[\(（]\d+['#,.]?[\)）]$/.test(part.content);
+                        const innerOnlyNotation = part.type === 'inside' && /^[\(（]\d+['#,.b]?[\)）]$/.test(part.content);
                         const partColor = innerOnlyNotation ? colors.numericNotation : (part.type === 'inside' ? colors.lyricInside : colors.numericNotation);
                         return <span key={idx}>{renderNotationToken(content, partColor, `nof-${idx}-`)}</span>;
                       })}
