@@ -147,8 +147,7 @@ export default function ChordDiagramSvg({
   /** 覆寫 getChordFromDb（例如 alternative 指法） */
   chordResult: chordResultProp,
 }) {
-  const fromDb = getChordFromDb(chord);
-  const result = chordResultProp ?? fromDb;
+  const result = chordResultProp ?? getChordFromDb(chord);
   const shape = chordResultProp?.playbackShape ?? getChordShape(chord);
   const isDark = isChordUiDark(theme);
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { extractChords, SingleChordDiagram, ChordWithHover, ChordLineWithHover } from './ChordDiagram';
+import { extractChords, ChordWithHover, ChordLineWithHover } from './ChordDiagram';
 import ChordDiagramBottomSheet from './ChordDiagramBottomSheet';
 import GpSegmentPlayer from './GpSegmentPlayer';
 import { calculateTransposeSemitones } from '@/lib/keyUtils';
@@ -1961,7 +1961,15 @@ const TabContent = ({
               overflowWrap: 'break-word', 
               marginBottom: `${lineFontSize * 0.6}px` 
             }}>
-              {transposedRest}
+              <ChordLineWithHover
+                chordLine={transposedRest}
+                fontSize={lineFontSize}
+                theme={theme}
+                displayFont={displayFont}
+                chordColor={colors.chord}
+                prefixSuffixColor={colors.prefixSuffix}
+                onChordPress={onChordPress}
+              />
             </div>
           );
         }
@@ -2651,9 +2659,17 @@ const TabContent = ({
                 marginBottom: '0.05em',
                 lineHeight: '1.1'
               }}>
-                {prefix && <span style={{ color: prefixSuffixColor, fontStyle: 'italic', fontSize: `${lineFontSize * 0.85}px` }}>{prefix}</span>}
-                {transposedChordLine}
-                {suffix && <span style={{ color: prefixSuffixColor, fontStyle: 'italic', fontSize: `${lineFontSize * 0.85}px` }}>{suffix}</span>}
+                <ChordLineWithHover
+                  chordLine={transposedChordLine}
+                  prefix={prefix}
+                  suffix={suffix}
+                  fontSize={lineFontSize}
+                  theme={theme}
+                  displayFont={displayFont}
+                  chordColor={colors.chord}
+                  prefixSuffixColor={prefixSuffixColor}
+                  onChordPress={onChordPress}
+                />
               </div>
               {!hideNotation && notationLines.map(({ index, line: notationLine }) => {
                 const notationFontSize = getLineFontSize(notationLine);
@@ -2715,9 +2731,17 @@ const TabContent = ({
               marginBottom: chordMarginBottom,
               lineHeight: isFollowedByLyric ? '1.1' : 'normal'
             }}>
-              {prefix && <span style={{ color: colors.prefixSuffix, fontStyle: 'italic', fontSize: `${lineFontSize * 0.85}px` }}>{prefix}</span>}
-              {transposedChordLine}
-              {suffix && <span style={{ color: colors.prefixSuffix, fontStyle: 'italic', fontSize: `${lineFontSize * 0.85}px` }}>{suffix}</span>}
+              <ChordLineWithHover
+                chordLine={transposedChordLine}
+                prefix={prefix}
+                suffix={suffix}
+                fontSize={lineFontSize}
+                theme={theme}
+                displayFont={displayFont}
+                chordColor={colors.chord}
+                prefixSuffixColor={colors.prefixSuffix}
+                onChordPress={onChordPress}
+              />
             </div>
           );
           i++;
