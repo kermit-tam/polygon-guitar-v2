@@ -813,6 +813,46 @@ function processNumericNotationLine(line) {
   return parts;
 }
 
+// 將簡譜文字中的 1'（高音）/ 5,（低音）渲染為數字上方/下方加點
+function renderNotationToken(text, color, keyPrefix = '') {
+  if (!text) return null;
+  const tokenRegex = /(\d)([',])/g;
+  const result = [];
+  let lastIndex = 0;
+  let match;
+  let idx = 0;
+  while ((match = tokenRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      result.push(<span key={`${keyPrefix}p${idx++}`} style={{ color }}>{text.slice(lastIndex, match.index)}</span>);
+    }
+    const digit = match[1];
+    const modifier = match[2];
+    if (modifier === "'") {
+      result.push(
+        <span key={`${keyPrefix}h${idx++}`} style={{ position: 'relative', display: 'inline-block', textAlign: 'center', color, width: '0.6em' }}>
+          <span style={{ position: 'absolute', top: '-0.5em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.7em' }}>{'\u2022'}</span>
+          {digit}
+        </span>
+      );
+    } else if (modifier === ',') {
+      result.push(
+        <span key={`${keyPrefix}l${idx++}`} style={{ position: 'relative', display: 'inline-block', textAlign: 'center', color, width: '0.6em' }}>
+          {digit}
+          <span style={{ position: 'absolute', bottom: '-0.3em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.7em' }}>{'\u2022'}</span>
+        </span>
+      );
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex === 0) {
+    return <span style={{ color }}>{text}</span>;
+  }
+  if (lastIndex < text.length) {
+    result.push(<span key={`${keyPrefix}p${idx++}`} style={{ color }}>{text.slice(lastIndex)}</span>);
+  }
+  return result;
+}
+
 // 從簡譜行提取和弦、數字簡譜、歌詞
 function extractNumericNotationComponents(line) {
   const components = {
@@ -1828,7 +1868,7 @@ const TabContent = ({
                   whiteSpace: 'pre-wrap',
                   color: colors.numericNotation
                 }}>
-                  {line}
+                  {renderNotationToken(line, colors.numericNotation, `ar-${idx}-`)}
                 </div>
               );
             }
@@ -2142,20 +2182,12 @@ const TabContent = ({
             minWidth: 0
           }}>
             {notationParts.map((part, idx) => {
-              // 處理隱藏括號：將括號替換為空格占位
               let content = part.content;
               if (hideBrackets && part.type === 'inside') {
-                // 將開頭和結尾的括號替換為空格
                 content = content.replace(/^[\(（]/, ' ').replace(/[\)）]$/, ' ');
               }
-              return (
-                <span key={idx} style={{
-                  color: part.type === 'inside' ? colors.lyricInside : colors.numericNotation,
-                  fontWeight: part.type === 'inside' ? 'bold' : 'normal'
-                }}>
-                  {content}
-                </span>
-              );
+              const partColor = part.type === 'inside' ? colors.lyricInside : colors.numericNotation;
+              return <span key={idx}>{renderNotationToken(content, partColor, `nn-${idx}-`)}</span>;
             })}
           </div>
         );
@@ -2174,7 +2206,9 @@ const TabContent = ({
           const targetLine = lines[targetLyricIndex];
           if (!targetLine) break;
           // 跳過空白行，繼續搵簡譜/歌詞（避免和弦與簡譜之間有空行時漏掉簡譜）
+          // 但如果已收集簡譜行，空行代表用戶刻意嘅視覺分隔，停止搜索
           if (!targetLine.trim()) {
+            if (notationLines.length > 0) break;
             targetLyricIndex++;
             continue;
           }
@@ -2341,10 +2375,9 @@ const TabContent = ({
                               display: 'inline-flex',
                               justifyContent: 'center',
                               minWidth: `${getTextWidth(displayLyric) * (notationFontSize / 2)}px`,
-                              color: colors.numericNotation,
-                              fontWeight: 'bold'
+                              color: colors.numericNotation
                             }}>
-                              {item.notation}
+                              {renderNotationToken(item.notation, colors.numericNotation, `an-${idx}-`)}
                             </span>
                           );
                         }
@@ -2376,14 +2409,7 @@ const TabContent = ({
                     }
                     const innerOnlyNotation = part.type === 'inside' && /^[\(（]\d+['#,.]?[\)）]$/.test(part.content);
                     const partColor = innerOnlyNotation ? colors.numericNotation : (part.type === 'inside' ? colors.lyricInside : colors.numericNotation);
-                    return (
-                      <span key={idx} style={{
-                        color: partColor,
-                        fontWeight: part.type === 'inside' ? 'bold' : 'normal'
-                      }}>
-                        {content}
-                      </span>
-                    );
+                    return <span key={idx}>{renderNotationToken(content, partColor, `fn-${idx}-`)}</span>;
                   })}
                 </div>
               );
@@ -2643,71 +2669,187 @@ const TabContent = ({
           i = targetLyricIndex + 1;
         } else if (notationLines.length > 0) {
           // 只有和弦 + 簡譜（如 intro (3) (2) (7,) (1)），冇歌詞行
+          // 用 processPair 對齊和弦同簡譜括號
           const chordLineForNotationOnly = lines[lastChordLineIndex] || line;
           const { prefix, suffix, cleanLine } = extractSectionMarkers(chordLineForNotationOnly, displayFont === 'manual');
-          const transposedChordLine = transposeChordLine(cleanLine, transposeSemitones, displayFont === 'mono' || displayFont === 'manual', preferFlats);
-          const prefixSuffixColor = colors.prefixSuffix;
-          elements.push(
-            <div key={`${i}-notation-only`} style={{ marginBottom: `${lineFontSize * 0.3}px` }}>
-              <div style={{
-                color: colors.chord,
-                fontWeight: displayFont === 'arial' ? 'normal' : 300,
-                fontSize: `${lineFontSize}px`,
-                fontFamily: displayFont === 'arial' ? "Arial, Helvetica, sans-serif" : "'Source Code Pro', 'Noto Sans Mono CJK TC', 'Consolas', 'Courier New', monospace",
-                whiteSpace: 'pre-wrap',
-                overflowWrap: 'break-word',
-                marginBottom: '0.05em',
-                lineHeight: '1.1'
-              }}>
-                <ChordLineWithHover
-                  chordLine={transposedChordLine}
-                  prefix={prefix}
-                  suffix={suffix}
-                  fontSize={lineFontSize}
-                  theme={theme}
-                  displayFont={displayFont}
-                  chordColor={colors.chord}
-                  prefixSuffixColor={prefixSuffixColor}
-                  onChordPress={onChordPress}
-                />
-              </div>
-              {!hideNotation && notationLines.map(({ index, line: notationLine }) => {
-                const notationFontSize = getLineFontSize(notationLine);
-                const notationParts = processNumericNotationLine(notationLine);
-                return (
-                  <div key={index} style={{
-                    fontSize: `${notationFontSize}px`,
-                    marginBottom: index < notationLines.length - 1 ? '2px' : '0em',
-                    lineHeight: '1.1',
-                    whiteSpace: 'pre-wrap',
-                    overflowWrap: 'break-word',
-                    fontWeight: displayFont === 'arial' ? 'normal' : 300,
-                    fontFamily: displayFont === 'arial' ? "Arial, Helvetica, sans-serif" : "'Source Code Pro', 'Noto Sans Mono CJK TC', 'Consolas', 'Courier New', monospace",
-                    maxWidth: '100%',
-                    minWidth: 0
-                  }}>
-                    {notationParts.map((part, idx) => {
-                      let content = part.content;
-                      if (hideBrackets && part.type === 'inside') {
-                        content = content.replace(/^[\(（]/, ' ').replace(/[\)）]$/, ' ');
-                      }
-                      const innerOnlyNotation = part.type === 'inside' && /^[\(（]\d+['#,.]?[\)）]$/.test(part.content);
-                      const partColor = innerOnlyNotation ? colors.numericNotation : (part.type === 'inside' ? colors.lyricInside : colors.numericNotation);
-                      return (
-                        <span key={idx} style={{
-                          color: partColor,
-                          fontWeight: part.type === 'inside' ? 'bold' : 'normal'
-                        }}>
-                          {content}
+          const chordFontFamily = displayFont === 'arial'
+            ? "Arial, Helvetica, sans-serif"
+            : "'Source Code Pro', monospace";
+
+          notationLines.forEach(({ index: notIdx, line: notationLine }, nlIdx) => {
+            const notationFontSize = getLineFontSize(notationLine);
+            const result = processPair(cleanLine, notationLine, transposeSemitones, hideBrackets, displayFont, preferFlats);
+            const useGrid = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && (result.lyricSplit.segments?.length ?? 0) > 0;
+
+            elements.push(
+              <div key={`${i}-notation-only-${nlIdx}`} style={{ marginBottom: `${lineFontSize * 0.3}px` }}>
+                {/* 和弦行 — 對齊簡譜括號 */}
+                {useGrid && result.lyricSplit?.segments?.length ? (() => {
+                  const segs = result.lyricSplit.segments.map((segment, segIdx) => {
+                    const chord = result.alignedChords[segIdx];
+                    const { bracketPart, remainder } = splitSegmentAtBracketClose(segment);
+                    const bw = getTextWidth(bracketPart);
+                    const chordText = chord ? ((chord.isBarStart ? '|' : '') + chord.displayName) : '';
+                    const cw = chordText.length;
+                    const rw = remainder ? getTextWidth(remainder) : 0;
+                    return { chord, bracketPart, remainder, bw, cw, rw };
+                  });
+                  const layout = segs.map((s) => {
+                    if (!s.chord || s.cw <= s.bw) return { ...s, mode: 'fit', trimmedRemainder: s.remainder };
+                    const excess = s.cw - s.bw;
+                    if (excess + 1 <= s.rw) return { ...s, mode: 'overflow', trimmedRemainder: s.remainder };
+                    return { ...s, mode: 'expand', trimmedRemainder: s.remainder };
+                  });
+                  const lastChordSegIdx = layout.reduce((last, s, idx2) => (s.chord ? idx2 : last), -1);
+
+                  return (
+                    <div className="font-light" style={{
+                      fontSize: `${lineFontSize}px`, whiteSpace: 'pre-wrap', marginBottom: '0.1em', lineHeight: '1.2', fontWeight: 300,
+                    }}>
+                      {prefix && <span style={{ color: colors.prefixSuffix, fontStyle: 'italic', fontSize: `${lineFontSize * 0.85}px` }}>{prefix}</span>}
+                      {result.lyricSplit.preBracket && (
+                        <span style={{ display: 'inline-block', verticalAlign: 'top' }}>
+                          <span style={{ visibility: 'hidden', whiteSpace: 'pre', userSelect: 'none' }}>{result.lyricSplit.preBracket}</span>
                         </span>
-                      );
-                    })}
+                      )}
+                      {layout.map((seg, segIdx) => {
+                        const afterLastChord = segIdx > lastChordSegIdx;
+                        const remainderAfterLastChord = segIdx >= lastChordSegIdx;
+                        return (
+                          <span key={segIdx} style={{ verticalAlign: 'top' }}>
+                            <span style={{ display: 'inline-grid', gridTemplateColumns: '1fr', verticalAlign: 'top' }}>
+                              <span style={{
+                                gridRow: 1, gridColumn: 1, visibility: 'hidden', whiteSpace: 'pre', userSelect: 'none', pointerEvents: 'none',
+                                ...(afterLastChord ? { width: 0, minWidth: 0, overflow: 'hidden' } : {}),
+                              }}>{seg.bracketPart}</span>
+                              {seg.mode === 'expand' && seg.chord && (
+                                <span style={{ gridRow: 1, gridColumn: 1, visibility: 'hidden', whiteSpace: 'pre', userSelect: 'none', pointerEvents: 'none', fontFamily: chordFontFamily }}>
+                                  {'\u00A0'.repeat(seg.cw - seg.rw + 1)}
+                                </span>
+                              )}
+                              {seg.chord && (
+                                <span style={{
+                                  gridRow: 1, gridColumn: 1,
+                                  justifySelf: seg.mode === 'fit' ? 'center' : 'start',
+                                  fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap',
+                                  ...(seg.mode === 'overflow' ? { width: 0, overflow: 'visible', display: 'flex', justifyContent: 'flex-start' } : {}),
+                                }}>
+                                  {seg.chord.isBarStart && <span>|</span>}
+                                  <ChordWithHover chord={seg.chord.displayName} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
+                                </span>
+                              )}
+                            </span>
+                            {seg.remainder ? (
+                              <span style={{ display: 'inline-grid', gridTemplateColumns: '1fr', verticalAlign: 'top' }}>
+                                <span style={{
+                                  gridRow: 1, gridColumn: 1, visibility: 'hidden', whiteSpace: 'pre', userSelect: 'none', pointerEvents: 'none',
+                                  ...(remainderAfterLastChord ? { width: 0, minWidth: 0, overflow: 'hidden' } : {}),
+                                }}>{seg.trimmedRemainder != null ? seg.trimmedRemainder : seg.remainder}</span>
+                                {seg.chord && seg.chord.trailing && seg.chord.trailing.length > 0 && (
+                                  <span style={{ gridRow: 1, gridColumn: 1, justifySelf: 'stretch', display: 'flex', justifyContent: 'space-evenly' }}>
+                                    {seg.chord.trailing.map((t, tIdx) => (
+                                      <span key={tIdx} style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
+                                        {t.isBarStart && '|'}<ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
+                                      </span>
+                                    ))}
+                                  </span>
+                                )}
+                              </span>
+                            ) : seg.chord && seg.chord.trailing && seg.chord.trailing.length > 0 ? (
+                              <span style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
+                                {seg.chord.trailing.map((t, tIdx) => (
+                                  <span key={tIdx}>{t.isBarStart && '|'}<ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} /></span>
+                                ))}
+                              </span>
+                            ) : null}
+                          </span>
+                        );
+                      })}
+                      {result.alignedChords.length > result.lyricSplit.segments.length && (
+                        <span style={{ marginLeft: '10px', display: 'inline' }}>
+                          {result.alignedChords.slice(result.lyricSplit.segments.length).map((chord, extraIdx) => (
+                            <span key={`extra-${extraIdx}`} style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
+                              {chord.isBarStart && '|'}<ChordWithHover chord={chord.displayName} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} />
+                              {chord.trailing && chord.trailing.length > 0 && chord.trailing.map((t, tIdx) => (
+                                <span key={tIdx}> {t.isBarStart && '|'}<ChordWithHover chord={t.name} theme={theme} displayFont={displayFont} chordColor={colors.chord} onChordPress={onChordPress} /></span>
+                              ))}{' '}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                      {suffix && <span style={{ color: colors.prefixSuffix, fontStyle: 'italic', fontSize: `${lineFontSize * 0.85}px` }}>{suffix}</span>}
+                    </div>
+                  );
+                })() : (
+                  <div style={{
+                    color: colors.chord, fontWeight: displayFont === 'arial' ? 'normal' : 300,
+                    fontSize: `${lineFontSize}px`,
+                    fontFamily: displayFont === 'arial' ? "Arial, Helvetica, sans-serif" : "'Source Code Pro', 'Noto Sans Mono CJK TC', 'Consolas', 'Courier New', monospace",
+                    whiteSpace: 'pre-wrap', overflowWrap: 'break-word', marginBottom: '0.05em', lineHeight: '1.1'
+                  }}>
+                    <ChordLineWithHover chordLine={result.chordLine} prefix={prefix} suffix={suffix} fontSize={lineFontSize} theme={theme} displayFont={displayFont} chordColor={colors.chord} prefixSuffixColor={colors.prefixSuffix} onChordPress={onChordPress} />
                   </div>
-                );
-              })}
-            </div>
-          );
-          i = targetLyricIndex + 1;
+                )}
+                {/* 簡譜行 */}
+                {!hideNotation && (() => {
+                  const notationParts = processNumericNotationLine(notationLine);
+                  if (useGrid && result.lyricSplit?.segments?.length) {
+                    return (
+                      <div style={{
+                        fontSize: `${notationFontSize}px`, whiteSpace: 'pre-wrap', lineHeight: '1.1', marginTop: '0.2em',
+                        fontWeight: displayFont === 'arial' ? 'normal' : 300,
+                        fontFamily: displayFont === 'arial' ? "Arial, Helvetica, sans-serif" : "'Source Code Pro', 'Noto Sans Mono CJK TC', 'Consolas', 'Courier New', monospace",
+                      }}>
+                        {result.lyricSplit.preBracket && (
+                          <span style={{ whiteSpace: 'pre-wrap', color: colors.numericNotation }}>{renderNotationToken(result.lyricSplit.preBracket, colors.numericNotation, 'gnpb-')}</span>
+                        )}
+                        {result.lyricSplit.segments.map((segment, segIdx) => {
+                          const { bracketPart, remainder } = splitSegmentAtBracketClose(segment);
+                          const bracketOpen = bracketPart[0] || '';
+                          const bracketClose = bracketPart[bracketPart.length - 1] || '';
+                          const bracketInside = bracketPart.substring(1, bracketPart.length - 1);
+                          const innerOnlyNotation = /^\d+['#,.]?$/.test(bracketInside.trim());
+                          const insideColor = innerOnlyNotation ? colors.numericNotation : colors.lyricInside;
+                          return (
+                            <span key={segIdx} style={{ whiteSpace: 'pre-wrap' }}>
+                              <span style={{ color: colors.numericNotation, opacity: 0.7 }}>{hideBrackets ? '\u00A0' : bracketOpen}</span>
+                              <span style={{ color: insideColor }}>{renderNotationToken(bracketInside, insideColor, `gni-${segIdx}-`)}</span>
+                              <span style={{ color: colors.numericNotation, opacity: 0.7 }}>{hideBrackets ? '\u00A0' : bracketClose}</span>
+                              {remainder && <span>{renderNotationToken(remainder, colors.numericNotation, `gnr-${segIdx}-`)}</span>}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{
+                      fontSize: `${notationFontSize}px`, lineHeight: '1.1', whiteSpace: 'pre-wrap', overflowWrap: 'break-word',
+                      fontWeight: displayFont === 'arial' ? 'normal' : 300,
+                      fontFamily: displayFont === 'arial' ? "Arial, Helvetica, sans-serif" : "'Source Code Pro', 'Noto Sans Mono CJK TC', 'Consolas', 'Courier New', monospace",
+                      maxWidth: '100%', minWidth: 0
+                    }}>
+                      {notationParts.map((part, idx) => {
+                        let content = part.content;
+                        if (hideBrackets && part.type === 'inside') {
+                          content = content.replace(/^[\(（]/, ' ').replace(/[\)）]$/, ' ');
+                        }
+                        const innerOnlyNotation = part.type === 'inside' && /^[\(（]\d+['#,.]?[\)）]$/.test(part.content);
+                        const partColor = innerOnlyNotation ? colors.numericNotation : (part.type === 'inside' ? colors.lyricInside : colors.numericNotation);
+                        return <span key={idx}>{renderNotationToken(content, partColor, `nof-${idx}-`)}</span>;
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          });
+          // 如果 targetLyricIndex 指向空行（簡譜後有換行），唔好跳過，交畀主循環渲染間距
+          if (lines[targetLyricIndex] !== undefined && !lines[targetLyricIndex].trim()) {
+            i = targetLyricIndex;
+          } else {
+            i = targetLyricIndex + 1;
+          }
         } else {
           // 冇歌詞行，單獨顯示和弦
           const { prefix, suffix, cleanLine } = extractSectionMarkers(line, displayFont === 'manual');
