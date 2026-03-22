@@ -505,7 +505,7 @@ function isNumericNotationLine(line) {
   
   // 匹配完整簡譜音符：數字 + 可選的一個修飾符 ' 或 # 或 ,（如 1', 5#, 6, 7,）
   // 使用 ? 而不是 *，避免 2'1' 被當作一個音符
-  const notationPattern = /\d['#,b]?/g;
+  const notationPattern = /[#b]?\d[#b]?(?:'{1,2}|"{1,2}|,{1,2})?\.{0,2}/g;
   const notationMatches = line.match(notationPattern) || [];
   const notationCount = notationMatches.length;
   
@@ -531,7 +531,7 @@ function isNumericNotationLine(line) {
   
   // 舊版兼容：有括號數字模式（半形或全形），支援 (7,) 低音等
   if (line.includes('(') || line.includes('（')) {
-    const numericBracketPattern = /[\(（]\d+['#,.b]?[\)）]/g;
+    const numericBracketPattern = /[\(（][#b]?\d+[#b]?(?:'{1,2}|"{1,2}|,{1,2})?\.{0,2}[\)）]/g;
     const numericBrackets = line.match(numericBracketPattern) || [];
     if (numericBrackets.length >= 1 && (notationCount > 3 || digits > 3) && chineseChars < 3 && otherLetters.length <= digits) {
       return true;
@@ -553,7 +553,7 @@ function isBracketsOnlyNumberedNotationLine(line) {
   while ((match = bracketContentRegex.exec(line)) !== null) {
     const inner = match[1].trim();
     if (inner.length > 0) {
-      if (/^\d+['#,.b]?$/.test(inner)) hasNotation = true;
+      if (/^[#b]?\d+[#b]?(?:'{1,2}|"{1,2}|,{1,2})?\.{0,2}$/.test(inner)) hasNotation = true;
       else allNotationOrEmpty = false;
     }
   }
@@ -564,12 +564,10 @@ function isBracketsOnlyNumberedNotationLine(line) {
   return true;
 }
 
-// 從簡譜行提取所有音符（支持 1', 5#, 6, 7, 等格式，逗號表示低音）
+// 從簡譜行提取所有音符（完整 token：前綴#b + 數字 + 後綴#b + 八度 + 附點）
 function extractNotationNumbers(line) {
   const numbers = [];
-  // 匹配完整簡譜音符：數字 + 可選的一個修飾符 ' 或 # 或 ,（高音/升號/低音）
-  // 使用 ? 而不是 *，避免 2'1' 被當作一個音符
-  const regex = /\d['#,b]?/g;
+  const regex = /[#b]?\d[#b]?(?:'{1,2}|"{1,2}|,{1,2})?\.{0,2}/g;
   let match;
   while ((match = regex.exec(line)) !== null) {
     numbers.push({
@@ -814,49 +812,53 @@ function processNumericNotationLine(line) {
   return parts;
 }
 
-// 將簡譜文字中的 1'（高音）/ 5,（低音）/ 6b（降）/ 5#（升）渲染為視覺化符號
+// 簡譜視覺化：支援前/後綴升降（#/b）、八度（'/''/""/,/,,）、附點（./..)）及任意組合
 function renderNotationToken(text, color, keyPrefix = '') {
   if (!text) return null;
-  // 匹配：數字+高音' / 數字+低音, / 數字+降b / 數字+升#
-  const tokenRegex = /(\d)([',b#])/g;
+  // [前綴#b]? 數字 [後綴#b]? [八度 '/''/""/,/,,]? [附點 ./..]?
+  const tokenRegex = /([#b]?)(\d)([#b]?)('{1,2}|"{1,2}|,{1,2})?(\.{1,2})?/g;
   const result = [];
   let lastIndex = 0;
   let match;
   let idx = 0;
   while ((match = tokenRegex.exec(text)) !== null) {
+    const [fullMatch, prefixAcc, digit, suffixAcc, octave, dots] = match;
+    if (!prefixAcc && !suffixAcc && !octave && !dots) continue;
     if (match.index > lastIndex) {
       result.push(<span key={`${keyPrefix}p${idx++}`} style={{ color }}>{text.slice(lastIndex, match.index)}</span>);
     }
-    const digit = match[1];
-    const modifier = match[2];
-    if (modifier === "'") {
-      result.push(
-        <span key={`${keyPrefix}h${idx++}`} style={{ position: 'relative', display: 'inline-block', textAlign: 'center', color, width: '0.6em' }}>
-          <span style={{ position: 'absolute', top: '-0.6em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.5em' }}>{'\u2022'}</span>
-          {digit}
-        </span>
-      );
-    } else if (modifier === ',') {
-      result.push(
-        <span key={`${keyPrefix}l${idx++}`} style={{ position: 'relative', display: 'inline-block', textAlign: 'center', color, width: '0.6em' }}>
-          {digit}
-          <span style={{ position: 'absolute', bottom: '-0.55em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.5em' }}>{'\u2022'}</span>
-        </span>
-      );
-    } else if (modifier === 'b') {
-      result.push(
-        <span key={`${keyPrefix}f${idx++}`} style={{ color }}>
-          {digit}<span style={{ fontSize: '0.75em' }}>{'\u266D'}</span>
-        </span>
-      );
-    } else if (modifier === '#') {
-      result.push(
-        <span key={`${keyPrefix}s${idx++}`} style={{ color }}>
-          {digit}<span style={{ fontSize: '0.75em' }}>{'\u266F'}</span>
-        </span>
-      );
+    const parts = [];
+    if (prefixAcc) {
+      parts.push(<span key={`${keyPrefix}pa${idx}`} style={{ fontSize: '0.75em' }}>{prefixAcc === '#' ? '\u266F' : '\u266D'}</span>);
     }
-    lastIndex = match.index + match[0].length;
+    if (octave) {
+      const isHigh = octave[0] === "'" || octave[0] === '"';
+      const dotCount = (octave === "''" || octave[0] === '"' || octave === ',,') ? 2 : 1;
+      const octaveDots = dotCount === 2 ? (
+        <>
+          <span style={{ position: 'absolute', [isHigh ? 'top' : 'bottom']: isHigh ? '-0.4em' : '-0.45em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.75em' }}>{'\u00B7'}</span>
+          <span style={{ position: 'absolute', [isHigh ? 'top' : 'bottom']: isHigh ? '-0.7em' : '-0.75em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.75em' }}>{'\u00B7'}</span>
+        </>
+      ) : (
+        <span style={{ position: 'absolute', [isHigh ? 'top' : 'bottom']: isHigh ? '-0.4em' : '-0.45em', left: 0, right: 0, textAlign: 'center', lineHeight: 1, fontSize: '0.75em' }}>{'\u00B7'}</span>
+      );
+      parts.push(
+        <span key={`${keyPrefix}d${idx}`} style={{ position: 'relative', display: 'inline-block', textAlign: 'center', width: '0.6em' }}>
+          {octaveDots}
+          {digit}
+        </span>
+      );
+    } else {
+      parts.push(digit);
+    }
+    if (suffixAcc) {
+      parts.push(<span key={`${keyPrefix}sa${idx}`} style={{ fontSize: '0.75em' }}>{suffixAcc === '#' ? '\u266F' : '\u266D'}</span>);
+    }
+    if (dots) {
+      parts.push(<span key={`${keyPrefix}dt${idx}`} style={{ fontSize: '0.75em', marginLeft: '-0.15em', letterSpacing: '-0.25em' }}>{dots.length === 2 ? '\u00B7\u00B7' : '\u00B7'}</span>);
+    }
+    result.push(<span key={`${keyPrefix}t${idx++}`} style={{ color }}>{parts}</span>);
+    lastIndex = match.index + fullMatch.length;
   }
   if (lastIndex === 0) {
     return <span style={{ color }}>{text}</span>;
@@ -2470,7 +2472,7 @@ const TabContent = ({
                     if (hideBrackets && part.type === 'inside') {
                       content = content.replace(/^[\(（]/, ' ').replace(/[\)）]$/, ' ');
                     }
-                    const innerOnlyNotation = part.type === 'inside' && /^[\(（]\d+['#,.b]?[\)）]$/.test(part.content);
+                    const innerOnlyNotation = part.type === 'inside' && /^[\(（][#b]?\d+[#b]?(?:'{1,2}|"{1,2}|,{1,2})?\.{0,2}[\)）]$/.test(part.content);
                     const partColor = innerOnlyNotation ? colors.numericNotation : (part.type === 'inside' ? colors.lyricInside : colors.numericNotation);
                     return <span key={idx}>{renderNotationToken(content, partColor, `fn-${idx}-`)}</span>;
                   })}
@@ -2874,7 +2876,7 @@ const TabContent = ({
                           const bracketOpen = bracketPart[0] || '';
                           const bracketClose = bracketPart[bracketPart.length - 1] || '';
                           const bracketInside = bracketPart.substring(1, bracketPart.length - 1);
-                          const innerOnlyNotation = /^\d+['#,.b]?$/.test(bracketInside.trim());
+                          const innerOnlyNotation = /^[#b]?\d+[#b]?(?:'{1,2}|"{1,2}|,{1,2})?\.{0,2}$/.test(bracketInside.trim());
                           const insideColor = innerOnlyNotation ? colors.numericNotation : colors.lyricInside;
                           return (
                             <span key={segIdx} style={{ whiteSpace: 'pre-wrap' }}>
@@ -2900,7 +2902,7 @@ const TabContent = ({
                         if (hideBrackets && part.type === 'inside') {
                           content = content.replace(/^[\(（]/, ' ').replace(/[\)）]$/, ' ');
                         }
-                        const innerOnlyNotation = part.type === 'inside' && /^[\(（]\d+['#,.b]?[\)）]$/.test(part.content);
+                        const innerOnlyNotation = part.type === 'inside' && /^[\(（][#b]?\d+[#b]?(?:'{1,2}|"{1,2}|,{1,2})?\.{0,2}[\)）]$/.test(part.content);
                         const partColor = innerOnlyNotation ? colors.numericNotation : (part.type === 'inside' ? colors.lyricInside : colors.numericNotation);
                         return <span key={idx}>{renderNotationToken(content, partColor, `nof-${idx}-`)}</span>;
                       })}
