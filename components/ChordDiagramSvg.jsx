@@ -39,7 +39,7 @@ const VB_H_TIGHT = 99;
 
 // Barre 設計稿尺寸（長條兩邊伸出弦線外，跟 Illustrator path）
 const BARRE_H = 4.79;
-const BARRE_PAD_X = 1.15;  // 左右超出最外弦線
+const BARRE_PAD_X = 2.5;  // 左右超出最外弦線
 
 // 設計稿：弦 x=左緣, width；手指點、X/O 一律用弦心（垂直線中心）
 const STRING_LAYOUT = [
@@ -271,6 +271,8 @@ export default function ChordDiagramSvg({
               rx={BARRE_H / 2}
               ry={BARRE_H / 2}
               fill={DESIGN.st4}
+              stroke={fillBg}
+              strokeWidth="1.2"
             />
           );
         })}
