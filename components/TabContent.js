@@ -2243,6 +2243,8 @@ const TabContent = ({
             overflowWrap: 'break-word',
             fontWeight: displayFont === 'arial' ? 'normal' : 300,
             fontFamily: displayFont === 'arial' ? "Arial, Helvetica, sans-serif" : "'Source Code Pro', 'Noto Sans Mono CJK TC', 'Consolas', 'Courier New', monospace",
+            paddingTop: '0.15em',
+            paddingBottom: '0.15em',
             maxWidth: '100%',
             minWidth: 0
           }}>
@@ -2390,9 +2392,10 @@ const TabContent = ({
           pairs.forEach((pair, pairIndex) => {
             const result = processPair(pair.chordLine, pair.lyricLine, transposeSemitones, hideBrackets, displayFont, preferFlats);
             
-            // 和弦-歌詞配對緊貼，多行拆分時先保持間距
+            // 和弦-歌詞配對緊貼，多行拆分時先保持間距；有簡譜時加大底部間距
             const isLastPair = pairIndex === pairs.length - 1;
-            const pairMarginBottom = isLastPair ? `${lineFontSize * 0.3}px` : `${lineFontSize * 0.2}px`;
+            const hasNotationBelow = !hideNotation && notationLines.length > 0;
+            const pairMarginBottom = isLastPair ? `${lineFontSize * (hasNotationBelow ? 0.75 : 0.3)}px` : `${lineFontSize * 0.2}px`;
             
             const currentPrefix = pairIndex === 0 ? prefix : null;
             const currentSuffix = pairIndex === pairs.length - 1 ? suffix : null;
@@ -2421,6 +2424,8 @@ const TabContent = ({
                       display: 'flex',
                       flexWrap: 'wrap',
                       alignItems: 'flex-end',
+                      paddingTop: '0.15em',
+                      paddingBottom: '0.15em',
                       maxWidth: '100%',
                       minWidth: 0
                     }}>
@@ -2464,6 +2469,8 @@ const TabContent = ({
                   overflowWrap: 'break-word',
                   fontWeight: displayFont === 'arial' ? 'normal' : 300,
                   fontFamily: displayFont === 'arial' ? "Arial, Helvetica, sans-serif" : "'Source Code Pro', 'Noto Sans Mono CJK TC', 'Consolas', 'Courier New', monospace",
+                  paddingTop: '0.15em',
+                  paddingBottom: '0.15em',
                   maxWidth: '100%',
                   minWidth: 0
                 }}>
