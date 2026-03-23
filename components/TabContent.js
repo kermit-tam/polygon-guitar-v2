@@ -1784,7 +1784,6 @@ const TabContent = ({
     return parts;
   };
 
-  /** 依陣列索引對應 [六線譜 N]（含未填 alphaTex 嘅位） */
   const notationBlocksList = useMemo(() => {
     if (Array.isArray(notationBlocks) && notationBlocks.length > 0) {
       return notationBlocks
@@ -1794,6 +1793,13 @@ const TabContent = ({
     }
     return []
   }, [notationBlocks, notationAlphaTex])
+
+  const resolveNotationBlock = useCallback((parsed) => {
+    if (!parsed?.label) return null
+    const normalize = (s) => s.toLowerCase().replace(/\s+/g, '')
+    const target = normalize(parsed.label)
+    return notationBlocksList.find((b) => b.label && normalize(b.label) === target) || null
+  }, [notationBlocksList])
 
   const contentHasNotationAnchorsMemo = useMemo(
     () => contentHasNotationAnchors(content),
@@ -1845,10 +1851,15 @@ const TabContent = ({
           {lines.map((line, idx) => {
             const notationSlot = parseNotationMarkerLine(line)
             if (notationSlot) {
-              const block = notationBlocksList[notationSlot.slot - 1]
+              const block = resolveNotationBlock(notationSlot)
               if (block && (block.notationAlphaTex || '').trim()) {
                 return (
                   <div key={idx} className="mb-[25px]">
+                    {block.label && (
+                      <div style={{ fontSize: `${fontSize}px`, marginBottom: '0.3em', textDecoration: 'underline', textUnderlineOffset: '4px', color: colors.lyricInside }}>
+                        {block.label}
+                      </div>
+                    )}
                     <NotationAlphaTabPreview alphaTex={block.notationAlphaTex} noTopMargin transparent />
                   </div>
                 )
@@ -2004,7 +2015,7 @@ const TabContent = ({
       const notationParsed = parseNotationMarkerLine(line)
       if (notationParsed) {
         const lineFontSize = getLineFontSize(line)
-        const block = notationBlocksList[notationParsed.slot - 1]
+        const block = resolveNotationBlock(notationParsed)
         if (block && (block.notationAlphaTex || '').trim()) {
           elements.push(
             <div key={`${i}-notation-anchor`} className="mb-[25px]">
@@ -3262,6 +3273,11 @@ const TabContent = ({
                     key={b.id ? `${b.id}-${bi}` : `nb-${bi}`}
                     className="mb-[25px]"
                   >
+                    {b.label && (
+                      <div style={{ fontSize: `${fontSize}px`, marginBottom: '0.3em', textDecoration: 'underline', textUnderlineOffset: '4px', color: colors.lyricInside }}>
+                        {b.label}
+                      </div>
+                    )}
                     <NotationAlphaTabPreview
                       alphaTex={b.notationAlphaTex}
                       noTopMargin

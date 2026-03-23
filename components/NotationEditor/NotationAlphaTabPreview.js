@@ -129,7 +129,7 @@ export default function NotationAlphaTabPreview({
   noTopMargin = false,
   /** No border or outer/inner chrome bg (e.g. tab read view) */
   transparent = false,
-  /** With transparent, still show outer border (e.g. 記譜器 modal preview). */
+  /** With transparent, still show outer border (e.g. 六線譜編輯器 modal preview). */
   outlined = false,
 }) {
   const containerRef = useRef(null)
@@ -137,6 +137,7 @@ export default function NotationAlphaTabPreview({
   const [loadError, setLoadError] = useState(null)
   const [ready, setReady] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [playerReady, setPlayerReady] = useState(false)
 
   useEffect(() => {
     if (!alphaTex?.trim() || !containerRef.current) return undefined
@@ -147,6 +148,7 @@ export default function NotationAlphaTabPreview({
       setLoadError(null)
       setReady(false)
       setIsPlaying(false)
+      setPlayerReady(false)
       try {
         const AlphaTab = await import('@coderline/alphatab')
         if (cancelled || !containerRef.current) return
@@ -225,6 +227,9 @@ export default function NotationAlphaTabPreview({
           if (cancelled) return
           const state = typeof arg === 'string' ? arg : arg?.state
           setIsPlaying(state === 'playing')
+        })
+        api.playerReady.on(() => {
+          if (!cancelled) setPlayerReady(true)
         })
         api.scoreLoaded.on((score) => {
           if (score?.stylesheet) {
@@ -325,7 +330,7 @@ export default function NotationAlphaTabPreview({
         <div className="py-3 text-sm text-red-400 bg-red-950/40 px-0">{loadError}</div>
       )}
       <div
-        className="relative w-full min-h-[220px]"
+        className={`relative w-full ${transparent ? '' : 'min-h-[220px]'}`}
         style={{ backgroundColor: transparent ? 'transparent' : COLORS.backgroundColor }}
       >
         {ready && !loadError && (
@@ -333,11 +338,17 @@ export default function NotationAlphaTabPreview({
             <button
               type="button"
               onClick={handlePlayPause}
-              className="bg-[#FFD700] hover:bg-yellow-400 rounded-full flex items-center justify-center text-black transition shrink-0"
+              disabled={!playerReady}
+              className={`${playerReady ? 'bg-[#FFD700] hover:bg-yellow-400' : 'bg-neutral-600 cursor-wait'} rounded-full flex items-center justify-center text-black transition shrink-0`}
               style={{ width: '1.4rem', height: '1.4rem' }}
-              aria-label={isPlaying ? 'Pause' : 'Play'}
+              aria-label={!playerReady ? 'Loading audio…' : isPlaying ? 'Pause' : 'Play'}
             >
-              {isPlaying ? (
+              {!playerReady ? (
+                <svg className="w-[0.75rem] h-[0.75rem] animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : isPlaying ? (
                 <svg className="w-[1rem] h-[1rem]" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
                   <rect x="6" y="4" width="4" height="16" />
                   <rect x="14" y="4" width="4" height="16" />
@@ -367,7 +378,7 @@ export default function NotationAlphaTabPreview({
             Loading alphaTab…
           </div>
         )}
-        <div ref={containerRef} className="relative w-full min-h-[200px] notation-alphatab-host" />
+        <div ref={containerRef} className={`relative w-full ${transparent ? '' : 'min-h-[200px]'} notation-alphatab-host`} />
       </div>
     </div>
   )

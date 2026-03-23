@@ -12,7 +12,7 @@ import SongActionSheet from '@/components/SongActionSheet'
 import RatingSystem from '@/components/RatingSystem'
 import GpSegmentPlayer from '@/components/GpSegmentPlayer'
 import { useArtistMap } from '@/lib/useArtistMap'
-import { recordSongView } from '@/lib/recentViews'
+import { recordSongView, removeFromRecentViews } from '@/lib/recentViews'
 import { recordPageView } from '@/lib/analytics'
 import { recordTabView } from '@/lib/libraryRecentViews'
 import { Share, Heart, Music, Plus, Copy, ArrowLeft, PenLine, Star, Bookmark } from 'lucide-react'
@@ -322,6 +322,7 @@ export default function TabDetail({ initialTab, artist }) {
         })
         fireSideEffects(data)
       } else {
+        removeFromRecentViews('tab', id)
         router.push('/')
       }
     } catch (error) {
@@ -347,6 +348,7 @@ export default function TabDetail({ initialTab, artist }) {
           })
         }
       } catch (e) { console.warn('[patch-caches] delete patch failed:', e) }
+      removeFromRecentViews('tab', id)
       router.push('/')
     } catch (error) {
       alert('刪除失敗：' + error.message)

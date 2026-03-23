@@ -1,12 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import dynamic from 'next/dynamic'
 import { useRouter } from 'next/router'
 import Link from '@/components/Link'
 import { createTab, parseCollaborators } from '@/lib/tabs'
 import { parseCreditBlock } from '@/lib/tabCredits'
 import { useAuth } from '@/contexts/AuthContext'
 import Layout from '@/components/Layout'
-import NotationEditorModal from '@/components/NotationEditor/NotationEditorModal'
+import NotationBlocksManager from '@/components/NotationBlocksManager'
 import ArtistAutoFill from '@/components/ArtistAutoFill'
 import ArtistInputSimple, { RELATION_OPTIONS } from '@/components/ArtistInputSimple'
 import GpSegmentUploader, { SEGMENT_TYPES } from '@/components/GpSegmentUploader'
@@ -25,12 +24,7 @@ import {
   peekPendingNotationStaffSnapshot,
   clearPendingNotationStaffSnapshot,
 } from '@/lib/notationEditorBridge'
-import { buildNotationEditorSeedFromForm } from '@/lib/notationEditorSeed'
-
-const NotationAlphaTabPreview = dynamic(
-  () => import('@/components/NotationEditor/NotationAlphaTabPreview'),
-  { ssr: false }
-)
+import { newNotationBlockId, hasAnyNotationTex } from '@/lib/notationBlocks'
 
 const REGIONS = [
   { value: '', label: '請選擇...' },
@@ -42,8 +36,6 @@ const REGIONS = [
 ]
 
 const TAB_NEW_DRAFT_KEY = 'polygon-tab-new-draft'
-/** localStorage draft scope for 出譜頁單一六線譜欄位 */
-const TAB_NEW_NOTATION_DRAFT_SCOPE = 'tab-new-notation'
 
 const ARTIST_TYPES = [
   { value: 'male', label: '男歌手' },
@@ -166,8 +158,7 @@ export default function NewTab() {
     gpSegments: [], // GP 段落陣列
     gpTheme: 'dark', // GP 顯示主題：dark (黑底黃字) / light (白底黑字)
     region: '', // 地區（與設計圖一致）
-    notationAlphaTex: '', // 六線譜編輯器匯出之 alphaTex
-    notationStaffSnapshot: null
+    notationBlocks: [],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState({})
@@ -198,22 +189,11 @@ export default function NewTab() {
   // 撳「獲取歌曲資訊」後，未成功獲取資料嘅輸入欄閃紅框
   const [spotifyFlashRedFields, setSpotifyFlashRedFields] = useState(new Set())
   const spotifyJustAppliedRef = useRef(false)
-  const [showNotationCard, setShowNotationCard] = useState(false)
   // 出譜者名稱 autocomplete（僅 Admin）
   const [penNameSuggestions, setPenNameSuggestions] = useState([])
   const [penNameShowDropdown, setPenNameShowDropdown] = useState(false)
   const [penNameSelectedIndex, setPenNameSelectedIndex] = useState(-1)
   const penNameDropdownRef = useRef(null)
-  const [notationEditorOpen, setNotationEditorOpen] = useState(false)
-
-  const notationEditorSeed = useMemo(() => {
-    if (!notationEditorOpen) return null
-    return buildNotationEditorSeedFromForm({
-      notationStaffSnapshot: formData.notationStaffSnapshot,
-      notationAlphaTex: formData.notationAlphaTex,
-    })
-  }, [notationEditorOpen, formData.notationStaffSnapshot, formData.notationAlphaTex])
-
   // 對齊參數（從 localStorage 讀取或預設 1.1）
   const [alignFactor, setAlignFactor] = useState(1.1)
   
@@ -239,17 +219,16 @@ export default function NewTab() {
         console.warn('[tab-new] draft parse error', e)
       }
     }
-    // peek (don't remove immediately): React Strict Mode double-mount would otherwise consume
-    // sessionStorage on the first effect and leave remounted state without notationAlphaTex.
     const tex = peekPendingNotationTex()
     const pendingStaff = peekPendingNotationStaffSnapshot()
     if (tex || pendingStaff) {
-      setFormData((prev) => ({
-        ...prev,
-        ...(tex ? { notationAlphaTex: tex } : {}),
-        ...(pendingStaff ? { notationStaffSnapshot: pendingStaff } : {}),
-      }))
-      setShowNotationCard(true)
+      setFormData((prev) => {
+        const existing = prev.notationBlocks || []
+        if (existing.length > 0) {
+          return { ...prev, notationBlocks: existing.map((b, i) => i === 0 ? { ...b, ...(tex ? { notationAlphaTex: tex } : {}), ...(pendingStaff ? { notationStaffSnapshot: pendingStaff } : {}) } : b) }
+        }
+        return { ...prev, notationBlocks: [{ id: newNotationBlockId(), notationAlphaTex: tex || '', notationStaffSnapshot: pendingStaff || null, label: 'Intro' }] }
+      })
     }
     const clearLater = setTimeout(() => {
       clearPendingNotationTex()
@@ -516,7 +495,7 @@ export default function NewTab() {
     if (!formData.title.trim()) newErrors.title = '請輸入歌名'
     if (!formData.artist.trim()) newErrors.artist = '請輸入歌手名'
     const hasText = !!formData.content.trim()
-    const hasNotation = !!(formData.notationAlphaTex || '').trim()
+    const hasNotation = hasAnyNotationTex(formData.notationBlocks)
     if (!hasText && !hasNotation) newErrors.content = '請輸入譜內容或加入六線譜'
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -1335,91 +1314,10 @@ E|----------------------------------------------------------------|
     ),
 
     notation: (
-      <div className="space-y-4">
-        <p className="pl-1 text-xs text-[#B3B3B3] leading-relaxed">
-          每份六線譜會有一個 ID 如{' '}
-          <span className="text-[#FFD700] font-mono text-[12px]">[六線譜 1]</span>
-          ，ID 連括號放進譜內容中。
-        </p>
-        {!showNotationCard && !(formData.notationAlphaTex || '').trim() && (
-          <div className="flex justify-start w-full">
-            <button
-              type="button"
-              onClick={() => {
-                setShowNotationCard(true)
-              }}
-              className="inline-flex items-center gap-1 text-xs text-[#FFD700] hover:text-yellow-300"
-            >
-              <span className="text-sm font-medium leading-none" aria-hidden>+</span>
-              加入六線譜
-            </button>
-          </div>
-        )}
-        {(showNotationCard || (formData.notationAlphaTex || '').trim()) && (
-          <div className="w-full rounded-lg border border-neutral-700 bg-black shadow-lg overflow-hidden">
-            {(formData.notationAlphaTex || '').trim() ? (
-              <>
-                <NotationAlphaTabPreview alphaTex={formData.notationAlphaTex} transparent />
-                <div className="flex flex-wrap gap-2 justify-end p-2">
-                  <button
-                    type="button"
-                    onClick={() => setNotationEditorOpen(true)}
-                    className="px-4 py-2 rounded-lg bg-[#FFD700] text-black text-sm font-semibold hover:bg-yellow-400 shadow-md"
-                  >
-                    編輯
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        notationAlphaTex: '',
-                        notationStaffSnapshot: null,
-                      }))
-                      setShowNotationCard(false)
-                    }}
-                    className="px-4 py-2 rounded-lg bg-[#282828] text-white text-sm font-medium border border-neutral-600 hover:bg-[#3E3E3E]"
-                  >
-                    移除
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-wrap items-center gap-3 p-2">
-                <img
-                  src="/notation-editor.png"
-                  alt=""
-                  className="h-[80px] w-auto object-contain block shrink-0"
-                  draggable={false}
-                />
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNotationEditorOpen(true)}
-                    className="px-4 py-2 rounded-lg bg-[#FFD700] text-black text-sm font-semibold hover:bg-yellow-400 shadow-md"
-                  >
-                    編輯
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        notationAlphaTex: '',
-                        notationStaffSnapshot: null,
-                      }))
-                      setShowNotationCard(false)
-                    }}
-                    className="px-4 py-2 rounded-lg bg-[#282828] text-white text-sm font-medium border border-neutral-600 hover:bg-[#3E3E3E]"
-                  >
-                    移除
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <NotationBlocksManager
+        blocks={formData.notationBlocks || []}
+        onChange={(newBlocks) => setFormData((prev) => ({ ...prev, notationBlocks: newBlocks }))}
+      />
     ),
     
     content: (
@@ -1829,18 +1727,6 @@ Chord會自動追蹤歌詞中( )位置
         onSelect={handleUseSpotifyTrack}
       />
 
-      {notationEditorOpen && (
-        <NotationEditorModal
-          open
-          onClose={() => setNotationEditorOpen(false)}
-          draftScopeId={TAB_NEW_NOTATION_DRAFT_SCOPE}
-          initialSeed={notationEditorSeed}
-          onSave={({ notationAlphaTex, notationStaffSnapshot }) => {
-            setFormData((prev) => ({ ...prev, notationAlphaTex, notationStaffSnapshot }))
-            setShowNotationCard(true)
-          }}
-        />
-      )}
     </Layout>
   )
 }

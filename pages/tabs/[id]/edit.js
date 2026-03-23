@@ -1,18 +1,18 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import dynamic from 'next/dynamic'
 import { useRouter } from 'next/router'
 import Link from '@/components/Link'
 import { getTab, updateTab, deleteTab, parseCollaborators, normalizeArtistId, clearTabCache, invalidateArtistCaches, invalidateArtistTabsCache, getTabArtistId } from '@/lib/tabs'
 import { parseCreditBlock } from '@/lib/tabCredits'
 import { useAuth } from '@/contexts/AuthContext'
 import Layout from '@/components/Layout'
-import NotationEditorModal from '@/components/NotationEditor/NotationEditorModal'
+import NotationBlocksManager from '@/components/NotationBlocksManager'
 import ArtistAutoFill from '@/components/ArtistAutoFill'
 import ArtistInputSimple, { RELATION_OPTIONS } from '@/components/ArtistInputSimple'
 import GpSegmentUploader, { SEGMENT_TYPES } from '@/components/GpSegmentUploader'
 import YouTubeSearchModal from '@/components/YouTubeSearchModal'
 import SpotifyTrackSearch from '@/components/SpotifyTrackSearch'
 import { extractYouTubeVideoId } from '@/lib/wikipedia'
+import { removeFromRecentViews } from '@/lib/recentViews'
 import { processTabContent, autoFixTabFormatWithFactor, cleanPastedText } from '@/lib/tabFormatter'
 import { uploadToCloudinary, validateImageFile } from '@/lib/cloudinary'
 import { auth, db } from '@/lib/firebase'
@@ -27,7 +27,6 @@ import {
   NOTATION_PENDING_BLOCK_ID_SESSION_KEY,
   consumeNotationReturnHandoff,
 } from '@/lib/notationEditorBridge'
-import { buildNotationEditorSeedFromForm } from '@/lib/notationEditorSeed'
 import {
   newNotationBlockId,
   blocksFromTabDoc,
@@ -42,11 +41,6 @@ import {
   writeTabEditNotationCache,
   clearTabEditNotationCache,
 } from '@/lib/tabEditNotationCache'
-
-const NotationAlphaTabPreview = dynamic(
-  () => import('@/components/NotationEditor/NotationAlphaTabPreview'),
-  { ssr: false }
-)
 
 function readPendingNotationBlockIdFromSession() {
   if (typeof window === 'undefined') return null
@@ -246,18 +240,6 @@ export default function EditTab() {
   const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false)
   const [youTubeAutoSelect, setYouTubeAutoSelect] = useState(false) // 自動選擇第一個結果
 
-  const [notationEditorOpen, setNotationEditorOpen] = useState(false)
-  const [notationEditorBlockId, setNotationEditorBlockId] = useState(null)
-
-  const notationEditorSeed = useMemo(() => {
-    if (!notationEditorOpen || !notationEditorBlockId) return null
-    const block = (formData.notationBlocks || []).find((b) => b.id === notationEditorBlockId)
-    return buildNotationEditorSeedFromForm({
-      notationStaffSnapshot: block?.notationStaffSnapshot,
-      notationAlphaTex: block?.notationAlphaTex,
-    })
-  }, [notationEditorOpen, notationEditorBlockId, formData.notationBlocks])
-
   // 相似歌手狀態
   const [similarArtists, setSimilarArtists] = useState([])
   const [useExistingArtistSelected, setUseExistingArtistSelected] = useState(false)
@@ -344,7 +326,7 @@ export default function EditTab() {
 
   /**
    * 未寫入 Firestore 嘅六線譜段落：全頁重新整理時 prev 會清空，要靠 session 保留。
-   * 記譜器已改為頁內 Modal，唔再靠呢個做 edit↔記譜器導航。
+   * 六線譜編輯器已改為頁內 Modal，唔再靠呢個做 edit↔六線譜編輯器導航。
    * 必須等 loadTab 完成（!isLoading）；否則初次 render 時 notationBlocks 仍係 [] 會覆寫掉之前 cache 入面嘅第二段。
    */
   useEffect(() => {
@@ -775,49 +757,6 @@ export default function EditTab() {
     }
   }
 
-  const openNotationEditorForBlock = (blockId) => {
-    setNotationEditorBlockId(blockId)
-    setNotationEditorOpen(true)
-  }
-
-  const handleNotationEditorSave = ({ notationAlphaTex, notationStaffSnapshot, blockId }) => {
-    const bid = blockId || notationEditorBlockId
-    if (!bid) return
-    setFormData((prev) => ({
-      ...prev,
-      notationBlocks: (prev.notationBlocks || []).map((b) =>
-        b.id === bid ? { ...b, notationAlphaTex, notationStaffSnapshot } : b
-      ),
-    }))
-  }
-
-  const closeNotationEditor = () => {
-    setNotationEditorOpen(false)
-    setNotationEditorBlockId(null)
-  }
-
-  const handleAddNotationBlock = () => {
-    const nid = newNotationBlockId()
-    setFormData((prev) => {
-      const prevBlocks = prev.notationBlocks || []
-      const nextBlocks = [
-        ...prevBlocks,
-        { id: nid, notationAlphaTex: '', notationStaffSnapshot: null },
-      ]
-      return {
-        ...prev,
-        notationBlocks: nextBlocks,
-      }
-    })
-  }
-
-  const removeNotationBlock = (blockId) => {
-    setFormData((prev) => ({
-      ...prev,
-      notationBlocks: (prev.notationBlocks || []).filter((b) => b.id !== blockId),
-    }))
-  }
-
   // 刪除樂譜
   const [isDeleting, setIsDeleting] = useState(false)
   const handleDeleteTab = async () => {
@@ -842,6 +781,7 @@ export default function EditTab() {
       try {
         clearTabEditNotationCache(id)
       } catch (_) {}
+      removeFromRecentViews('tab', id)
       alert('✅ 樂譜已刪除')
       router.push('/')
     } catch (error) {
@@ -2065,73 +2005,10 @@ Chord會自動追蹤歌詞中( )位置
             </FormSection>
 
             <FormSection title="六線譜">
-              <div className="space-y-4">
-                <p className="pl-1 text-xs text-[#B3B3B3] leading-relaxed">
-                  每份六線譜會有一個 ID 如{' '}
-                  <span className="text-[#FFD700] font-mono text-[12px]">[六線譜 1]</span>
-                  ，ID 連括號放進譜內容中。
-                </p>
-                <div className="flex justify-start w-full">
-                  <button
-                    type="button"
-                    onClick={handleAddNotationBlock}
-                    disabled={!id}
-                    className="inline-flex items-center gap-1 text-xs text-[#FFD700] hover:text-yellow-300 disabled:opacity-40"
-                  >
-                    <span className="text-sm font-medium leading-none" aria-hidden>+</span>
-                    加入六線譜
-                  </button>
-                </div>
-                {id && (formData.notationBlocks || []).length > 0 && (
-                  <div className="space-y-3 w-full">
-                    {(formData.notationBlocks || []).map((block, index) => (
-                      <div
-                        key={`${block.id}-${index}`}
-                        className="w-full rounded-lg border border-neutral-700 bg-black shadow-lg overflow-hidden"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2 pl-3 pr-[0.5rem] py-2 border-b border-neutral-800 bg-neutral-900/40">
-                          <span className="text-md font-medium text-[#B3B3B3]">[六線譜 {index + 1}]</span>
-                          <div className="flex flex-wrap gap-2 justify-end shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => openNotationEditorForBlock(block.id)}
-                              className="px-[0.6rem] py-2 rounded-lg bg-[#FFD700] text-black text-sm font-semibold leading-4 hover:bg-yellow-400 shadow-md"
-                            >
-                              編輯
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeNotationBlock(block.id)}
-                              className="px-[0.6rem] py-2 rounded-lg bg-[#282828] text-white text-sm font-medium leading-4 border border-neutral-600 hover:bg-[#3E3E3E]"
-                            >
-                              移除
-                            </button>
-                          </div>
-                        </div>
-                        {(block.notationAlphaTex || '').trim() ? (
-                          <div className="px-4">
-                            <NotationAlphaTabPreview
-                              alphaTex={block.notationAlphaTex}
-                              transparent
-                              noTopMargin
-                            />
-                          </div>
-                        ) : (
-                          <div className="flex flex-wrap items-center gap-3 p-3">
-                            <img
-                              src="/notation-editor.png"
-                              alt=""
-                              className="h-[80px] w-auto object-contain block shrink-0"
-                              draggable={false}
-                            />
-                            <p className="text-sm text-[#737373]">尚未編輯 — 按「編輯」開啟記譜器</p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <NotationBlocksManager
+                blocks={formData.notationBlocks || []}
+                onChange={(newBlocks) => setFormData((prev) => ({ ...prev, notationBlocks: newBlocks }))}
+              />
             </FormSection>
 
             {/* Submit */}
@@ -2209,15 +2086,6 @@ Chord會自動追蹤歌詞中( )位置
         onSelect={handleUseSpotifyTrack}
       />
 
-      {notationEditorOpen && notationEditorBlockId && (
-        <NotationEditorModal
-          open
-          onClose={closeNotationEditor}
-          draftScopeId={notationEditorBlockId}
-          initialSeed={notationEditorSeed}
-          onSave={handleNotationEditorSave}
-        />
-      )}
     </Layout>
   )
 }

@@ -83,6 +83,8 @@ export default function NotationEditorWorkspace({
   onSave,
   className = '',
   compactChrome = false,
+  label = '',
+  onLabelChange,
 }) {
   const router = useRouter()
   const staffRef = useRef(null)
@@ -366,7 +368,7 @@ export default function NotationEditorWorkspace({
       <div>
         <div className={`${maxW} ${padEditorRow}`}>
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-bold text-white">{compactChrome ? '編輯' : 'Editor'}</h2>
+            <h2 className="text-sm font-bold text-white">{compactChrome ? '' : 'Editor'}</h2>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
@@ -406,6 +408,8 @@ export default function NotationEditorWorkspace({
           onSelectTimeSignature={setTimeSignatureId}
           bpm={bpm}
           onBpmChange={handleBpmChange}
+          label={label}
+          onLabelChange={onLabelChange}
         />
         {editorHydrated ? (
           <StaffCanvas

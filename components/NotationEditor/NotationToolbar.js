@@ -5,6 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
+import { NOTATION_BLOCK_LABELS } from '@/lib/notationBlocks'
 
 const NOTO_MUSIC = '"Noto Music", sans-serif'
 
@@ -83,6 +84,8 @@ export default function NotationToolbar({
   onSelectTimeSignature,
   bpm = 100,
   onBpmChange,
+  label = '',
+  onLabelChange,
 }) {
   const [tupletImgFailed, setTupletImgFailed] = useState(false)
   const [beatsPopupOpen, setBeatsPopupOpen] = useState(false)
@@ -110,6 +113,35 @@ export default function NotationToolbar({
       style={{ fontFamily: NOTO_MUSIC }}
     >
       <div className="flex flex-wrap items-center gap-1">
+        {onLabelChange && (
+          <>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {(() => {
+                const meta = NOTATION_BLOCK_LABELS.find((o) => label === o.value || label?.startsWith(o.value))
+                return (
+                  <span
+                    className="text-sm font-semibold px-2.5 py-1 rounded-md border leading-snug"
+                    style={{ fontFamily: 'system-ui, sans-serif', color: meta?.color || '#fff', backgroundColor: meta?.bg || '#ffffff10', borderColor: meta?.color || '#555' }}
+                  >
+                    {label || '—'}
+                  </span>
+                )
+              })()}
+              <select
+                value={NOTATION_BLOCK_LABELS.find((o) => label === o.value || label?.startsWith(o.value))?.value || ''}
+                onChange={(e) => onLabelChange(e.target.value)}
+                className="h-9 rounded-lg px-2 text-xs font-medium outline-none bg-neutral-100 text-neutral-700 border border-neutral-300"
+                style={{ fontFamily: 'system-ui, sans-serif' }}
+                aria-label="Section label"
+              >
+                {NOTATION_BLOCK_LABELS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-px h-10 bg-neutral-300 shrink-0 self-center" aria-hidden />
+          </>
+        )}
         {DURATION_ORDER.map((id) => (
           <ToolButton
             key={id}
