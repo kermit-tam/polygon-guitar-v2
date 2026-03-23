@@ -4,6 +4,9 @@ const { AlphaTabWebPackPlugin } = require('@coderline/alphatab-webpack')
 const nextConfig = {
   reactStrictMode: true,
 
+  // Allow LAN access from local network devices (e.g. 192.168.1.x)
+  allowedDevOrigins: ['192.168.1.252'],
+
   // alphaTab ships web workers / worklets; Webpack must bundle them (fixes file://…alphaTab.worker.mjs errors)
   transpilePackages: ['@coderline/alphatab'],
 
