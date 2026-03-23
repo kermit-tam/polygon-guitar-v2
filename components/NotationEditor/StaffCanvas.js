@@ -106,10 +106,10 @@ function breaksSimpleMeterHalfMeasure(dur, timeSignatureId, cumAfterI, cumAfterI
 }
 
 /**
- * 簡單拍：十六分／三十二分按「每拍」分組，唔跨整数拍界（Musicnotes：group by beat）。
+ * 簡單拍：八分／十六分／三十二分按「每拍」分組，唔跨整数拍界（group by beat）。
  */
 function breaksSimpleMeterBeatBoundary(dur, timeSignatureId, cumAfterI) {
-  if (dur !== 'sixteenth' && dur !== 'thirtySecond') return false
+  if (!FLAGGED_DURATIONS.includes(dur)) return false
   const beatsInBar = BEATS_PER_MEASURE[timeSignatureId] ?? 4
   if (!nearlyInteger(cumAfterI)) return false
   const k = Math.round(cumAfterI)
