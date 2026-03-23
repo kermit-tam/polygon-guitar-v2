@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/** FreePats FSS Steel-String Acoustic Guitar — richer guitar tone than the default sonivox GM bank. */
-const ALPHATAB_SOUNDFONT = '/soundfonts/steel-guitar.sf2'
+/** Bundled with @coderline/alphatab — General MIDI soundfont (Android/SONiVOX). */
+const ALPHATAB_SOUNDFONT =
+  'https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.8.1/dist/soundfont/sonivox.sf2'
 
 function formatAlphaTabLoadError(e) {
   const out = []
