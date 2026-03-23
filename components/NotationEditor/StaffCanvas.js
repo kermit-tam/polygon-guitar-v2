@@ -183,11 +183,11 @@ function beatHasNotes(b) {
 /**
  * Beam flags for eighth / sixteenth / thirty-second stems (DurationStem).
  * 依拍號同累積拍長決定連槓；附點／triplet 該粒唔參與連槓。
- * 休止符唔參與連槓（唔會向休止符伸出右槓）。
- * 獨立音符預設向右短槓；右邊係休止符則唔畫向右符尾／槓（omitFlagBar）。
+ * 休止符唔參與連槓（唔會同休止符錯誤連槓）。
+ * 獨立音符一律向右短槓（right），包括右邊係休止符嘅情況（符尾只係喺本欄，唔會連去下一格）。
  */
 function getStemFlags(beats, timeSignatureId) {
-  const result = beats.map(() => ({ left: false, right: false, omitFlagBar: false }))
+  const result = beats.map(() => ({ left: false, right: false }))
   if (!beats.length) return result
 
   const cumAfter = []
@@ -264,11 +264,6 @@ function getStemFlags(beats, timeSignatureId) {
     const b = beats[idx]
     if (!FLAGGED_DURATIONS.includes(b.duration) || b.dotted || b.tuplet || !beatHasNotes(b)) continue
     if (result[idx].left || result[idx].right) continue
-    const next = beats[idx + 1]
-    if (next && !beatHasNotes(next)) {
-      result[idx].omitFlagBar = true
-      continue
-    }
     result[idx].right = true
   }
 
@@ -287,13 +282,13 @@ function TupletImageBelow() {
   )
 }
 
-function DurationStem({ duration, flagLeft, flagRight, hasNote, dotted, omitFlagBar }) {
+function DurationStem({ duration, flagLeft, flagRight, hasNote, dotted }) {
   if (!hasNote) return <div style={{ width: NOTE_COLUMN_WIDTH, height: STEM_HEIGHT_QUARTER }} />
   if (duration === 'whole') return <div style={{ width: NOTE_COLUMN_WIDTH, height: STEM_HEIGHT_QUARTER }} />
   const isFlagged = FLAGGED_DURATIONS.includes(duration)
   const stemHeight = duration === 'half' ? STEM_HEIGHT_HALF : STEM_HEIGHT_QUARTER
   const flagCount = duration === 'eighth' ? 1 : duration === 'sixteenth' ? 2 : duration === 'thirtySecond' ? 3 : 0
-  const showFlagBlock = isFlagged && flagCount > 0 && !omitFlagBar
+  const showFlagBlock = isFlagged && flagCount > 0
   const beamWidth =
     flagLeft || flagRight
       ? (flagLeft ? BEAM_HALF_GAP : 0) + STEM_WIDTH + (flagRight ? BEAM_HALF_GAP : 0)
@@ -603,7 +598,12 @@ function BeatCell({
       {showRest && (
         <span
           className="text-black flex items-center justify-center absolute inset-0"
-          style={{ fontFamily: 'Noto Music, sans-serif', fontSize: 34, marginTop: restMarginTop }}
+          style={{
+            fontFamily: 'Noto Music, sans-serif',
+            fontSize: 34,
+            marginTop: restMarginTop,
+            ...(beat.duration === 'half' ? { top: -2 } : {}),
+          }}
         >
           {restChar}
           {beat.dotted && (
@@ -1114,8 +1114,6 @@ const StaffCanvas = forwardRef(function StaffCanvas(
             </div>
             {firstBeats.map((beat, beatIdx) => {
               const restChar = REST_BY_DURATION[beat.duration] ?? REST_BY_DURATION.quarter
-              const isWholeRest = beat.duration === 'whole'
-              const isHalfRest = beat.duration === 'half'
               const restMarginTop = undefined
               const isFocused = focus.subdivIndex === 0 && focus.beatIndex === beatIdx
               const isHovered = hoveredBeat.subdivIndex === 0 && hoveredBeat.beatIndex === beatIdx
@@ -1175,7 +1173,6 @@ const StaffCanvas = forwardRef(function StaffCanvas(
                   flagRight={firstStemFlags[i].right}
                   hasNote={beat.notes?.length > 0}
                   dotted={beat.dotted}
-                  omitFlagBar={firstStemFlags[i].omitFlagBar}
                 />
                 {beat.tuplet && <TupletImageBelow />}
               </div>
@@ -1235,8 +1232,6 @@ const StaffCanvas = forwardRef(function StaffCanvas(
                 <div style={{ width: SEGMENT_NUM_WIDTH, flexShrink: 0 }} />
                 {beats.map((beat, beatIdx) => {
                   const restChar = REST_BY_DURATION[beat.duration] ?? REST_BY_DURATION.quarter
-                  const isWholeRest = beat.duration === 'whole'
-                  const isHalfRest = beat.duration === 'half'
                   const restMarginTop = undefined
                   const isFocused = focus.subdivIndex === subdivIndex && focus.beatIndex === beatIdx
                   const isHovered = hoveredBeat.subdivIndex === subdivIndex && hoveredBeat.beatIndex === beatIdx
@@ -1295,7 +1290,6 @@ const StaffCanvas = forwardRef(function StaffCanvas(
                       flagRight={subdivStemFlags[idx].right}
                       hasNote={beat.notes?.length > 0}
                       dotted={beat.dotted}
-                      omitFlagBar={subdivStemFlags[idx].omitFlagBar}
                     />
                     {beat.tuplet && <TupletImageBelow />}
                   </div>

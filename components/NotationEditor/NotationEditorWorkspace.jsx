@@ -41,6 +41,7 @@ function applyDraftPayload(setters, d) {
     setSelectedDuration,
     setSelectedDivision,
     setBpm,
+    setCapo,
     setPreviewAlphaTex,
     setStaffBootstrap,
     setStaffCanvasKey,
@@ -54,6 +55,12 @@ function applyDraftPayload(setters, d) {
     setBpm(Math.min(480, Math.max(1, Math.round(bp))))
   } else {
     setBpm(100)
+  }
+  const cp = d.capo
+  if (typeof cp === 'number' && !Number.isNaN(cp)) {
+    setCapo(Math.min(12, Math.max(0, Math.round(cp))))
+  } else {
+    setCapo(0)
   }
   setPreviewAlphaTex(d.savedAlphaTex ?? null)
   if (d.staff?.firstBeats?.length) {
@@ -99,6 +106,9 @@ export default function NotationEditorWorkspace({
   /** number | '' — 空字串僅作輸入中狀態，匯出／預覽用 effectiveBpm */
   const [bpm, setBpm] = useState(100)
   const effectiveBpm = typeof bpm === 'number' && !Number.isNaN(bpm) ? bpm : 100
+  const [capo, setCapo] = useState(0)
+  const effectiveCapo =
+    typeof capo === 'number' && !Number.isNaN(capo) ? Math.min(12, Math.max(0, Math.round(capo))) : 0
   const [previewAlphaTex, setPreviewAlphaTex] = useState(null)
   const [saveError, setSaveError] = useState(null)
   const [editorHydrated, setEditorHydrated] = useState(false)
@@ -123,6 +133,7 @@ export default function NotationEditorWorkspace({
       setSelectedDuration,
       setSelectedDivision,
       setBpm,
+      setCapo,
       setPreviewAlphaTex,
       setStaffBootstrap,
       setStaffCanvasKey,
@@ -164,6 +175,7 @@ export default function NotationEditorWorkspace({
           ...snap,
           timeSignatureId,
           bpm: effectiveBpm,
+          capo: effectiveCapo,
         })
         setPreviewAlphaTex(tex)
       } catch (_) {
@@ -171,7 +183,7 @@ export default function NotationEditorWorkspace({
       }
     }, 200)
     return () => clearTimeout(t)
-  }, [editorHydrated, persistStaffRev, timeSignatureId, effectiveBpm])
+  }, [editorHydrated, persistStaffRev, timeSignatureId, effectiveBpm, effectiveCapo])
 
   useEffect(() => {
     if (!editorHydrated) return undefined
@@ -184,6 +196,7 @@ export default function NotationEditorWorkspace({
           selectedDuration,
           selectedDivision,
           bpm: effectiveBpm,
+          capo: effectiveCapo,
           staff,
           savedAlphaTex: previewAlphaTex,
         },
@@ -197,6 +210,7 @@ export default function NotationEditorWorkspace({
     selectedDuration,
     selectedDivision,
     effectiveBpm,
+    effectiveCapo,
     previewAlphaTex,
     persistStaffRev,
   ])
@@ -232,6 +246,7 @@ export default function NotationEditorWorkspace({
     clearNotationEditorState(draftScopeRef.current ?? undefined)
     setTimeSignatureId('4/4')
     setBpm(100)
+    setCapo(0)
     setSelectedDuration(TOOL_IDS.QUARTER)
     setSelectedDivision(null)
     setPreviewAlphaTex(null)
@@ -260,6 +275,7 @@ export default function NotationEditorWorkspace({
         ...snap,
         timeSignatureId,
         bpm: effectiveBpm,
+        capo: effectiveCapo,
       })
       setPreviewAlphaTex(tex)
       setBpm(effectiveBpm)
@@ -269,6 +285,7 @@ export default function NotationEditorWorkspace({
         selectedDuration,
         selectedDivision,
         bpm: effectiveBpm,
+        capo: effectiveCapo,
         staff: snap,
         savedAlphaTex: tex,
       }
@@ -284,6 +301,7 @@ export default function NotationEditorWorkspace({
                 selectedDuration,
                 selectedDivision,
                 bpm: effectiveBpm,
+                capo: effectiveCapo,
                 staff,
                 savedAlphaTex: tex,
               },
@@ -322,6 +340,7 @@ export default function NotationEditorWorkspace({
                 selectedDuration,
                 selectedDivision,
                 bpm: effectiveBpm,
+                capo: effectiveCapo,
                 staff,
                 savedAlphaTex: tex,
               },
@@ -343,6 +362,7 @@ export default function NotationEditorWorkspace({
               selectedDuration,
               selectedDivision,
               bpm: effectiveBpm,
+              capo: effectiveCapo,
               staff,
               savedAlphaTex: tex,
             },
@@ -422,6 +442,8 @@ export default function NotationEditorWorkspace({
           bpm={bpm}
           onBpmChange={handleBpmChange}
           onBpmBlur={handleBpmBlur}
+          capo={effectiveCapo}
+          onCapoChange={setCapo}
           label={label}
           onLabelChange={onLabelChange}
         />
