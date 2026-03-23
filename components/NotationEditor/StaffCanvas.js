@@ -78,49 +78,170 @@ const FLAG_MIN_STANDALONE = 10  // minimum beam width when not connected to adja
 
 const FLAGGED_DURATIONS = ['eighth', 'sixteenth', 'thirtySecond']
 
+const BEAM_EPS = 1e-5
+
+function nearlyInteger(x) {
+  return Math.abs(x - Math.round(x)) < BEAM_EPS
+}
+
+/** 6/8：累積到 3、6…（複合拍界），十六分／三十二分唔跨複合拍 */
+function isSixEightCompoundBoundary(cumEndAfterI) {
+  if (cumEndAfterI <= BEAM_EPS) return false
+  return nearlyInteger(cumEndAfterI / 3)
+}
+
+/**
+ * 簡單拍：唔跨「小節中線」（4/4 喺第 2 拍後、2/4 喺第 1 拍後）。
+ * eighth 可將第 1–2 拍連成一槓（最多 4 個八分），但唔跨中線到第 3 拍。
+ */
+function breaksSimpleMeterHalfMeasure(dur, timeSignatureId, cumAfterI, cumAfterI1) {
+  const beatsInBar = BEATS_PER_MEASURE[timeSignatureId] ?? 4
+  if (beatsInBar !== 4 && beatsInBar !== 2) return false
+  if (dur !== 'eighth') return false
+  const mid = beatsInBar / 2
+  if (cumAfterI < mid - BEAM_EPS && cumAfterI1 > mid + BEAM_EPS) return true
+  if (Math.abs(cumAfterI - mid) < BEAM_EPS && cumAfterI1 > mid + BEAM_EPS) return true
+  return false
+}
+
+/**
+ * 簡單拍：十六分／三十二分按「每拍」分組，唔跨整数拍界（Musicnotes：group by beat）。
+ */
+function breaksSimpleMeterBeatBoundary(dur, timeSignatureId, cumAfterI) {
+  if (dur !== 'sixteenth' && dur !== 'thirtySecond') return false
+  const beatsInBar = BEATS_PER_MEASURE[timeSignatureId] ?? 4
+  if (!nearlyInteger(cumAfterI)) return false
+  const k = Math.round(cumAfterI)
+  return k >= 1 && k < beatsInBar
+}
+
+/** 3/4 八分：按拍分槓（每拍最多兩個八分），唔跨 1、2 拍後界 */
+function breaksThreeFourEighth(cumAfterI) {
+  if (!nearlyInteger(cumAfterI)) return false
+  const k = Math.round(cumAfterI)
+  return k >= 1 && k < 3
+}
+
+/**
+ * 可否將第 i 與第 i+1 個符尾連成同一槓（同時值、同符幹類型前提下）。
+ * 規則撮要：唔跨小節內中線（4/4、6/8）、十六分三十二按拍、6/8 八分每複合拍最多三個。
+ * @see https://www.musicnotes.com/blog/note-beaming-and-grouping-in-music-theory/
+ */
+function canBeamAdjacent(beats, i, timeSignatureId, cumAfter) {
+  const a = beats[i]
+  const b = beats[i + 1]
+  if (!b || a.duration !== b.duration) return false
+  if (a.dotted || b.dotted || a.tuplet || b.tuplet) return false
+  const dur = a.duration
+  if (!FLAGGED_DURATIONS.includes(dur)) return false
+
+  const cei = cumAfter[i]
+  const cej = cumAfter[i + 1]
+
+  if (timeSignatureId === '6/8') {
+    if (dur === 'eighth') {
+      if (cei < 3 - BEAM_EPS && cej > 3 + BEAM_EPS) return false
+      if (Math.abs(cei - 3) < BEAM_EPS && cej > 3 + BEAM_EPS) return false
+      return true
+    }
+    if (dur === 'sixteenth' || dur === 'thirtySecond') {
+      if (isSixEightCompoundBoundary(cei)) return false
+      return true
+    }
+    return false
+  }
+
+  if (timeSignatureId === '3/4' && dur === 'eighth') {
+    if (breaksThreeFourEighth(cei)) return false
+    return true
+  }
+
+  if (breaksSimpleMeterHalfMeasure(dur, timeSignatureId, cei, cej)) return false
+  if (breaksSimpleMeterBeatBoundary(dur, timeSignatureId, cei)) return false
+
+  return true
+}
+
+/** 單槓內最多幾個同值音符（再細分靠 canBeamAdjacent） */
+function maxNotesPerBeamGroup(duration, timeSignatureId) {
+  if (timeSignatureId === '6/8') {
+    if (duration === 'eighth') return 3
+    if (duration === 'sixteenth') return 6
+    if (duration === 'thirtySecond') return 12
+  }
+  if (duration === 'eighth') return 4
+  if (duration === 'sixteenth') return 4
+  if (duration === 'thirtySecond') return 8
+  return 1
+}
+
 /**
  * Beam flags for eighth / sixteenth / thirty-second stems (DurationStem).
- * - Within each beam group: first note has no left beam; last has no right beam; inner notes have both.
- * - Eighths: beam up to 2 per group; sixteenths & thirty-seconds: up to 4 per group.
- * - If any beat in this row is dotted (0.5), skip all joining — every stem uses standalone flags.
+ * 依拍號同累積拍長決定連槓；附點／triplet 該粒唔參與連槓。
  */
-function getStemFlags(beats) {
+function getStemFlags(beats, timeSignatureId) {
   const result = beats.map(() => ({ left: false, right: false }))
   if (!beats.length) return result
-  if (beats.some((b) => b.dotted)) return result
 
-  const maxNotesPerBeam = (duration) => {
-    if (duration === 'eighth') return 2
-    if (duration === 'sixteenth' || duration === 'thirtySecond') return 4
-    return 1
+  const cumAfter = []
+  let acc = 0
+  for (const b of beats) {
+    acc += getBeatValueFromBeat(b, timeSignatureId)
+    cumAfter.push(acc)
   }
 
   let i = 0
   while (i < beats.length) {
     const d = beats[i].duration
-    if (!FLAGGED_DURATIONS.includes(d)) {
+    if (!FLAGGED_DURATIONS.includes(d) || beats[i].dotted || beats[i].tuplet) {
       i++
       continue
     }
 
     let j = i + 1
-    while (j < beats.length && beats[j].duration === d && !beats[j].dotted) j++
+    while (
+      j < beats.length &&
+      beats[j].duration === d &&
+      !beats[j].dotted &&
+      !beats[j].tuplet
+    ) {
+      j++
+    }
 
-    const runLen = j - i
-    if (runLen < 2) {
+    const runIndices = []
+    for (let k = i; k < j; k++) runIndices.push(k)
+    if (runIndices.length < 2) {
       i = j
       continue
     }
 
-    const m = maxNotesPerBeam(d)
-    let g = i
-    while (g < j) {
-      const ge = Math.min(g + m - 1, j - 1)
-      for (let k = g; k <= ge; k++) {
-        result[k].left = k > g
-        result[k].right = k < ge
+    const segments = []
+    let seg = [runIndices[0]]
+    for (let t = 0; t < runIndices.length - 1; t++) {
+      const idxA = runIndices[t]
+      const idxB = runIndices[t + 1]
+      if (canBeamAdjacent(beats, idxA, timeSignatureId, cumAfter)) {
+        seg.push(idxB)
+      } else {
+        segments.push(seg)
+        seg = [idxB]
       }
-      g = ge + 1
+    }
+    segments.push(seg)
+
+    const maxG = maxNotesPerBeamGroup(d, timeSignatureId)
+    for (const s of segments) {
+      if (s.length < 2) continue
+      let g = 0
+      while (g < s.length) {
+        const ge = Math.min(g + maxG - 1, s.length - 1)
+        for (let k = g; k <= ge; k++) {
+          const idx = s[k]
+          result[idx].left = k > g
+          result[idx].right = k < ge
+        }
+        g = ge + 1
+      }
     }
 
     i = j
@@ -867,7 +988,7 @@ const StaffCanvas = forwardRef(function StaffCanvas(
   // First subdivision total beats and over check
   const firstSubdivTotalBeats = firstBeats.reduce((sum, b) => sum + getBeatValueFromBeat(b, timeSignatureId), 0)
   const firstSubdivOver = firstSubdivTotalBeats > totalBeatsPerMeasure
-  const firstStemFlags = getStemFlags(firstBeats)
+  const firstStemFlags = getStemFlags(firstBeats, timeSignatureId)
 
   return (
     <div className="bg-neutral-100 min-h-[200px] overflow-x-auto" style={{ padding: '1rem', paddingBottom: '3rem' }}>
@@ -1005,7 +1126,7 @@ const StaffCanvas = forwardRef(function StaffCanvas(
           const subdivTotalBeats = beats.reduce((sum, b) => sum + getBeatValueFromBeat(b, timeSignatureId), 0)
           const subdivOver = subdivTotalBeats > totalBeatsPerMeasure
           const subdivIndex = i + 1
-          const subdivStemFlags = getStemFlags(beats)
+          const subdivStemFlags = getStemFlags(beats, timeSignatureId)
           return (
             <div
               key={i}
