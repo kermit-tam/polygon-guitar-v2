@@ -84,6 +84,7 @@ export default function NotationToolbar({
   onSelectTimeSignature,
   bpm = 100,
   onBpmChange,
+  onBpmBlur,
   label = '',
   onLabelChange,
 }) {
@@ -245,8 +246,9 @@ export default function NotationToolbar({
             min={1}
             max={480}
             step={1}
-            value={bpm}
+            value={bpm === '' ? '' : bpm}
             onChange={(e) => onBpmChange?.(e.target.value)}
+            onBlur={() => onBpmBlur?.()}
             className="w-16 h-9 rounded border border-neutral-300 bg-white px-2 text-sm tabular-nums text-black [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             aria-label="Beats per minute"
           />

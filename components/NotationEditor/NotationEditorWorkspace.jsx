@@ -90,10 +90,15 @@ export default function NotationEditorWorkspace({
   const staffRef = useRef(null)
   const draftScopeRef = useRef(null)
   const scrollAfterSaveRef = useRef(null)
+  /** 避免 modal 父層每次 render 傳新 initialData 參考而重複 hydrate、覆寫 BPM */
+  const initialDataRef = useRef(initialData)
+  initialDataRef.current = initialData
   const [selectedDuration, setSelectedDuration] = useState(TOOL_IDS.QUARTER)
   const [selectedDivision, setSelectedDivision] = useState(null)
   const [timeSignatureId, setTimeSignatureId] = useState('4/4')
+  /** number | '' — 空字串僅作輸入中狀態，匯出／預覽用 effectiveBpm */
   const [bpm, setBpm] = useState(100)
+  const effectiveBpm = typeof bpm === 'number' && !Number.isNaN(bpm) ? bpm : 100
   const [previewAlphaTex, setPreviewAlphaTex] = useState(null)
   const [saveError, setSaveError] = useState(null)
   const [editorHydrated, setEditorHydrated] = useState(false)
@@ -126,7 +131,7 @@ export default function NotationEditorWorkspace({
 
     if (hydration === 'props') {
       draftScopeRef.current = draftScopeId ?? null
-      const d = initialData ?? readNotationEditorState(draftScopeId ?? undefined)
+      const d = initialDataRef.current ?? readNotationEditorState(draftScopeId ?? undefined)
       if (d) {
         applyDraftPayload(setters, d)
       }
@@ -142,7 +147,8 @@ export default function NotationEditorWorkspace({
       applyDraftPayload(setters, d)
     }
     setEditorHydrated(true)
-  }, [hydration, draftScopeId, initialData])
+    // props 模式唔跟 initialData 參考變化重跑（見 initialDataRef）
+  }, [hydration, draftScopeId])
 
   const bumpPersistStaff = useCallback(() => {
     setPersistStaffRev((n) => n + 1)
@@ -157,7 +163,7 @@ export default function NotationEditorWorkspace({
         const tex = notationSnapshotToAlphaTex({
           ...snap,
           timeSignatureId,
-          bpm,
+          bpm: effectiveBpm,
         })
         setPreviewAlphaTex(tex)
       } catch (_) {
@@ -165,7 +171,7 @@ export default function NotationEditorWorkspace({
       }
     }, 200)
     return () => clearTimeout(t)
-  }, [editorHydrated, persistStaffRev, timeSignatureId, bpm])
+  }, [editorHydrated, persistStaffRev, timeSignatureId, effectiveBpm])
 
   useEffect(() => {
     if (!editorHydrated) return undefined
@@ -177,7 +183,7 @@ export default function NotationEditorWorkspace({
           timeSignatureId,
           selectedDuration,
           selectedDivision,
-          bpm,
+          bpm: effectiveBpm,
           staff,
           savedAlphaTex: previewAlphaTex,
         },
@@ -190,7 +196,7 @@ export default function NotationEditorWorkspace({
     timeSignatureId,
     selectedDuration,
     selectedDivision,
-    bpm,
+    effectiveBpm,
     previewAlphaTex,
     persistStaffRev,
   ])
@@ -208,12 +214,18 @@ export default function NotationEditorWorkspace({
 
   const handleBpmChange = useCallback((raw) => {
     if (raw === '' || raw == null) {
-      setBpm(100)
+      setBpm('')
       return
     }
     const n = parseInt(String(raw), 10)
     if (Number.isNaN(n)) return
     setBpm(Math.min(480, Math.max(1, n)))
+  }, [])
+
+  const handleBpmBlur = useCallback(() => {
+    setBpm((prev) =>
+      typeof prev === 'number' && !Number.isNaN(prev) ? prev : 100
+    )
   }, [])
 
   const handleClearDraft = () => {
@@ -247,15 +259,16 @@ export default function NotationEditorWorkspace({
       const tex = notationSnapshotToAlphaTex({
         ...snap,
         timeSignatureId,
-        bpm,
+        bpm: effectiveBpm,
       })
       setPreviewAlphaTex(tex)
+      setBpm(effectiveBpm)
 
       const staffSnapshot = {
         timeSignatureId,
         selectedDuration,
         selectedDivision,
-        bpm,
+        bpm: effectiveBpm,
         staff: snap,
         savedAlphaTex: tex,
       }
@@ -270,7 +283,7 @@ export default function NotationEditorWorkspace({
                 timeSignatureId,
                 selectedDuration,
                 selectedDivision,
-                bpm,
+                bpm: effectiveBpm,
                 staff,
                 savedAlphaTex: tex,
               },
@@ -308,7 +321,7 @@ export default function NotationEditorWorkspace({
                 timeSignatureId,
                 selectedDuration,
                 selectedDivision,
-                bpm,
+                bpm: effectiveBpm,
                 staff,
                 savedAlphaTex: tex,
               },
@@ -329,7 +342,7 @@ export default function NotationEditorWorkspace({
               timeSignatureId,
               selectedDuration,
               selectedDivision,
-              bpm,
+              bpm: effectiveBpm,
               staff,
               savedAlphaTex: tex,
             },
@@ -408,6 +421,7 @@ export default function NotationEditorWorkspace({
           onSelectTimeSignature={setTimeSignatureId}
           bpm={bpm}
           onBpmChange={handleBpmChange}
+          onBpmBlur={handleBpmBlur}
           label={label}
           onLabelChange={onLabelChange}
         />

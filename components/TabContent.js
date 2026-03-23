@@ -12,6 +12,12 @@ const NotationAlphaTabPreview = dynamic(
   { ssr: false }
 );
 
+/** AlphaTab 區塊唔顯示「Intro」標題（避免同段落標記重複） */
+function shouldShowNotationBlockHeadingLabel(label) {
+  const t = (label || '').trim().toLowerCase()
+  return t.length > 0 && t !== 'intro'
+}
+
 // ============ 智能字體大小計算 ============
 // 根據內容長度計算合適的字體大小
 function calculateFontSize(text, containerWidth = 800) {
@@ -1855,7 +1861,7 @@ const TabContent = ({
               if (block && (block.notationAlphaTex || '').trim()) {
                 return (
                   <div key={idx} className="mb-[25px]">
-                    {block.label && (
+                    {shouldShowNotationBlockHeadingLabel(block.label) && (
                       <div style={{ fontSize: `${fontSize}px`, marginBottom: '0.3em', textDecoration: 'underline', textUnderlineOffset: '4px', color: colors.lyricInside }}>
                         {block.label}
                       </div>
@@ -2037,31 +2043,38 @@ const TabContent = ({
       // ========== 優先檢查 Section Marker ==========
       const sectionCheck = extractSectionMarker(line);
       if (sectionCheck.hasMarker) {
-        elements.push(
-          <div key={`${i}-marker`} style={{ marginTop: i > 0 ? '20px' : undefined, marginBottom: `${lineFontSize * 0.6}px` }}>
-            <span style={{ 
-              color: colors.lyricInside, 
-              fontSize: `${lineFontSize}px`, 
-              textDecoration: 'underline', 
-              textUnderlineOffset: '4px',
-              fontFamily: "'Source Code Pro', 'Noto Sans Mono CJK TC', Consolas, 'Courier New', monospace",
-              fontWeight: 300
-            }}>
-              {sectionCheck.marker}
-            </span>
-          </div>
-        );
-        
-        // 如果是 Intro，在其後插入 GP 段落
-        if (sectionCheck.marker.toLowerCase().includes('intro') && gpSegments && gpSegments.length > 0) {
-          const introSegment = gpSegments.find(seg => seg.type === 'intro');
-          if (introSegment) {
-            elements.push(
-              <div key={`${i}-gp-intro`} style={{ marginBottom: `${lineFontSize * 0.6}px` }}>
-                <GpSegmentPlayer segment={introSegment} theme={gpTheme} />
-              </div>
-            );
-          }
+        const gpIntroSegment =
+          sectionCheck.marker.toLowerCase().includes('intro') && gpSegments?.length
+            ? gpSegments.find((seg) => seg.type === 'intro')
+            : null
+        // 有 GP Intro 時唔再顯示「Intro」字樣（避免重複喺 AlphaTab 前）
+        if (!gpIntroSegment) {
+          elements.push(
+            <div key={`${i}-marker`} style={{ marginTop: i > 0 ? '20px' : undefined, marginBottom: `${lineFontSize * 0.6}px` }}>
+              <span style={{ 
+                color: colors.lyricInside, 
+                fontSize: `${lineFontSize}px`, 
+                textDecoration: 'underline', 
+                textUnderlineOffset: '4px',
+                fontFamily: "'Source Code Pro', 'Noto Sans Mono CJK TC', Consolas, 'Courier New', monospace",
+                fontWeight: 300
+              }}>
+                {sectionCheck.marker}
+              </span>
+            </div>
+          );
+        } else {
+          elements.push(
+            <div key={`${i}-marker`} style={{ marginTop: i > 0 ? '20px' : undefined }} />
+          )
+        }
+
+        if (gpIntroSegment) {
+          elements.push(
+            <div key={`${i}-gp-intro`} style={{ marginBottom: `${lineFontSize * 0.6}px` }}>
+              <GpSegmentPlayer segment={gpIntroSegment} theme={gpTheme} />
+            </div>
+          )
         }
         
         const restLine = sectionCheck.rest.trim();
@@ -3273,7 +3286,7 @@ const TabContent = ({
                     key={b.id ? `${b.id}-${bi}` : `nb-${bi}`}
                     className="mb-[25px]"
                   >
-                    {b.label && (
+                    {shouldShowNotationBlockHeadingLabel(b.label) && (
                       <div style={{ fontSize: `${fontSize}px`, marginBottom: '0.3em', textDecoration: 'underline', textUnderlineOffset: '4px', color: colors.lyricInside }}>
                         {b.label}
                       </div>
