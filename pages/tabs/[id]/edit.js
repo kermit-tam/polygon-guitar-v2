@@ -819,11 +819,13 @@ export default function EditTab() {
   }
 
   // 刪除樂譜
+  const [isDeleting, setIsDeleting] = useState(false)
   const handleDeleteTab = async () => {
     if (!confirm(`確定要刪除「${formData.title}」嗎？\n\n此操作無法復原。`)) {
       return
     }
     
+    setIsDeleting(true)
     try {
       const deletedTab = { id, artistId: formData.artists?.[0]?.id }
       await deleteTab(id, user.uid, isAdmin, user?.penName || '')
@@ -841,10 +843,11 @@ export default function EditTab() {
         clearTabEditNotationCache(id)
       } catch (_) {}
       alert('✅ 樂譜已刪除')
-      router.push('/library')
+      router.push('/')
     } catch (error) {
       console.error('Delete tab error:', error)
       alert('刪除失敗：' + error.message)
+      setIsDeleting(false)
     }
   }
 
@@ -1413,8 +1416,8 @@ E|----------------------------------------------------------------|
                 >
                   ＋歌手
                 </button>
+                <span className="text-[#737373] font-normal text-xs">合唱/featuring 適用</span>
               </div>
-              <span className="text-[#737373] font-normal text-xs">合唱/featuring 適用</span>
             </div>
 
             {/* Row 4+：每位歌手一列 類型* | 地區* */}
@@ -1951,7 +1954,10 @@ E|----------------------------------------------------------------|
               </div>
             </div>
 
-            <div className="mt-4">
+            </FormSection>
+
+            <FormSection>
+            <div className="mb-4">
               <label className="block pl-1 text-[13px] font-medium text-white mb-1">備註 <span className="text-[#737373] font-normal text-xs ml-1">會在結他譜上方顯示</span></label>
               <textarea
                 id="remark"
@@ -1963,9 +1969,6 @@ E|----------------------------------------------------------------|
                 className="w-full px-4 py-2 bg-black border border-neutral-700 rounded-lg text-[13px] text-white placeholder:text-[13px] placeholder-[#525252]"
               />
             </div>
-            </FormSection>
-
-            <FormSection>
             {/* 譜內容 — 與 new 同款：同一行標題+工具列、精簡字體、相同 placeholder 與底部提示 */}
             <div className="space-y-4">
               <div className="space-y-1">
@@ -2002,7 +2005,7 @@ E|----------------------------------------------------------------|
                       移除所有空行
                     </button>
                     {isAdmin && (
-                      <button type="button" onClick={insertTemplate} className="text-sm text-[#FFD700] hover:text-yellow-300">
+                      <button type="button" onClick={insertTemplate} className="text-xs text-[#FFD700] hover:text-yellow-300">
                         插入空白模板
                       </button>
                     )}
@@ -2155,12 +2158,22 @@ Chord會自動追蹤歌詞中( )位置
                 <button
                   type="button"
                   onClick={handleDeleteTab}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-900/30 border border-red-700 text-red-400 rounded-lg hover:bg-red-900/50 transition"
+                  disabled={isDeleting}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-900/30 border border-red-700 text-red-400 rounded-lg hover:bg-red-900/50 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  刪除樂譜
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      刪除中⋯ 多謝耐心等候
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      刪除樂譜
+                    </>
+                  )}
                 </button>
                 <p className="mt-2 text-xs text-neutral-500 text-center">
                   警告：刪除後無法復原。

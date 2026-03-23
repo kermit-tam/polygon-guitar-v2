@@ -642,7 +642,7 @@ function EditArtist() {
                     }}
                     className="w-full bg-black text-white text-sm px-3 py-2 rounded border border-neutral-700 outline-none"
                   >
-                    <option value="">+ 添加地區 ({(formData.regions?.length || 0) + 1}/3)</option>
+                    <option value="">+ 添加地區 ({formData.regions?.length || 0}/3)</option>
                     {REGIONS.filter(r => !formData.regions?.includes(r.value)).map(r => (
                       <option key={r.value} value={r.value}>{r.label}</option>
                     ))}

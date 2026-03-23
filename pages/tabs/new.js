@@ -199,6 +199,11 @@ export default function NewTab() {
   const [spotifyFlashRedFields, setSpotifyFlashRedFields] = useState(new Set())
   const spotifyJustAppliedRef = useRef(false)
   const [showNotationCard, setShowNotationCard] = useState(false)
+  // 出譜者名稱 autocomplete（僅 Admin）
+  const [penNameSuggestions, setPenNameSuggestions] = useState([])
+  const [penNameShowDropdown, setPenNameShowDropdown] = useState(false)
+  const [penNameSelectedIndex, setPenNameSelectedIndex] = useState(-1)
+  const penNameDropdownRef = useRef(null)
   const [notationEditorOpen, setNotationEditorOpen] = useState(false)
 
   const notationEditorSeed = useMemo(() => {
@@ -280,6 +285,7 @@ export default function NewTab() {
       if (capoMenuRef.current && !capoMenuRef.current.contains(e.target)) setCapoMenuOpen(false)
       if (playKeyMenuRef.current && !playKeyMenuRef.current.contains(e.target)) setPlayKeyMenuOpen(false)
       if (relationMenuRef.current && !relationMenuRef.current.contains(e.target)) setRelationMenuOpen(false)
+      if (penNameDropdownRef.current && !penNameDropdownRef.current.contains(e.target)) setPenNameShowDropdown(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -367,6 +373,25 @@ export default function NewTab() {
     }
     loadUserPenName()
   }, [user])
+
+  // 出譜者名稱 autocomplete：僅 Admin 時依輸入拉取現有名稱
+  useEffect(() => {
+    if (!isAdmin) return
+    const q = (formData.uploaderPenName || '').trim()
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/pen-names?q=${encodeURIComponent(q)}`)
+        const data = await res.json()
+        const list = data?.penNames || []
+        setPenNameSuggestions(list)
+        setPenNameSelectedIndex(-1)
+        if (list.length > 0) setPenNameShowDropdown(true)
+      } catch (_) {
+        setPenNameSuggestions([])
+      }
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [isAdmin, formData.uploaderPenName])
 
   // 從 URL query 參數預填數據（來自求譜區或後台快速導入）
   useEffect(() => {
@@ -891,9 +916,56 @@ E|----------------------------------------------------------------|
           {errors.title && <p className="mt-1 text-sm text-red-400">{errors.title}</p>}
         </div>
         <div>
-          <label className="block pl-1 text-[13px] font-medium text-white mb-1">出譜者名稱 <span className="text-[#737373] font-normal text-xs ml-1">會使用你個人主頁嘅設定</span></label>
-          <input type="text" name="uploaderPenName" value={formData.uploaderPenName} readOnly placeholder="結他友"
-            className="w-full px-4 py-2 border rounded-lg text-[13px] placeholder:text-[13px] placeholder-[#525252] bg-[#1a1a1a] border-[#B8860B] cursor-not-allowed opacity-90 text-[#737373]" />
+        <div ref={penNameDropdownRef} className="relative">
+          <label className="block pl-1 text-[13px] font-medium text-white mb-1">
+            出譜者名稱 {!isAdmin && <span className="text-[#737373] font-normal text-xs ml-1">會使用你個人主頁嘅設定</span>}
+          </label>
+          <input
+            type="text"
+            name="uploaderPenName"
+            value={formData.uploaderPenName}
+            onChange={isAdmin ? (e) => setFormData(prev => ({ ...prev, uploaderPenName: e.target.value })) : undefined}
+            onFocus={() => isAdmin && setPenNameShowDropdown(true)}
+            onKeyDown={(e) => {
+              if (!isAdmin || !penNameShowDropdown) return
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setPenNameSelectedIndex(prev => prev < penNameSuggestions.length - 1 ? prev + 1 : prev)
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setPenNameSelectedIndex(prev => prev > 0 ? prev - 1 : -1)
+              } else if (e.key === 'Enter' && penNameSelectedIndex >= 0 && penNameSuggestions[penNameSelectedIndex]) {
+                e.preventDefault()
+                setFormData(prev => ({ ...prev, uploaderPenName: penNameSuggestions[penNameSelectedIndex] }))
+                setPenNameShowDropdown(false)
+              } else if (e.key === 'Escape') {
+                setPenNameShowDropdown(false)
+              }
+            }}
+            readOnly={!isAdmin}
+            placeholder="結他友"
+            className={`w-full px-4 py-2 border rounded-lg text-[13px] placeholder:text-[13px] placeholder-[#525252] ${
+              isAdmin ? 'bg-black border-neutral-700 text-white' : 'bg-[#1a1a1a] border-[#B8860B] cursor-not-allowed opacity-90 text-[#737373]'
+            }`}
+          />
+          {isAdmin && penNameShowDropdown && penNameSuggestions.length > 0 && (
+            <div className="absolute z-50 left-0 right-0 mt-1 bg-[#1a1a1a] border border-neutral-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+              {penNameSuggestions.map((name, idx) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => {
+                    setFormData(prev => ({ ...prev, uploaderPenName: name }))
+                    setPenNameShowDropdown(false)
+                  }}
+                  className={`w-full px-4 py-2.5 text-left text-[13px] hover:bg-neutral-800 transition ${idx === penNameSelectedIndex ? 'bg-neutral-800 text-white' : 'text-[#E5E5E5]'}`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         </div>
 
         {/* Row 2: 歌手* — 與歌名同欄同寬（1 col） */}
@@ -981,8 +1053,8 @@ E|----------------------------------------------------------------|
             >
               ＋歌手
             </button>
+            <span className="text-[#737373] font-normal text-xs">合唱/featuring 適用</span>
           </div>
-          <span className="text-[#737373] font-normal text-xs">合唱/featuring 適用</span>
         </div>
 
         {/* Row 4+：每位歌手一列 類型* | 地區* */}
@@ -1214,18 +1286,6 @@ E|----------------------------------------------------------------|
             </div>
           </div>
         </div>
-
-        <div>
-          <label className="block pl-1 text-[13px] font-medium text-white mb-1">備註 <span className="text-[#737373] font-normal text-xs ml-1">會在結他譜上方顯示</span></label>
-          <textarea
-            name="remark"
-            value={formData.remark}
-            onChange={handleChange}
-            placeholder="可填掃弦節奏、指法提示、個人感想⋯⋯"
-            rows={3}
-            className="w-full px-4 py-2 bg-black border border-neutral-700 rounded-lg text-[13px] text-white placeholder:text-[13px] placeholder-[#525252]"
-          />
-        </div>
       </div>
     ),
     
@@ -1364,6 +1424,17 @@ E|----------------------------------------------------------------|
     
     content: (
       <div className="space-y-4">
+        <div>
+          <label className="block pl-1 text-[13px] font-medium text-white mb-1">備註 <span className="text-[#737373] font-normal text-xs ml-1">會在結他譜上方顯示</span></label>
+          <textarea
+            name="remark"
+            value={formData.remark}
+            onChange={handleChange}
+            placeholder="可填掃弦節奏、指法提示、個人感想⋯⋯"
+            rows={3}
+            className="w-full px-4 py-2 bg-black border border-neutral-700 rounded-lg text-[13px] text-white placeholder:text-[13px] placeholder-[#525252]"
+          />
+        </div>
         {/* 標題與輸入欄一組，距離同其他欄位（mb-1） */}
         <div className="space-y-1">
           {/* 同一行：左 譜內容 * + 對位選擇器，右 工具列 */}
@@ -1400,7 +1471,7 @@ E|----------------------------------------------------------------|
                 移除所有空行
               </button>
               {isAdmin && (
-                <button type="button" onClick={insertTemplate} className="text-sm text-[#FFD700] hover:text-yellow-300">
+                <button type="button" onClick={insertTemplate} className="text-xs text-[#FFD700] hover:text-yellow-300">
                   插入空白模板
                 </button>
               )}

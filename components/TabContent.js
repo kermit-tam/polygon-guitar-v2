@@ -3231,6 +3231,13 @@ const TabContent = ({
       {showControls && <ControlBar />}
       <div ref={containerRef} className={fullWidth ? 'p-4' : `p-4 sm:p-6 ${theme === 'day' ? 'bg-white' : 'bg-[#121212]'}`} style={{ height: 'auto', minHeight: 'auto', maxHeight: 'none' }}>
         <div className={`tab-content-wrapper ${displayFont !== 'arial' ? 'font-light' : ''}`} onCopy={handleContentCopy} style={{ height: 'auto', minHeight: 'auto', maxHeight: 'none', fontFamily: displayFont === 'arial' ? "Arial, Helvetica, sans-serif" : "'Source Code Pro', 'Noto Sans Mono CJK TC', 'Consolas', 'Courier New', monospace" }}>
+          {displayCapo > 0 && (
+            <div style={{ marginBottom: '0.75em' }}>
+              <span className="bg-[#FFD700] text-black text-xs md:text-sm px-2 py-1 md:px-2.5 md:py-1 rounded font-medium">
+                Capo {displayCapo}
+              </span>
+            </div>
+          )}
           {songInfo?.remark?.trim() && (
             <div
               className={theme === 'day' ? 'text-neutral-600' : 'text-[#B3B3B3]'}
