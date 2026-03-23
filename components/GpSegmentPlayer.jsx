@@ -96,10 +96,11 @@ export default function GpSegmentPlayer({ segment }) {
         
         apiRef.current = api
         
-        api.scoreLoaded.on((score) => {
+        api.scoreLoaded.on(() => {
           if (isMounted) {
             setIsReady(true)
-            if (score?.tempo) setBpm(score.tempo)
+            const tempo = api.score?.tempo
+            if (tempo) setBpm(tempo)
           }
         })
         
