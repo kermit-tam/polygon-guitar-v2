@@ -23,6 +23,7 @@ export default function GpSegmentPlayer({ segment }) {
   const apiRef = useRef(null)
   const [isReady, setIsReady] = useState(false)
   const [isClient, setIsClient] = useState(false)
+  const [bpm, setBpm] = useState(null)
   
   const fileUrl = segment?.fileUrl || segment?.cloudinaryUrl
   const startBar = segment?.startBar || 1
@@ -95,8 +96,11 @@ export default function GpSegmentPlayer({ segment }) {
         
         apiRef.current = api
         
-        api.scoreLoaded.on(() => {
-          if (isMounted) setIsReady(true)
+        api.scoreLoaded.on((score) => {
+          if (isMounted) {
+            setIsReady(true)
+            if (score?.tempo) setBpm(score.tempo)
+          }
         })
         
         api.renderFinished.on(() => {
@@ -321,11 +325,23 @@ export default function GpSegmentPlayer({ segment }) {
           {segment.title} (小節 {startBar}-{endBar})
         </p>
       )}
-      <div 
-        ref={containerRef} 
-        className="w-full rounded-lg overflow-hidden"
-        style={{ minHeight: '100px', backgroundColor: COLORS.backgroundColor }}
-      />
+      <div className="relative w-full">
+        {bpm && (
+          <div
+            className="absolute z-10 flex items-center gap-1 pointer-events-none"
+            style={{ top: 10, left: 52 }}
+          >
+            <span style={{ color: COLORS.fretNumberColor, fontSize: 13, fontWeight: 600, fontFamily: 'Arial, sans-serif', lineHeight: 1 }}>
+              {bpm} BPM
+            </span>
+          </div>
+        )}
+        <div
+          ref={containerRef}
+          className="w-full rounded-lg overflow-hidden"
+          style={{ minHeight: '100px', backgroundColor: COLORS.backgroundColor }}
+        />
+      </div>
     </div>
   )
 }
