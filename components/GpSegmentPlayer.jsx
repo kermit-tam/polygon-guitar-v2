@@ -134,9 +134,9 @@ export default function GpSegmentPlayer({ segment }) {
     }
     styleEl.textContent = `
       * { stroke-width: 0.15 !important; }
-      
-      /* Lines - white */
-      line { stroke: ${COLORS.staffLineColor} !important; }
+
+      /* Lines - white, thinner */
+      line { stroke: ${COLORS.staffLineColor} !important; stroke-width: 0.06 !important; }
       
       /* Paths without fill - white; with fill - yellow (barre chords) */
       path:not([fill]) { stroke: ${COLORS.staffLineColor} !important; }
