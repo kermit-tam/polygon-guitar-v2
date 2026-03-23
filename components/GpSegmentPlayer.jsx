@@ -96,11 +96,10 @@ export default function GpSegmentPlayer({ segment }) {
         
         apiRef.current = api
         
-        api.scoreLoaded.on(() => {
+        api.scoreLoaded.on((score) => {
           if (isMounted) {
             setIsReady(true)
-            const tempo = api.score?.tempo
-            if (tempo) setBpm(tempo)
+            if (score?.tempo != null) setBpm(score.tempo)
           }
         })
         
@@ -327,7 +326,7 @@ export default function GpSegmentPlayer({ segment }) {
         </p>
       )}
       <div className="relative w-full">
-        {bpm && (
+        {bpm != null && bpm > 0 && (
           <div
             className="absolute z-10 flex items-center gap-1 pointer-events-none"
             style={{ top: 10, left: 52 }}
