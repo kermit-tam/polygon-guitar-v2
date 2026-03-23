@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/** FreePats FSS Steel-String Acoustic Guitar — preset remapped to MIDI program 25 for AlphaTab. */
-const ALPHATAB_SOUNDFONT = '/soundfonts/steel-guitar.sf2'
+/** Giannini Trovador Classical Guitar — real recording, preset remapped to MIDI program 25. */
+const ALPHATAB_SOUNDFONT = '/soundfonts/giannini-classical.sf2'
 
 function formatAlphaTabLoadError(e) {
   const out = []
