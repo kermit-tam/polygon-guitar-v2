@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
+import { DURATION_ORDER } from '@/components/NotationEditor/NotationToolbar'
 
 /** No useLayoutEffect on server (avoids React SSR warning); full useLayoutEffect on client for toolbar sync order. */
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
@@ -175,12 +176,18 @@ function maxNotesPerBeamGroup(duration, timeSignatureId) {
   return 1
 }
 
+function beatHasNotes(b) {
+  return (b?.notes?.length ?? 0) > 0
+}
+
 /**
  * Beam flags for eighth / sixteenth / thirty-second stems (DurationStem).
  * 依拍號同累積拍長決定連槓；附點／triplet 該粒唔參與連槓。
+ * 休止符唔參與連槓（唔會向休止符伸出右槓）。
+ * 獨立音符預設向右短槓；右邊係休止符則唔畫向右符尾／槓（omitFlagBar）。
  */
 function getStemFlags(beats, timeSignatureId) {
-  const result = beats.map(() => ({ left: false, right: false }))
+  const result = beats.map(() => ({ left: false, right: false, omitFlagBar: false }))
   if (!beats.length) return result
 
   const cumAfter = []
@@ -193,7 +200,12 @@ function getStemFlags(beats, timeSignatureId) {
   let i = 0
   while (i < beats.length) {
     const d = beats[i].duration
-    if (!FLAGGED_DURATIONS.includes(d) || beats[i].dotted || beats[i].tuplet) {
+    if (
+      !FLAGGED_DURATIONS.includes(d) ||
+      beats[i].dotted ||
+      beats[i].tuplet ||
+      !beatHasNotes(beats[i])
+    ) {
       i++
       continue
     }
@@ -203,7 +215,8 @@ function getStemFlags(beats, timeSignatureId) {
       j < beats.length &&
       beats[j].duration === d &&
       !beats[j].dotted &&
-      !beats[j].tuplet
+      !beats[j].tuplet &&
+      beatHasNotes(beats[j])
     ) {
       j++
     }
@@ -246,6 +259,19 @@ function getStemFlags(beats, timeSignatureId) {
 
     i = j
   }
+
+  for (let idx = 0; idx < beats.length; idx++) {
+    const b = beats[idx]
+    if (!FLAGGED_DURATIONS.includes(b.duration) || b.dotted || b.tuplet || !beatHasNotes(b)) continue
+    if (result[idx].left || result[idx].right) continue
+    const next = beats[idx + 1]
+    if (next && !beatHasNotes(next)) {
+      result[idx].omitFlagBar = true
+      continue
+    }
+    result[idx].right = true
+  }
+
   return result
 }
 
@@ -261,22 +287,23 @@ function TupletImageBelow() {
   )
 }
 
-function DurationStem({ duration, flagLeft, flagRight, hasNote, dotted }) {
+function DurationStem({ duration, flagLeft, flagRight, hasNote, dotted, omitFlagBar }) {
   if (!hasNote) return <div style={{ width: NOTE_COLUMN_WIDTH, height: STEM_HEIGHT_QUARTER }} />
   if (duration === 'whole') return <div style={{ width: NOTE_COLUMN_WIDTH, height: STEM_HEIGHT_QUARTER }} />
   const isFlagged = FLAGGED_DURATIONS.includes(duration)
   const stemHeight = duration === 'half' ? STEM_HEIGHT_HALF : STEM_HEIGHT_QUARTER
   const flagCount = duration === 'eighth' ? 1 : duration === 'sixteenth' ? 2 : duration === 'thirtySecond' ? 3 : 0
+  const showFlagBlock = isFlagged && flagCount > 0 && !omitFlagBar
   const beamWidth =
     flagLeft || flagRight
       ? (flagLeft ? BEAM_HALF_GAP : 0) + STEM_WIDTH + (flagRight ? BEAM_HALF_GAP : 0)
       : Math.max(FLAG_MIN_STANDALONE, STEM_WIDTH)
   const beamMarginLeft =
     !flagLeft && flagRight ? 0 : flagLeft ? -BEAM_HALF_GAP : 0
-  const flagBlockHeight = isFlagged && flagCount > 0 ? flagCount * FLAG_SPACING : 0
+  const flagBlockHeight = showFlagBlock ? flagCount * FLAG_SPACING : 0
   return (
     <div className="relative flex flex-col items-center justify-end" style={{ width: NOTE_COLUMN_WIDTH, height: STEM_HEIGHT_QUARTER }}>
-      {isFlagged && flagCount > 0 && (
+      {showFlagBlock && (
         <div
           className="absolute left-1/2"
           style={{
@@ -512,6 +539,9 @@ function BeatCell({
   useEffect(() => {
     if (selectedLine === null) return
     const handleKeyDown = (e) => {
+      const active = document.activeElement
+      if (active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA' || active?.isContentEditable) return
+
       if (!/^[0-9]$/.test(e.key)) return
       e.preventDefault()
       const current = notesByString[selectedLine]
@@ -649,6 +679,7 @@ const StaffCanvas = forwardRef(function StaffCanvas(
     onAddNotation,
     timeSignatureId = '4/4',
     selectedDuration = 'quarter',
+    onSelectDuration,
     selectedDivision,
     onTieApplied,
     /** When focus moves to a beat, parent should mirror its duration / dotted / tuplet (keeps toolbar in sync; avoids clearing dotted on click). */
@@ -951,6 +982,31 @@ const StaffCanvas = forwardRef(function StaffCanvas(
       if (active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA' || active?.isContentEditable) return
       const hasFocus = focus.subdivIndex !== null && focus.beatIndex !== null
 
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && hasFocus && typeof onSelectDuration === 'function') {
+        e.preventDefault()
+        const idx = DURATION_ORDER.indexOf(selectedDuration)
+        const i = idx < 0 ? DURATION_ORDER.indexOf('quarter') : idx
+        const len = DURATION_ORDER.length
+        const next =
+          e.key === 'ArrowRight'
+            ? DURATION_ORDER[(i + 1) % len]
+            : DURATION_ORDER[(i - 1 + len) % len]
+        onSelectDuration(next)
+        return
+      }
+
+      // ↑/↓：已揀某條弦時，改揀上一條／下一條弦（唔改品號）
+      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && hasFocus && focusedBeatClickedLine !== null) {
+        e.preventDefault()
+        const line = focusedBeatClickedLine
+        if (e.key === 'ArrowUp') {
+          setFocusedBeatClickedLine(Math.max(0, line - 1))
+        } else {
+          setFocusedBeatClickedLine(Math.min(NUM_STRINGS - 1, line + 1))
+        }
+        return
+      }
+
       if (e.key === 'Tab' && hasFocus) {
         e.preventDefault()
         justAddedBeatRef.current = true
@@ -983,7 +1039,16 @@ const StaffCanvas = forwardRef(function StaffCanvas(
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [focus, focusedBeatClickedLine, deleteFocusedBeat, firstBeats, subdivisions, removeNoteFromBeat])
+  }, [
+    focus,
+    focusedBeatClickedLine,
+    deleteFocusedBeat,
+    firstBeats,
+    subdivisions,
+    removeNoteFromBeat,
+    selectedDuration,
+    onSelectDuration,
+  ])
 
   // First subdivision total beats and over check
   const firstSubdivTotalBeats = firstBeats.reduce((sum, b) => sum + getBeatValueFromBeat(b, timeSignatureId), 0)
@@ -1110,6 +1175,7 @@ const StaffCanvas = forwardRef(function StaffCanvas(
                   flagRight={firstStemFlags[i].right}
                   hasNote={beat.notes?.length > 0}
                   dotted={beat.dotted}
+                  omitFlagBar={firstStemFlags[i].omitFlagBar}
                 />
                 {beat.tuplet && <TupletImageBelow />}
               </div>
@@ -1229,6 +1295,7 @@ const StaffCanvas = forwardRef(function StaffCanvas(
                       flagRight={subdivStemFlags[idx].right}
                       hasNote={beat.notes?.length > 0}
                       dotted={beat.dotted}
+                      omitFlagBar={subdivStemFlags[idx].omitFlagBar}
                     />
                     {beat.tuplet && <TupletImageBelow />}
                   </div>

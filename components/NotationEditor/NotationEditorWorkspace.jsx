@@ -432,6 +432,7 @@ export default function NotationEditorWorkspace({
             initialStaffSnapshot={staffBootstrapMemo}
             timeSignatureId={timeSignatureId}
             selectedDuration={selectedDuration}
+            onSelectDuration={setSelectedDuration}
             selectedDivision={selectedDivision}
             onTieApplied={() => setSelectedDivision(null)}
             onBeatFocus={onBeatFocus}
