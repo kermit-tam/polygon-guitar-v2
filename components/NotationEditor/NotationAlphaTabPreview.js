@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/** Bundled with @coderline/alphatab — avoids requiring public/soundfonts (see TABLATURE_SETUP.md). */
-const ALPHATAB_SOUNDFONT =
-  'https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.8.1/dist/soundfont/sonivox.sf2'
-
-/** FreePats FSS Steel-String Acoustic Guitar — overrides sonivox guitar preset for richer sound. */
-const GUITAR_SOUNDFONT = '/soundfonts/steel-guitar.sf2'
+/** FreePats FSS Steel-String Acoustic Guitar — richer guitar tone than the default sonivox GM bank. */
+const ALPHATAB_SOUNDFONT = '/soundfonts/steel-guitar.sf2'
 
 function formatAlphaTabLoadError(e) {
   const out = []
@@ -233,12 +229,6 @@ export default function NotationAlphaTabPreview({
         })
         api.playerReady.on(() => {
           if (!cancelled) setPlayerReady(true)
-          fetch(GUITAR_SOUNDFONT)
-            .then((r) => r.arrayBuffer())
-            .then((buf) => {
-              if (!cancelled && api) api.loadSoundFont(new Uint8Array(buf), true)
-            })
-            .catch(() => {})
         })
         api.scoreLoaded.on((score) => {
           if (score?.stylesheet) {
