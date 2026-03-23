@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/** Giannini Trovador Classical Guitar — real recording, preset remapped to MIDI program 25. */
-const ALPHATAB_SOUNDFONT = '/soundfonts/giannini-classical.sf2'
+/** Giannini Trovador Classical Guitar — real recording, preset remapped to MIDI program 25; SF2 includes lowpass (~11kHz). */
+const ALPHATAB_SOUNDFONT = '/soundfonts/giannini-classical.sf2?v=hf1'
 
 function formatAlphaTabLoadError(e) {
   const out = []
