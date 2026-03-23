@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/** Bundled with @coderline/alphatab — General MIDI soundfont (Android/SONiVOX). */
-const ALPHATAB_SOUNDFONT =
-  'https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.8.1/dist/soundfont/sonivox.sf2'
+/** FreePats FSS Steel-String Acoustic Guitar — preset remapped to MIDI program 25 for AlphaTab. */
+const ALPHATAB_SOUNDFONT = '/soundfonts/steel-guitar.sf2'
 
 function formatAlphaTabLoadError(e) {
   const out = []
