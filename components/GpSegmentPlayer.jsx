@@ -62,7 +62,7 @@ export default function GpSegmentPlayer({ segment }) {
           },
           display: {
             staveProfile: 'Tab',
-            scale: isMobile ? 0.8 : 1.2,
+            scale: isMobile ? 0.7 : 0.9,
             width: width,
             barsPerRow: isMobile ? 2 : 4,
             startBar: startBar,
