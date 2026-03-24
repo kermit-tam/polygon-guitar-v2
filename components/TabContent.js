@@ -2444,7 +2444,9 @@ const TabContent = ({
             const currentPrefix = pairIndex === 0 ? prefix : null;
             const currentSuffix = pairIndex === pairs.length - 1 ? suffix : null;
             // 一律用 grid 對齊（以歌詞為 spacer）；多出嘅和弦放喺最後加 10px 間距
-            const useGridAlignment = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && (result.lyricSplit.segments?.length ?? 0) > 0;
+            const hasNoChordToken = /(^|[\s|｜])N\.?C\.?(?=([\s|｜]|$))/i.test(pair.chordLine || '');
+            // NC / N.C. 唔應該追蹤括號，改用原始 chordLine 排版（非 grid 對位）
+            const useGridAlignment = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && (result.lyricSplit.segments?.length ?? 0) > 0;
             const chordFontFamily = displayFont === 'arial'
               ? "Arial, Helvetica, sans-serif"
               : "'Source Code Pro', monospace";
@@ -2797,7 +2799,8 @@ const TabContent = ({
           notationLines.forEach(({ index: notIdx, line: notationLine }, nlIdx) => {
             const notationFontSize = getLineFontSize(notationLine);
             const result = processPair(cleanLine, notationLine, transposeSemitones, hideBrackets, displayFont, preferFlats);
-            const useGrid = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && (result.lyricSplit.segments?.length ?? 0) > 0;
+            const hasNoChordToken = /(^|[\s|｜])N\.?C\.?(?=([\s|｜]|$))/i.test(pair.chordLine || '');
+            const useGrid = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && (result.lyricSplit.segments?.length ?? 0) > 0;
 
             elements.push(
               <div key={`${i}-notation-only-${nlIdx}`} style={{ marginBottom: `${lineFontSize * 0.3}px` }}>
