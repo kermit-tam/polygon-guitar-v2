@@ -1424,12 +1424,12 @@ E|----------------------------------------------------------------|
           <div className="relative">
             {formData.displayFont !== 'arial' && (
               <div
-                className="pointer-events-none absolute z-[2] top-2 bottom-2 border-l border-[#D9B200]/55"
+                className="pointer-events-none absolute z-[2] top-2 bottom-2 border-l border-[#FFD700]/55"
                 style={{ left: 'calc(1rem + 32ch)' }}
                 aria-hidden
               >
                 <span
-                  className="absolute top-0 right-1 text-[11px] leading-none text-[#D9B200]/80 whitespace-nowrap"
+                  className="absolute top-0 right-1 text-[11px] leading-none text-[#FFD700]/80 whitespace-nowrap"
                   style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
                 >
                   電話頁面闊度參考線
