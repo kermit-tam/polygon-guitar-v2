@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { pacificTime } from '@/lib/logTime'
 import { auth } from '@/lib/firebase'
 import { useRouter } from 'next/router'
@@ -138,6 +139,7 @@ export default function TabDetail({ initialTab, artist }) {
   const ytInfoIframeRef = useRef(null)
   const lastInfoSyncRef = useRef(0)
   const [topBarHeight, setTopBarHeight] = useState(44)
+  const [isClientMounted, setIsClientMounted] = useState(false)
   const pageWrapRef = useRef(null)
   // Fallback: when tab has no artistPhoto, get from search-data API (cache, no extra Firestore reads). Remove after backfill.
   const [fallbackArtistPhoto, setFallbackArtistPhoto] = useState(null)
@@ -442,6 +444,7 @@ export default function TabDetail({ initialTab, artist }) {
   }, [toastMessage]);
 
   useEffect(() => {
+    setIsClientMounted(true)
     if (topBarRef.current) setTopBarHeight(topBarRef.current.offsetHeight);
   });
 
@@ -899,7 +902,7 @@ export default function TabDetail({ initialTab, artist }) {
           </details>
         )}
         {/* 頂bar（固定，唔跟住滾動） */}
-        <div ref={topBarRef} className="sticky top-0 z-20 bg-black pt-1.5 relative">
+        <div ref={topBarRef} className="sticky top-0 z-[1000] bg-black pt-1.5 relative isolate">
           <div className="px-4 pb-1.5 flex items-center justify-between gap-1 sm:gap-2 border-b border-[#1a1a1a]">
           <button type="button" onClick={() => router.back()} className="p-0 text-neutral-400 hover:text-white transition -ml-0.5 min-w-[40px] min-h-[40px] flex items-center" title="返回上一頁" aria-label="返回上一頁">
             <ArrowLeft className="w-6 h-6" strokeWidth={1.75} />
@@ -992,39 +995,6 @@ export default function TabDetail({ initialTab, artist }) {
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
               </button>
-            </div>
-          )}
-          {/* 歌曲資訊：跟頂 bar sticky，唔會隨 scroll 移動，唔影響背景 */}
-          {showInfo && (tab?.youtubeVideoId || tab?.youtubeUrl || hasSongInfo) && (
-            <div className="absolute left-0 right-0 top-full bg-[#111111] rounded-b-2xl shadow-xl z-10 min-[600px]:max-w-[400px] min-[600px]:left-auto">
-              <div className="px-4 py-3">
-                <div className="space-y-3">
-                  {videoId && (
-                    <div className="aspect-video w-full rounded-lg overflow-hidden">
-                      <iframe
-                        ref={ytInfoIframeRef}
-                        width="100%"
-                        height="100%"
-                        src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&start=${infoStartTime}${infoAutoPlay ? '&autoplay=1' : ''}&playsinline=1`}
-                        title="YouTube"
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    </div>
-                  )}
-                  {hasSongInfo && (
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] sm:text-xs text-neutral-400">
-                      {tab.songYear && <span>年份：<span className="text-white">{tab.songYear}</span></span>}
-                      {tab.album && <span>專輯：<span className="text-white">{tab.album}</span></span>}
-                      {tab.composer && <span>作曲：<span className="text-white">{tab.composer}</span></span>}
-                      {tab.lyricist && <span>填詞：<span className="text-white">{tab.lyricist}</span></span>}
-                      {tab.arranger && <span>編曲：<span className="text-white">{tab.arranger}</span></span>}
-                      {tab.producer && <span>監製：<span className="text-white">{tab.producer}</span></span>}
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           )}
         </div>
@@ -1396,6 +1366,44 @@ export default function TabDetail({ initialTab, artist }) {
           </>
         )}
       </div>
+      {isClientMounted && showInfo && (tab?.youtubeVideoId || tab?.youtubeUrl || hasSongInfo) && createPortal(
+        <div
+          className="fixed left-0 right-0 z-[2000] pointer-events-none"
+          style={{ top: topBarHeight }}
+        >
+          <div className="pointer-events-auto bg-[#111111] rounded-b-2xl shadow-xl overflow-hidden min-[600px]:max-w-[400px] min-[600px]:ml-auto">
+            <div className="px-4 py-3">
+              <div className="space-y-3">
+                {videoId && (
+                  <div className="aspect-video w-full rounded-lg overflow-hidden">
+                    <iframe
+                      ref={ytInfoIframeRef}
+                      width="100%"
+                      height="100%"
+                      src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&start=${infoStartTime}${infoAutoPlay ? '&autoplay=1' : ''}&playsinline=1`}
+                      title="YouTube"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                )}
+                {hasSongInfo && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] sm:text-xs text-neutral-400">
+                    {tab.songYear && <span>年份：<span className="text-white">{tab.songYear}</span></span>}
+                    {tab.album && <span>專輯：<span className="text-white">{tab.album}</span></span>}
+                    {tab.composer && <span>作曲：<span className="text-white">{tab.composer}</span></span>}
+                    {tab.lyricist && <span>填詞：<span className="text-white">{tab.lyricist}</span></span>}
+                    {tab.arranger && <span>編曲：<span className="text-white">{tab.arranger}</span></span>}
+                    {tab.producer && <span>監製：<span className="text-white">{tab.producer}</span></span>}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
       {/* 本曲和弦 sheet：必須喺 pageWrapRef 外，否則自動滾動嘅 transform 會令 fixed 相對錯位 */}
       <ChordDiagramBottomSheet
         chords={tabChords}

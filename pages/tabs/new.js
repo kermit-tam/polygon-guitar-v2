@@ -1425,13 +1425,19 @@ E|----------------------------------------------------------------|
             <textarea name="content" value={formData.content} onChange={handleChange}
             onMouseDown={(e) => e.stopPropagation()}
             onPaste={(e) => {
+              const pastedText = e.clipboardData?.getData('text');
+              if (typeof pastedText !== 'string') return; // fallback to native paste
               e.preventDefault();
-              const pastedText = e.clipboardData.getData('text');
               const cleaned = cleanPastedText(pastedText);
               const processed = formData.displayFont === 'manual' ? cleaned : autoFixTabFormatWithFactor(cleaned, alignFactor, formData.displayFont !== 'arial');
               const textarea = e.target;
-              const start = textarea.selectionStart;
-              const end = textarea.selectionEnd;
+              const start = textarea.selectionStart ?? 0;
+              const end = textarea.selectionEnd ?? start;
+              if (typeof textarea.setRangeText === 'function') {
+                textarea.setRangeText(processed, start, end, 'end');
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                return;
+              }
               const currentValue = formData.content;
               const newValue = currentValue.substring(0, start) + processed + currentValue.substring(end);
               setFormData(prev => ({ ...prev, content: newValue }));
