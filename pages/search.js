@@ -326,10 +326,10 @@ export default function Search() {
                   const uploaderDisplay = entry.uploaderName || (songFromCatalog && songFromCatalog.uploaderPenName) || ''
                   const thumbnailDisplay = entry.thumbnail || (songFromCatalog && getSongThumbnail(songFromCatalog)) || null
                   return (
-                    <div key={`song-${entry.id}`} className="group flex items-center">
+                    <div key={`song-${entry.id}`} className="group flex items-center rounded-lg md:hover:bg-white/5 md:transition">
                       <Link
                         href={`/tabs/${entry.id}`}
-                        className="flex-1 min-w-0 flex items-center gap-3 py-2 pl-0 rounded-lg text-left md:hover:bg-white/5 md:transition"
+                        className="flex-1 min-w-0 flex items-center gap-3 py-2 pl-0 text-left"
                       >
                         <div className="w-[49px] h-[49px] rounded-[5px] bg-neutral-800 flex-shrink-0 overflow-hidden">
                           {thumbnailDisplay ? (
@@ -354,10 +354,10 @@ export default function Search() {
                 }
                 if (entry.type === 'artist') {
                   return (
-                    <div key={`artist-${entry.id}`} className="group flex items-center">
+                    <div key={`artist-${entry.id}`} className="group flex items-center rounded-lg md:hover:bg-white/5 md:transition">
                       <Link
                         href={`/artists/${encodeURIComponent(getArtistSlug(entry) || entry.id)}`}
-                        className="flex-1 min-w-0 flex items-center gap-3 py-2 pl-0 rounded-lg text-left md:hover:bg-white/5 md:transition"
+                        className="flex-1 min-w-0 flex items-center gap-3 py-2 pl-0 text-left"
                       >
                         <div className="w-[49px] h-[49px] rounded-full bg-neutral-800 flex-shrink-0 overflow-hidden">
                           {entry.photo ? (
@@ -379,10 +379,10 @@ export default function Search() {
                 }
                 if (entry.type === 'playlist') {
                   return (
-                    <div key={`playlist-${entry.id}`} className="group flex items-center">
+                    <div key={`playlist-${entry.id}`} className="group flex items-center rounded-lg md:hover:bg-white/5 md:transition">
                       <Link
                         href={`/playlist/${entry.id}`}
-                        className="flex-1 min-w-0 flex items-center gap-3 py-2 pl-0 rounded-lg text-left md:hover:bg-white/5 md:transition"
+                        className="flex-1 min-w-0 flex items-center gap-3 py-2 pl-0 text-left"
                       >
                         <div className="w-[49px] h-[49px] rounded-[5px] bg-neutral-800 flex-shrink-0 overflow-hidden">
                           {entry.coverImage ? (
