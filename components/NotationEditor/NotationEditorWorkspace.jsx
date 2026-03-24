@@ -31,6 +31,7 @@ function restoreWindowScroll(x, y) {
 }
 
 const DEFAULT_STAFF_SNAPSHOT = Object.freeze({
+  timeSignatureId: '4/4',
   firstBeats: [{ duration: 'quarter' }],
   subdivisions: [],
 })
@@ -65,6 +66,7 @@ function applyDraftPayload(setters, d) {
   setPreviewAlphaTex(d.savedAlphaTex ?? null)
   if (d.staff?.firstBeats?.length) {
     setStaffBootstrap({
+        timeSignatureId: d.staff.timeSignatureId ?? d.timeSignatureId ?? '4/4',
       firstBeats: d.staff.firstBeats,
       subdivisions: Array.isArray(d.staff.subdivisions) ? d.staff.subdivisions : [],
     })
@@ -114,6 +116,7 @@ export default function NotationEditorWorkspace({
   const [editorHydrated, setEditorHydrated] = useState(false)
   const [staffCanvasKey, setStaffCanvasKey] = useState(0)
   const [staffBootstrap, setStaffBootstrap] = useState(() => ({
+    timeSignatureId: DEFAULT_STAFF_SNAPSHOT.timeSignatureId,
     firstBeats: [...DEFAULT_STAFF_SNAPSHOT.firstBeats],
     subdivisions: [...DEFAULT_STAFF_SNAPSHOT.subdivisions],
   }))
@@ -121,6 +124,7 @@ export default function NotationEditorWorkspace({
 
   const staffBootstrapMemo = useMemo(
     () => ({
+      timeSignatureId: staffBootstrap.timeSignatureId ?? '4/4',
       firstBeats: JSON.parse(JSON.stringify(staffBootstrap.firstBeats)),
       subdivisions: JSON.parse(JSON.stringify(staffBootstrap.subdivisions)),
     }),
@@ -221,9 +225,10 @@ export default function NotationEditorWorkspace({
     setSelectedDivision((prev) => (prev === id ? null : id))
   }, [])
 
-  const onBeatFocus = useCallback(({ duration, dotted, tuplet }) => {
+  const onBeatFocus = useCallback(({ duration, dotted, tuplet, timeSignatureId: focusedTsId }) => {
     setSelectedDuration(duration)
     setSelectedDivision(tuplet ? 'tuplet' : dotted ? 'dotted' : null)
+    if (focusedTsId) setTimeSignatureId(focusedTsId)
   }, [])
 
   const handleBpmChange = useCallback((raw) => {
@@ -252,6 +257,7 @@ export default function NotationEditorWorkspace({
     setPreviewAlphaTex(null)
     setSaveError(null)
     setStaffBootstrap({
+      timeSignatureId: '4/4',
       firstBeats: [...DEFAULT_STAFF_SNAPSHOT.firstBeats.map((b) => ({ ...b }))],
       subdivisions: [],
     })

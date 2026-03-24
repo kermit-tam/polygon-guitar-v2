@@ -54,6 +54,10 @@ const BEATS_PER_MEASURE = {
   '6/8': 6,
 }
 
+function normalizeTimeSignatureId(tsId) {
+  return TS_IMAGE_BY_ID[tsId] ? tsId : '4/4'
+}
+
 // Beat value of a duration: for 2/4, 3/4, 4/4 use quarter-note unit; for 6/8 use eighth-note unit
 function getBeatValue(durationId, timeSignatureId) {
   const quarterValues = { whole: 4, half: 2, quarter: 1, eighth: 0.5, sixteenth: 0.25, thirtySecond: 0.125 }
@@ -696,18 +700,26 @@ const StaffCanvas = forwardRef(function StaffCanvas(
     if (snap?.firstBeats?.length) return JSON.parse(JSON.stringify(snap.firstBeats))
     return [{ duration: 'quarter' }]
   })
+  const [firstTimeSignatureId, setFirstTimeSignatureId] = useState(() => {
+    const snap = initialStaffSnapshot
+    return normalizeTimeSignatureId(snap?.timeSignatureId || timeSignatureId || '4/4')
+  })
   const [subdivisions, setSubdivisions] = useState(() => {
     const snap = initialStaffSnapshot
-    if (snap?.subdivisions?.length || (snap && Array.isArray(snap.subdivisions)))
-      return JSON.parse(JSON.stringify(snap.subdivisions))
+    if (snap?.subdivisions?.length || (snap && Array.isArray(snap.subdivisions))) {
+      return JSON.parse(JSON.stringify(snap.subdivisions)).map((sub) => ({
+        ...sub,
+        timeSignatureId: normalizeTimeSignatureId(sub?.timeSignatureId || snap?.timeSignatureId || timeSignatureId || '4/4'),
+      }))
+    }
     return []
   })
   const [focus, setFocus] = useState({ subdivIndex: null, beatIndex: null })
   const [hoveredBeat, setHoveredBeat] = useState({ subdivIndex: null, beatIndex: null })
   const [focusedChordInput, setFocusedChordInput] = useState({ subdivIndex: null, beatIndex: null })
   const [focusedBeatClickedLine, setFocusedBeatClickedLine] = useState(null)
-  const tsImageSrc = TS_IMAGE_BY_ID[timeSignatureId] || TS_IMAGE_BY_ID['4/4']
-  const totalBeatsPerMeasure = BEATS_PER_MEASURE[timeSignatureId] ?? 4
+  const firstTsId = normalizeTimeSignatureId(firstTimeSignatureId)
+  const tsImageSrc = TS_IMAGE_BY_ID[firstTsId] || TS_IMAGE_BY_ID['4/4']
   const prevFocusRef = useRef({ subdivIndex: null, beatIndex: null })
   const justAddedBeatRef = useRef(false)
 
@@ -715,11 +727,12 @@ const StaffCanvas = forwardRef(function StaffCanvas(
     ref,
     () => ({
       getSnapshot: () => ({
+        timeSignatureId: firstTimeSignatureId,
         firstBeats: JSON.parse(JSON.stringify(firstBeats)),
         subdivisions: JSON.parse(JSON.stringify(subdivisions)),
       }),
     }),
-    [firstBeats, subdivisions]
+    [firstTimeSignatureId, firstBeats, subdivisions]
   )
 
   useEffect(() => {
@@ -748,8 +761,29 @@ const StaffCanvas = forwardRef(function StaffCanvas(
       duration: beat.duration ?? 'quarter',
       dotted: !!beat.dotted,
       tuplet: !!beat.tuplet,
+      timeSignatureId:
+        subdivIndex === 0
+          ? firstTimeSignatureId
+          : normalizeTimeSignatureId(subdivisions[subdivIndex - 1]?.timeSignatureId || firstTimeSignatureId),
     })
-  }, [focus.subdivIndex, focus.beatIndex, firstBeats, subdivisions, onBeatFocus])
+  }, [focus.subdivIndex, focus.beatIndex, firstBeats, subdivisions, firstTimeSignatureId, onBeatFocus])
+
+  // 拍號變更：只套用到目前聚焦小節（未聚焦時套用第一小節）
+  useEffect(() => {
+    const targetTs = normalizeTimeSignatureId(timeSignatureId)
+    const { subdivIndex } = focus
+    if (subdivIndex === null || subdivIndex === 0) {
+      setFirstTimeSignatureId((prev) => (prev === targetTs ? prev : targetTs))
+      return
+    }
+    setSubdivisions((prev) =>
+      prev.map((sub, si) =>
+        si === subdivIndex - 1
+          ? { ...sub, timeSignatureId: targetTs }
+          : sub
+      )
+    )
+  }, [timeSignatureId, focus.subdivIndex])
 
   // When toolbar duration, dotted, or tuplet changes and a beat is focused, update that beat (deferred to avoid setState during render)
   useEffect(() => {
@@ -780,7 +814,10 @@ const StaffCanvas = forwardRef(function StaffCanvas(
     setSubdivisions((prev) => {
       const next = [
         ...prev,
-        { beats: [{ duration: selectedDuration, dotted: selectedDivision === 'dotted', tuplet: selectedDivision === 'tuplet' }] },
+        {
+          timeSignatureId: normalizeTimeSignatureId(timeSignatureId),
+          beats: [{ duration: selectedDuration, dotted: selectedDivision === 'dotted', tuplet: selectedDivision === 'tuplet' }],
+        },
       ]
       // subdivisions[i] uses subdivIndex i + 1 (first segment is subdivIndex 0 = firstBeats)
       newSubdivIndex = next.length
@@ -801,7 +838,7 @@ const StaffCanvas = forwardRef(function StaffCanvas(
         const next = [...prev]
         const sub = next[subdivIndex - 1]
         const existingBeats = sub.beats ?? [sub]
-        next[subdivIndex - 1] = { beats: [...existingBeats, { duration: selectedDuration, dotted, tuplet }] }
+        next[subdivIndex - 1] = { ...sub, beats: [...existingBeats, { duration: selectedDuration, dotted, tuplet }] }
         return next
       })
     }
@@ -963,7 +1000,7 @@ const StaffCanvas = forwardRef(function StaffCanvas(
         }
         const nextBeats = beats.filter((_, i) => i !== beatIndex)
         const next = [...prev]
-        next[subdivIndex - 1] = { beats: nextBeats }
+        next[subdivIndex - 1] = { ...sub, beats: nextBeats }
         return next
       })
       setFocus((f) => {
@@ -1051,9 +1088,9 @@ const StaffCanvas = forwardRef(function StaffCanvas(
   ])
 
   // First subdivision total beats and over check
-  const firstSubdivTotalBeats = firstBeats.reduce((sum, b) => sum + getBeatValueFromBeat(b, timeSignatureId), 0)
-  const firstSubdivOver = firstSubdivTotalBeats > totalBeatsPerMeasure
-  const firstStemFlags = getStemFlags(firstBeats, timeSignatureId)
+  const firstSubdivTotalBeats = firstBeats.reduce((sum, b) => sum + getBeatValueFromBeat(b, firstTsId), 0)
+  const firstSubdivOver = firstSubdivTotalBeats > (BEATS_PER_MEASURE[firstTsId] ?? 4)
+  const firstStemFlags = getStemFlags(firstBeats, firstTsId)
 
   return (
     <div className="bg-neutral-100 min-h-[200px] overflow-x-auto" style={{ padding: '1rem', paddingBottom: '3rem' }}>
@@ -1182,20 +1219,28 @@ const StaffCanvas = forwardRef(function StaffCanvas(
           </div>
         </div>
 
-        {/* Additional subdivisions: one cell per beat + small + ; bar only at end, last has no bar */}
+        {/* Additional subdivisions: each segment has its own拍號，可中途轉拍子 */}
         {subdivisions.map((sub, i) => {
           const isLast = i === subdivisions.length - 1
           const beats = sub.beats ?? [sub]
-          const subdivTotalBeats = beats.reduce((sum, b) => sum + getBeatValueFromBeat(b, timeSignatureId), 0)
-          const subdivOver = subdivTotalBeats > totalBeatsPerMeasure
+          const subdivTsId = normalizeTimeSignatureId(sub.timeSignatureId || firstTsId)
+          const subdivTsImageSrc = TS_IMAGE_BY_ID[subdivTsId] || TS_IMAGE_BY_ID['4/4']
+          const prevTsId =
+            i === 0
+              ? firstTsId
+              : normalizeTimeSignatureId(subdivisions[i - 1]?.timeSignatureId || firstTsId)
+          const showSubdivTimeSignature = subdivTsId !== prevTsId
+          const subdivBeatColWidth = showSubdivTimeSignature ? BEAT_COLUMN_WIDTH : 0
+          const subdivTotalBeats = beats.reduce((sum, b) => sum + getBeatValueFromBeat(b, subdivTsId), 0)
+          const subdivOver = subdivTotalBeats > (BEATS_PER_MEASURE[subdivTsId] ?? 4)
           const subdivIndex = i + 1
-          const subdivStemFlags = getStemFlags(beats, timeSignatureId)
+          const subdivStemFlags = getStemFlags(beats, subdivTsId)
           return (
             <div
               key={i}
               className="relative flex-shrink-0 overflow-visible"
               style={{
-                width: SEGMENT_NUM_WIDTH + beats.length * NOTE_COLUMN_WIDTH + SUBDIV_ADD_BUTTON_WIDTH + (isLast ? 0 : SINGLE_LINE_WIDTH),
+                width: SEGMENT_NUM_WIDTH + subdivBeatColWidth + beats.length * NOTE_COLUMN_WIDTH + SUBDIV_ADD_BUTTON_WIDTH + (isLast ? 0 : SINGLE_LINE_WIDTH),
                 backgroundColor: subdivOver ? 'rgba(255, 100, 100, 0.25)' : undefined,
               }}
             >
@@ -1203,11 +1248,12 @@ const StaffCanvas = forwardRef(function StaffCanvas(
               <div
                 className="flex flex-shrink-0 items-center overflow-visible"
                 style={{
-                  width: SEGMENT_NUM_WIDTH + beats.length * NOTE_COLUMN_WIDTH + SUBDIV_ADD_BUTTON_WIDTH + (isLast ? 0 : SINGLE_LINE_WIDTH),
+                  width: SEGMENT_NUM_WIDTH + subdivBeatColWidth + beats.length * NOTE_COLUMN_WIDTH + SUBDIV_ADD_BUTTON_WIDTH + (isLast ? 0 : SINGLE_LINE_WIDTH),
                   marginBottom: 6,
                 }}
               >
                 <div className="flex items-center justify-center text-red-600 shrink-0" style={{ width: SEGMENT_NUM_WIDTH, height: CHORD_ROW_HEIGHT, fontWeight: 500, fontSize: 12 }}>{i + 2}</div>
+                {showSubdivTimeSignature && <div style={{ width: BEAT_COLUMN_WIDTH, flexShrink: 0 }} />}
                 {beats.map((beat, beatIdx) => (
                   <ChordCell
                     key={beatIdx}
@@ -1225,11 +1271,16 @@ const StaffCanvas = forwardRef(function StaffCanvas(
                 className="relative flex items-stretch flex-shrink-0"
                 style={{
                   height: STAFF_HEIGHT,
-                  width: SEGMENT_NUM_WIDTH + beats.length * NOTE_COLUMN_WIDTH + SUBDIV_ADD_BUTTON_WIDTH + (isLast ? 0 : SINGLE_LINE_WIDTH),
+                  width: SEGMENT_NUM_WIDTH + subdivBeatColWidth + beats.length * NOTE_COLUMN_WIDTH + SUBDIV_ADD_BUTTON_WIDTH + (isLast ? 0 : SINGLE_LINE_WIDTH),
                 }}
               >
                 <StaffLinesBackground />
                 <div style={{ width: SEGMENT_NUM_WIDTH, flexShrink: 0 }} />
+                {showSubdivTimeSignature && (
+                  <div className="flex flex-shrink-0 items-center justify-center min-w-0" style={{ width: BEAT_COLUMN_WIDTH }}>
+                    <img src={subdivTsImageSrc} alt={subdivTsId} className="block w-full h-auto" style={{ maxWidth: 20, objectFit: 'contain' }} />
+                  </div>
+                )}
                 {beats.map((beat, beatIdx) => {
                   const restChar = REST_BY_DURATION[beat.duration] ?? REST_BY_DURATION.quarter
                   const restMarginTop = undefined
@@ -1278,10 +1329,10 @@ const StaffCanvas = forwardRef(function StaffCanvas(
                 style={{
                   marginTop: DURATION_ROW_GAP,
                   height: STEM_HEIGHT_QUARTER,
-                  width: SEGMENT_NUM_WIDTH + beats.length * NOTE_COLUMN_WIDTH + SUBDIV_ADD_BUTTON_WIDTH + (isLast ? 0 : SINGLE_LINE_WIDTH),
+                  width: SEGMENT_NUM_WIDTH + subdivBeatColWidth + beats.length * NOTE_COLUMN_WIDTH + SUBDIV_ADD_BUTTON_WIDTH + (isLast ? 0 : SINGLE_LINE_WIDTH),
                 }}
               >
-                <div style={{ width: SEGMENT_NUM_WIDTH, flexShrink: 0 }} />
+                <div style={{ width: SEGMENT_NUM_WIDTH + subdivBeatColWidth, flexShrink: 0 }} />
                 {beats.map((beat, idx) => (
                   <div key={idx} className="relative flex-shrink-0" style={{ width: NOTE_COLUMN_WIDTH, height: STEM_HEIGHT_QUARTER }}>
                     <DurationStem
