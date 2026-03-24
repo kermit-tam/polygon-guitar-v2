@@ -2799,7 +2799,7 @@ const TabContent = ({
           notationLines.forEach(({ index: notIdx, line: notationLine }, nlIdx) => {
             const notationFontSize = getLineFontSize(notationLine);
             const result = processPair(cleanLine, notationLine, transposeSemitones, hideBrackets, displayFont, preferFlats);
-            const hasNoChordToken = /(^|[\s|｜])N\.?C\.?(?=([\s|｜]|$))/i.test(pair.chordLine || '');
+            const hasNoChordToken = /(^|[\s|｜])N\.?C\.?(?=([\s|｜]|$))/i.test(chordLineForNotationOnly || '');
             const useGrid = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && (result.lyricSplit.segments?.length ?? 0) > 0;
 
             elements.push(
