@@ -268,7 +268,8 @@ export default function NotationToolbar({
               min={1}
               max={480}
               step={1}
-              value={bpm === '' ? '' : bpm}
+              value={bpm === '' || bpm == null ? '' : bpm}
+              placeholder="-"
               onChange={(e) => onBpmChange?.(e.target.value)}
               onBlur={() => onBpmBlur?.()}
               className="w-16 h-9 rounded border border-neutral-300 bg-white px-2 text-sm tabular-nums text-black [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"

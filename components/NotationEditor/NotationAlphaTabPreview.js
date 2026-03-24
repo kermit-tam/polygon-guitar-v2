@@ -130,6 +130,8 @@ export default function NotationAlphaTabPreview({
   transparent = false,
   /** With transparent, still show outer border (e.g. 六線譜編輯器 modal preview). */
   outlined = false,
+  /** Explicit BPM to display — only shown if non-null. */
+  bpm = null,
 }) {
   const containerRef = useRef(null)
   const apiRef = useRef(null)
@@ -368,6 +370,11 @@ export default function NotationAlphaTabPreview({
                 <rect x="6" y="6" width="12" height="12" />
               </svg>
             </button>
+            {bpm != null && (
+              <span className="text-xs tabular-nums shrink-0">
+                BPM {bpm} 
+              </span>
+            )}
           </div>
         )}
         {!ready && !loadError && (

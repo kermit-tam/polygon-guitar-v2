@@ -1866,7 +1866,7 @@ const TabContent = ({
                         {block.label}
                       </div>
                     )}
-                    <NotationAlphaTabPreview alphaTex={block.notationAlphaTex} noTopMargin transparent />
+                    <NotationAlphaTabPreview alphaTex={block.notationAlphaTex} noTopMargin transparent bpm={block.notationStaffSnapshot?.bpm ?? null} />
                   </div>
                 )
               }
@@ -2029,6 +2029,7 @@ const TabContent = ({
                 alphaTex={block.notationAlphaTex}
                 noTopMargin
                 transparent
+                bpm={block.notationStaffSnapshot?.bpm ?? null}
               />
             </div>
           )
@@ -3295,6 +3296,7 @@ const TabContent = ({
                       alphaTex={b.notationAlphaTex}
                       noTopMargin
                       transparent
+                      bpm={b.notationStaffSnapshot?.bpm ?? null}
                     />
                   </div>
                 ))}

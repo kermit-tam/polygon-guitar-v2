@@ -103,8 +103,8 @@ export default function NotationEditorWorkspace({
   const [selectedDuration, setSelectedDuration] = useState(TOOL_IDS.QUARTER)
   const [selectedDivision, setSelectedDivision] = useState(null)
   const [timeSignatureId, setTimeSignatureId] = useState('4/4')
-  /** number | '' — 空字串僅作輸入中狀態，匯出／預覽用 effectiveBpm */
-  const [bpm, setBpm] = useState(100)
+  /** number | null | '' — null = not set; '' = mid-input; effectiveBpm used for alphaTex generation */
+  const [bpm, setBpm] = useState(null)
   const effectiveBpm = typeof bpm === 'number' && !Number.isNaN(bpm) ? bpm : 100
   const [capo, setCapo] = useState(0)
   const effectiveCapo =
@@ -195,7 +195,7 @@ export default function NotationEditorWorkspace({
           timeSignatureId,
           selectedDuration,
           selectedDivision,
-          bpm: effectiveBpm,
+          bpm,
           capo: effectiveCapo,
           staff,
           savedAlphaTex: previewAlphaTex,
@@ -209,7 +209,7 @@ export default function NotationEditorWorkspace({
     timeSignatureId,
     selectedDuration,
     selectedDivision,
-    effectiveBpm,
+    bpm,
     effectiveCapo,
     previewAlphaTex,
     persistStaffRev,
@@ -238,7 +238,7 @@ export default function NotationEditorWorkspace({
 
   const handleBpmBlur = useCallback(() => {
     setBpm((prev) =>
-      typeof prev === 'number' && !Number.isNaN(prev) ? prev : 100
+      typeof prev === 'number' && !Number.isNaN(prev) ? prev : null
     )
   }, [])
 
@@ -278,13 +278,12 @@ export default function NotationEditorWorkspace({
         capo: effectiveCapo,
       })
       setPreviewAlphaTex(tex)
-      setBpm(effectiveBpm)
 
       const staffSnapshot = {
         timeSignatureId,
         selectedDuration,
         selectedDivision,
-        bpm: effectiveBpm,
+        bpm,
         capo: effectiveCapo,
         staff: snap,
         savedAlphaTex: tex,
@@ -300,7 +299,7 @@ export default function NotationEditorWorkspace({
                 timeSignatureId,
                 selectedDuration,
                 selectedDivision,
-                bpm: effectiveBpm,
+                bpm,
                 capo: effectiveCapo,
                 staff,
                 savedAlphaTex: tex,
@@ -339,7 +338,7 @@ export default function NotationEditorWorkspace({
                 timeSignatureId,
                 selectedDuration,
                 selectedDivision,
-                bpm: effectiveBpm,
+                bpm,
                 capo: effectiveCapo,
                 staff,
                 savedAlphaTex: tex,
@@ -361,7 +360,7 @@ export default function NotationEditorWorkspace({
               timeSignatureId,
               selectedDuration,
               selectedDivision,
-              bpm: effectiveBpm,
+              bpm,
               capo: effectiveCapo,
               staff,
               savedAlphaTex: tex,
@@ -478,6 +477,7 @@ export default function NotationEditorWorkspace({
               noTopMargin={compactChrome}
               transparent={compactChrome}
               outlined={compactChrome}
+              bpm={bpm}
             />
           </>
         )}

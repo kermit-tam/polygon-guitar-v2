@@ -25,6 +25,7 @@ export default function TablatureViewer({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [bpm, setBpm] = useState(null);
 
   // 初始化 AlphaTab
   useEffect(() => {
@@ -82,6 +83,7 @@ export default function TablatureViewer({
         apiRef.current.scoreLoaded.on((score) => {
           setIsLoading(false);
           setDuration(score.duration);
+          if (score?.tempo != null) setBpm(score.tempo);
           onReady?.(score);
         });
 
@@ -201,6 +203,12 @@ export default function TablatureViewer({
                 <rect x="6" y="6" width="12" height="12" />
               </svg>
             </button>
+
+            {bpm != null && (
+              <span className="text-xs font-semibold tabular-nums" style={{ color: '#FFD700' }}>
+                {bpm} BPM
+              </span>
+            )}
 
             <button
               onClick={handleToggleLoop}
