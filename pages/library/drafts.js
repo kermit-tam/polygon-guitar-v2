@@ -131,7 +131,6 @@ export default function DraftTabsPage() {
           <div className="text-center py-16" style={{ paddingLeft: '1rem', paddingRight: '1rem' }}>
             <FileText className="w-16 h-16 text-[#3E3E3E] mx-auto mb-4" />
             <h3 className="text-xl text-white mb-2">未有草稿</h3>
-            <p className="text-neutral-500 mb-6">喺出譜頁或編輯頁按「儲存草稿」後，會顯示喺呢度</p>
             <Link
               href="/tabs/new"
               className="inline-flex items-center px-6 py-3 bg-[#FFD700] text-black rounded-full font-medium hover:opacity-90 transition"
