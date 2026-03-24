@@ -80,6 +80,11 @@ function isSlashBassContinuationToken(tokenName) {
   return /^\/[A-G][#b]?$/.test(tokenName || '')
 }
 
+/** 延長線/佔位符（支援半形 -、全形 －、en dash –、em dash —） */
+function isDashLikeToken(tokenName) {
+  return tokenName === '-' || tokenName === '－' || tokenName === '–' || tokenName === '—' || tokenName === '*'
+}
+
 /** 行內有和弦標記：| 後根音，或（行首/空白/小節線後）嘅 /根音（唔會誤判 E7/G#） */
 function lineHasChordMarker(line) {
   if (!line) return false
@@ -1148,7 +1153,7 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
       let displayName = tokenName;
       const isSlashBassOnly = isSlashBassContinuationToken(tokenName)
       let isChord = /^[A-G]/.test(tokenName) || isSlashBassOnly;
-      let isDash = tokenName === '-' || tokenName === '*' || /^\d+\/\d+$/.test(tokenName) || /^N\.?C\.?$/i.test(tokenName);
+      let isDash = isDashLikeToken(tokenName) || /^\d+\/\d+$/.test(tokenName) || /^N\.?C\.?$/i.test(tokenName);
       
       // 如果是和弦，處理轉調
       if (isChord && transposeSemitones !== 0) {
@@ -1362,9 +1367,13 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
             for (let j = idx + 1; j < tokens.length && !tokens[j].isChord; j++) {
               trailing.push(tokens[j]);
             }
-            // Attach trailing bar-end to the chord itself (e.g. Am| not Am ... |)
+            // Attach trailing bar-end to chord only when it's the sole trailing token.
+            // If there are dash-like tokens (e.g. "Ab7sus4 — |"), keep original order.
             let barEnd = false;
-            if (trailing.length > 0 && trailing[trailing.length - 1].isBarEnd) {
+            if (
+              trailing.length === 1 &&
+              trailing[0].isBarEnd
+            ) {
               trailing.pop();
               barEnd = true;
             }
@@ -2469,8 +2478,10 @@ const TabContent = ({
             const currentSuffix = pairIndex === pairs.length - 1 ? suffix : null;
             // 一律用 grid 對齊（以歌詞為 spacer）；多出嘅和弦放喺最後加 10px 間距
             const hasNoChordToken = /(^|[\s|｜])N\.?C\.?(?=([\s|｜]|$))/i.test(pair.chordLine || '');
+            const hasDashLikeToken = /(^|[\s|｜])(?:-+|[—–－]+)(?=([\s|｜]|$))/.test(pair.chordLine || '');
             // NC / N.C. 唔應該追蹤括號，改用原始 chordLine 排版（非 grid 對位）
-            const useGridAlignment = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && (result.lyricSplit.segments?.length ?? 0) > 0;
+            // Dash-like token（- / — / – / －）交回 processPair 位置計算，避免黐住前一個 chord
+            const useGridAlignment = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && !hasDashLikeToken && (result.lyricSplit.segments?.length ?? 0) > 0;
             const chordFontFamily = displayFont === 'arial'
               ? "Arial, Helvetica, sans-serif"
               : "'Source Code Pro', monospace";
@@ -2824,7 +2835,8 @@ const TabContent = ({
             const notationFontSize = getLineFontSize(notationLine);
             const result = processPair(cleanLine, notationLine, transposeSemitones, hideBrackets, displayFont, preferFlats);
             const hasNoChordToken = /(^|[\s|｜])N\.?C\.?(?=([\s|｜]|$))/i.test(cleanLine || '');
-            const useGrid = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && (result.lyricSplit.segments?.length ?? 0) > 0;
+            const hasDashLikeToken = /(^|[\s|｜])(?:-+|[—–－]+)(?=([\s|｜]|$))/.test(cleanLine || '');
+            const useGrid = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && !hasDashLikeToken && (result.lyricSplit.segments?.length ?? 0) > 0;
 
             elements.push(
               <div key={`${i}-notation-only-${nlIdx}`} style={{ marginBottom: `${lineFontSize * 0.3}px` }}>
