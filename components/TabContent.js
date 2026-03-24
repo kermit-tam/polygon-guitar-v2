@@ -2349,8 +2349,13 @@ const TabContent = ({
           if ((targetChinese > 0 || targetEnglish > 0 || targetHasBrackets) && !targetHasChord) {
             break;
           }
-          // 中間嘅和弦行（如第二行和弦）跳過，繼續搵歌詞行
+          // 中間嘅和弦行（如第二行和弦）：
+          // 若前面已經收集咗簡譜，應該先截斷，保持「和弦→簡譜→下一行和弦」原始順序
+          // （避免把中間簡譜搬到後一行和弦下面，令 edit page 同 tab page 顯示不一致）
           if (targetHasChord) {
+            if (notationLines.length > 0) {
+              break;
+            }
             lastChordLineIndex = targetLyricIndex;
             targetLyricIndex++;
             continue;
@@ -2799,7 +2804,7 @@ const TabContent = ({
           notationLines.forEach(({ index: notIdx, line: notationLine }, nlIdx) => {
             const notationFontSize = getLineFontSize(notationLine);
             const result = processPair(cleanLine, notationLine, transposeSemitones, hideBrackets, displayFont, preferFlats);
-            const hasNoChordToken = /(^|[\s|｜])N\.?C\.?(?=([\s|｜]|$))/i.test(chordLineForNotationOnly || '');
+            const hasNoChordToken = /(^|[\s|｜])N\.?C\.?(?=([\s|｜]|$))/i.test(cleanLine || '');
             const useGrid = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && (result.lyricSplit.segments?.length ?? 0) > 0;
 
             elements.push(
@@ -2966,8 +2971,12 @@ const TabContent = ({
               </div>
             );
           });
-          // 如果 targetLyricIndex 指向空行（簡譜後有換行），唔好跳過，交畀主循環渲染間距
-          if (lines[targetLyricIndex] !== undefined && !lines[targetLyricIndex].trim()) {
+          // 如果 targetLyricIndex 指向空行（簡譜後有換行）或下一行已經係和弦行（例如 |Gmaj7），
+          // 唔好跳過，交畀主循環渲染，避免吞掉下一行和弦。
+          const nextTargetLine = lines[targetLyricIndex];
+          const targetIsBlank = nextTargetLine !== undefined && !nextTargetLine.trim();
+          const targetIsChordLine = !!nextTargetLine && lineHasChordMarker(nextTargetLine);
+          if (targetIsBlank || targetIsChordLine) {
             i = targetLyricIndex;
           } else {
             i = targetLyricIndex + 1;
