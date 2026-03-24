@@ -1197,8 +1197,25 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
   const extraChordCount = chordTokens.length - minCount;
   const totalLyricWidth = getTextWidth(normalizedLyric);
 
+  // 先計算每個和弦 token 的目標位置（避免 dash 直接依賴 bracket 索引導致 extra chord 偏移）
+  const chordTargetPositions = []
+  for (let c = 0; c < chordTokens.length; c++) {
+    if (c < minCount) {
+      chordTargetPositions.push(bracketPositions[c])
+    } else {
+      const lastPos = bracketPositions.length > 0 ? bracketPositions[bracketPositions.length - 1] : 0
+      const remainingWidth = Math.max(0, totalLyricWidth - lastPos)
+      const numExtra = c - minCount
+      const totalExtra = extraChordCount
+      const pos = bracketPositions.length > 0
+        ? lastPos + Math.round(remainingWidth * (numExtra + 1) / (totalExtra + 1))
+        : (totalExtra <= 1 ? 0 : Math.round(totalLyricWidth * numExtra / (totalExtra - 1)))
+      chordTargetPositions.push(pos)
+    }
+  }
+
   // 計算每個 token 應該對齊嘅位置
-  // 和弦對齊括號，延長符號平均分布在前後和弦之間
+  // 和弦對齊 chordTargetPositions，延長符號在前後和弦之間平均分布
   const tokenPositions = [];
   let chordIdx = 0;
   
@@ -1207,48 +1224,34 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
     const token = tokens[idx];
     
     if (token.isChord) {
-      // 如果還有括號位置，對齊；否則在剩餘歌詞寬度內自然攤開
-      if (chordIdx < minCount) {
-        tokenPositions.push(bracketPositions[chordIdx]);
-      } else {
-        // 冇括號時：第一個和弦由 0 開始，唔加開頭空格；其餘在 totalLyricWidth 內均分
-        const lastPos = bracketPositions.length > 0 ? bracketPositions[bracketPositions.length - 1] : 0;
-        const remainingWidth = Math.max(0, totalLyricWidth - lastPos);
-        const numExtra = chordIdx - minCount; // 0-based index among extra chords
-        const totalExtra = extraChordCount;
-        const pos = bracketPositions.length > 0
-          ? lastPos + Math.round(remainingWidth * (numExtra + 1) / (totalExtra + 1))
-          : (totalExtra <= 1 ? 0 : Math.round(totalLyricWidth * numExtra / (totalExtra - 1)));
-        tokenPositions.push(pos);
-      }
+      tokenPositions.push(chordTargetPositions[chordIdx] ?? 0);
       chordIdx++;
     } else {
       // 延長符號：找前後和弦，然後平均分布
       let prevChordIdx = -1;  // 在 tokens 中的索引
       let nextChordIdx = -1;  // 在 tokens 中的索引
-      let prevChordBracketIdx = -1;  // 在 bracketPositions 中的索引
-      let nextChordBracketIdx = -1;  // 在 bracketPositions 中的索引
+      let prevChordOrderIdx = -1;  // 第幾個和弦（0-based）
+      let nextChordOrderIdx = -1;  // 第幾個和弦（0-based）
       
       // 找前一個和弦
       let chordCount = 0;
       for (let j = idx - 1; j >= 0; j--) {
         if (tokens[j].isChord) {
           prevChordIdx = j;
-          prevChordBracketIdx = chordCount;
+          prevChordOrderIdx = chordCount;
           break;
         }
-        if (tokens[j].isChord) chordCount++;
       }
       
-      // 重新計算前一個和弦的 bracket 索引
+      // 重新計算前一個和弦的 order index
       chordCount = 0;
       for (let j = 0; j < idx; j++) {
         if (tokens[j].isChord) {
-          prevChordBracketIdx = chordCount;
+          prevChordOrderIdx = chordCount;
           chordCount++;
         }
       }
-      prevChordBracketIdx = chordCount - 1;
+      prevChordOrderIdx = chordCount - 1;
       
       // 找後一個和弦
       chordCount = 0;
@@ -1256,14 +1259,14 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
         if (tokens[j].isChord) {
           if (j > idx) {
             nextChordIdx = j;
-            nextChordBracketIdx = chordCount;
+            nextChordOrderIdx = chordCount;
             break;
           }
           chordCount++;
         }
       }
       
-      if (prevChordBracketIdx >= 0 && nextChordBracketIdx >= 0) {
+      if (prevChordOrderIdx >= 0 && nextChordOrderIdx >= 0) {
         // 計算這個延長符號是第幾個在這對和弦之間的
         let dashIndexInGap = 0;
         let totalDashesInGap = 0;
@@ -1274,18 +1277,24 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
           }
         }
         
-        const prevPos = bracketPositions[prevChordBracketIdx];
-        const nextPos = bracketPositions[nextChordBracketIdx];
+        const prevPos = chordTargetPositions[prevChordOrderIdx];
+        const nextPos = chordTargetPositions[nextChordOrderIdx];
+        if (prevPos == null || nextPos == null || Number.isNaN(prevPos) || Number.isNaN(nextPos)) {
+          tokenPositions.push(0);
+          continue;
+        }
         const gap = nextPos - prevPos;
         
         // 平均分布：把 gap 分成 (totalDashesInGap + 1) 份
         const step = gap / (totalDashesInGap + 1);
         const pos = Math.round(prevPos + step * (dashIndexInGap + 1));
         tokenPositions.push(pos);
-      } else if (prevChordBracketIdx >= 0) {
-        tokenPositions.push(bracketPositions[prevChordBracketIdx] + 4);
-      } else if (nextChordBracketIdx >= 0) {
-        tokenPositions.push(Math.max(0, bracketPositions[nextChordBracketIdx] - 4));
+      } else if (prevChordOrderIdx >= 0) {
+        const p = chordTargetPositions[prevChordOrderIdx] ?? 0;
+        tokenPositions.push(p + 4);
+      } else if (nextChordOrderIdx >= 0) {
+        const n = chordTargetPositions[nextChordOrderIdx] ?? 0;
+        tokenPositions.push(Math.max(0, n - 4));
       } else {
         tokenPositions.push(0);
       }
@@ -1300,9 +1309,23 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
     const token = tokens[idx];
     const targetPos = tokenPositions[idx];
     
-    // 直接定位到 targetPos
-    let startCol = targetPos;
-    if (token.isBarStart) startCol -= 0.5;
+    // bar-start 和弦（如 |E）一般扣返 1 欄。
+    // 但如果後面緊接住 dash bridge（例如 |E - - B/D#），唔扣可避免 E 被拉左。
+    let hasDashBridgeAhead = false;
+    if (token.isBarStart && token.isChord) {
+      for (let j = idx + 1; j < tokens.length; j++) {
+        if (tokens[j].isChord) break;
+        if (tokens[j].isDash) {
+          hasDashBridgeAhead = true;
+          break;
+        }
+      }
+    }
+    let startCol = targetPos - (
+      token.isBarStart
+        ? (hasDashBridgeAhead ? 2 : 1)
+        : 0
+    );
     startCol = Math.round(startCol);
     if (startCol < 0) startCol = 0;
     
