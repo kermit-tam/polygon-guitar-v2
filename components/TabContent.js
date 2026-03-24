@@ -2332,9 +2332,21 @@ const TabContent = ({
           // 簡譜可含 b/#（如 3b 降3、5# 升5），只計「非 b/#」嘅英文字母
           const targetOtherLetters = (targetLine.match(/[a-zA-Z]/g) || []).filter(c => !/[b#]/i.test(c)).length;
           const targetEnglish = (targetLine.match(/[a-zA-Z]+/g) || []).length;
+          const targetLooksNumericNotation =
+            targetDigits > 0 &&
+            targetChinese < 3 &&
+            !targetHasChord &&
+            targetOtherLetters === 0 &&
+            /^[\s0-9#b'",.()（）]+$/.test(targetLine);
           
           // 如果係「僅括號數字簡譜」行如 (3) (2) (7,) (1)，當簡譜行收集，唔好當歌詞行
           if (targetHasBrackets && !targetHasChord && isBracketsOnlyNumberedNotationLine(targetLine)) {
+            notationLines.push({ index: targetLyricIndex, line: targetLine });
+            targetLyricIndex++;
+            continue;
+          }
+          // 括號 + 數字為主（例如 "( ) 7 6 5 3''"）都當簡譜行，避免被當歌詞（白色/較粗）渲染
+          if (targetLooksNumericNotation) {
             notationLines.push({ index: targetLyricIndex, line: targetLine });
             targetLyricIndex++;
             continue;
