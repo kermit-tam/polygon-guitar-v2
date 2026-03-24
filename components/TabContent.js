@@ -1937,6 +1937,9 @@ const TabContent = ({
             
             // 如果是簡譜行，顯示為粉紅色
             if (isNumericNotation) {
+              if (hideNotation) {
+                return null;
+              }
               return (
                 <div key={idx} style={{ 
                   fontSize: `${fontSize}px`, 
@@ -2263,6 +2266,10 @@ const TabContent = ({
       
       // 處理簡譜行
       if (isNumericNotation) {
+        if (hideNotation) {
+          i++;
+          continue;
+        }
         const notationParts = processNumericNotationLine(line);
         // 檢查上一行是否為和弦行，如果是則緊貼
         const prevLine = lines[i - 1];
