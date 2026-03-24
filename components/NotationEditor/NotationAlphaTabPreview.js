@@ -23,21 +23,34 @@ function formatAlphaTabLoadError(e) {
   return uniq.length ? uniq.join(' — ') : String(e)
 }
 
-/** Dark-mode alphaTab: all notation + text light (see display.resources in alphaTab docs). */
-const COLORS = {
+/** Night: light glyphs on dark canvas (see display.resources in alphaTab docs). */
+const COLORS_NIGHT = {
   backgroundColor: '#1a1a1a',
-  // Core (defaults are black / gray — these fix “invisible” glyphs on dark bg)
-  mainGlyphColor: '#FFFFFF', // primary voice: rests, TAB label, time sig, SMuFL symbols
-  scoreInfoColor: '#FFFFFF', // score header text (tuning hidden via notation.elements)
-  secondaryGlyphColor: '#FFFFFF', // secondary voices (default is translucent black)
+  mainGlyphColor: '#FFFFFF',
+  scoreInfoColor: '#FFFFFF',
+  secondaryGlyphColor: '#FFFFFF',
   staffLineColor: '#FFFFFF',
   barSeparatorColor: '#FFFFFF',
   barNumberColor: '#FFFFFF',
-  // Web keys still applied by the runtime for tab-specific painting
   fretNumberColor: '#FFFFFF',
   chordNameColor: '#FFFFFF',
   timeSignatureColor: '#FFFFFF',
   tabTuningTextColor: '#FFFFFF',
+}
+
+/** Day: dark glyphs on light canvas (match TabContent ASCII 六線譜區). */
+const COLORS_DAY = {
+  backgroundColor: '#f5f5f5',
+  mainGlyphColor: '#171717',
+  scoreInfoColor: '#171717',
+  secondaryGlyphColor: '#262626',
+  staffLineColor: '#404040',
+  barSeparatorColor: '#525252',
+  barNumberColor: '#404040',
+  fretNumberColor: '#171717',
+  chordNameColor: '#171717',
+  timeSignatureColor: '#171717',
+  tabTuningTextColor: '#171717',
 }
 
 /**
@@ -132,7 +145,10 @@ export default function NotationAlphaTabPreview({
   outlined = false,
   /** Explicit BPM to display — only shown if non-null. */
   bpm = null,
+  /** 'night' | 'day' — 樂譜頁日間模式要轉淺底深字 */
+  theme = 'night',
 }) {
+  const COLORS = theme === 'day' ? COLORS_DAY : COLORS_NIGHT
   const containerRef = useRef(null)
   const apiRef = useRef(null)
   const [loadError, setLoadError] = useState(null)
@@ -281,7 +297,7 @@ export default function NotationAlphaTabPreview({
         apiRef.current = null
       }
     }
-  }, [alphaTex])
+  }, [alphaTex, theme])
 
   /** Tab/embed transparent mode: re-apply watermark after layout (avoids clipped / missed credit). */
   useEffect(() => {
@@ -295,7 +311,7 @@ export default function NotationAlphaTabPreview({
       cancelAnimationFrame(raf)
       clearTimeout(t)
     }
-  }, [ready, alphaTex, transparent])
+  }, [ready, alphaTex, transparent, theme])
 
   const handlePlayPause = useCallback(() => {
     const api = apiRef.current
@@ -321,11 +337,17 @@ export default function NotationAlphaTabPreview({
   if (!alphaTex?.trim()) return null
 
   const showBorder = !hideBorder && (!transparent || outlined)
-  const outerBg = transparent ? 'bg-transparent' : 'bg-[#121212]'
+  const outerBg = transparent ? 'bg-transparent' : theme === 'day' ? 'bg-neutral-50' : 'bg-[#121212]'
+  const borderCls = showBorder
+    ? theme === 'day'
+      ? 'border border-neutral-300'
+      : 'border border-neutral-800'
+    : ''
 
   return (
     <div
-      className={`notation-alphatab-preview ${noTopMargin ? '' : 'mt-[25px]'} rounded-xl ${transparent ? 'overflow-visible' : 'overflow-hidden'} ${outerBg} ${showBorder ? 'border border-neutral-800' : ''} ${outlined ? 'px-4 pt-4' : ''}`}
+      data-theme={theme}
+      className={`notation-alphatab-preview ${noTopMargin ? '' : 'mt-[25px]'} rounded-xl ${transparent ? 'overflow-visible' : 'overflow-hidden'} ${outerBg} ${borderCls} ${outlined ? 'px-4 pt-4' : ''}`}
     >
       {loadError && (
         <div className="py-3 text-sm text-red-400 bg-red-950/40 px-0">{loadError}</div>
@@ -363,7 +385,7 @@ export default function NotationAlphaTabPreview({
             <button
               type="button"
               onClick={handleStop}
-              className="w-8 h-8 hover:bg-neutral-700 rounded-full flex items-center justify-center text-neutral-200 hover:text-white transition shrink-0"
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition shrink-0 ${theme === 'day' ? 'text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900' : 'text-neutral-200 hover:bg-neutral-700 hover:text-white'}`}
               aria-label="Stop"
             >
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -371,15 +393,17 @@ export default function NotationAlphaTabPreview({
               </svg>
             </button>
             {bpm != null && (
-              <span className="text-xs tabular-nums shrink-0">
-                BPM {bpm} 
+              <span
+                className={`text-xs tabular-nums shrink-0 ${theme === 'day' ? 'text-neutral-800' : 'text-neutral-200'}`}
+              >
+                BPM {bpm}
               </span>
             )}
           </div>
         )}
         {!ready && !loadError && (
           <div
-            className={`absolute inset-0 z-10 flex items-center justify-center text-[#B3B3B3] text-sm ${transparent ? 'bg-transparent' : 'bg-[#121212]/90'}`}
+            className={`absolute inset-0 z-10 flex items-center justify-center text-sm ${transparent ? 'bg-transparent' : theme === 'day' ? 'bg-white/90 text-neutral-500' : 'bg-[#121212]/90 text-[#B3B3B3]'}`}
           >
             Loading alphaTab…
           </div>

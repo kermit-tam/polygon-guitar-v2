@@ -1558,6 +1558,9 @@ const TabContent = ({
   externalHideBrackets,
   onHideNotationChange,
   onHideBracketsChange,
+  /** 隱藏六線譜：ASCII tab、AlphaTab 區塊、GP Intro 段落 */
+  externalHideTabStaff,
+  onHideTabStaffChange,
   scrollSmoothRef,
   /** 樂譜頁：撳和弦字時彈出指法圖（唔再播放試聽） */
   onChordPress
@@ -1577,10 +1580,13 @@ const TabContent = ({
   const [internalTheme, setInternalTheme] = useState('night'); // 'night' | 'day'
   const [internalHideNotation, setInternalHideNotation] = useState(true);
   const [internalHideBrackets, setInternalHideBrackets] = useState(false);
+  const [internalHideTabStaff, setInternalHideTabStaff] = useState(false);
   const hideNotation = externalHideNotation !== undefined ? externalHideNotation : internalHideNotation;
   const setHideNotation = onHideNotationChange !== undefined ? onHideNotationChange : setInternalHideNotation;
   const hideBrackets = externalHideBrackets !== undefined ? externalHideBrackets : internalHideBrackets;
   const setHideBrackets = onHideBracketsChange !== undefined ? onHideBracketsChange : setInternalHideBrackets;
+  const hideTabStaff = externalHideTabStaff !== undefined ? externalHideTabStaff : internalHideTabStaff;
+  const setHideTabStaff = onHideTabStaffChange !== undefined ? onHideTabStaffChange : setInternalHideTabStaff;
   const [isMobile, setIsMobile] = useState(false); // 手機版檢測
   
   // 檢測是否為手機版
@@ -1859,6 +1865,7 @@ const TabContent = ({
             if (notationSlot) {
               const block = resolveNotationBlock(notationSlot)
               if (block && (block.notationAlphaTex || '').trim()) {
+                if (hideTabStaff) return null
                 return (
                   <div key={idx} className="mb-[25px]">
                     {shouldShowNotationBlockHeadingLabel(block.label) && (
@@ -1866,7 +1873,13 @@ const TabContent = ({
                         {block.label}
                       </div>
                     )}
-                    <NotationAlphaTabPreview alphaTex={block.notationAlphaTex} noTopMargin transparent bpm={block.notationStaffSnapshot?.bpm ?? null} />
+                    <NotationAlphaTabPreview
+                      alphaTex={block.notationAlphaTex}
+                      noTopMargin
+                      transparent
+                      theme={theme}
+                      bpm={block.notationStaffSnapshot?.bpm ?? null}
+                    />
                   </div>
                 )
               }
@@ -2023,16 +2036,19 @@ const TabContent = ({
         const lineFontSize = getLineFontSize(line)
         const block = resolveNotationBlock(notationParsed)
         if (block && (block.notationAlphaTex || '').trim()) {
-          elements.push(
-            <div key={`${i}-notation-anchor`} className="mb-[25px]">
-              <NotationAlphaTabPreview
-                alphaTex={block.notationAlphaTex}
-                noTopMargin
-                transparent
-                bpm={block.notationStaffSnapshot?.bpm ?? null}
-              />
-            </div>
-          )
+          if (!hideTabStaff) {
+            elements.push(
+              <div key={`${i}-notation-anchor`} className="mb-[25px]">
+                <NotationAlphaTabPreview
+                  alphaTex={block.notationAlphaTex}
+                  noTopMargin
+                  transparent
+                  theme={theme}
+                  bpm={block.notationStaffSnapshot?.bpm ?? null}
+                />
+              </div>
+            )
+          }
         }
         i++
         continue
@@ -2048,8 +2064,9 @@ const TabContent = ({
           sectionCheck.marker.toLowerCase().includes('intro') && gpSegments?.length
             ? gpSegments.find((seg) => seg.type === 'intro')
             : null
-        // 有 GP Intro 時唔再顯示「Intro」字樣（避免重複喺 AlphaTab 前）
-        if (!gpIntroSegment) {
+        const showGpIntroPlayer = gpIntroSegment && !hideTabStaff
+        // 有 GP Intro 時唔再顯示「Intro」字樣（避免重複喺 AlphaTab 前）；隱藏六線譜時仍顯示 Intro 標題
+        if (!gpIntroSegment || hideTabStaff) {
           elements.push(
             <div key={`${i}-marker`} style={{ marginTop: i > 0 ? '20px' : undefined, marginBottom: `${lineFontSize * 0.6}px` }}>
               <span style={{ 
@@ -2070,7 +2087,7 @@ const TabContent = ({
           )
         }
 
-        if (gpIntroSegment) {
+        if (showGpIntroPlayer) {
           elements.push(
             <div key={`${i}-gp-intro`} style={{ marginBottom: `${lineFontSize * 0.6}px` }}>
               <GpSegmentPlayer segment={gpIntroSegment} theme={gpTheme} />
@@ -2131,18 +2148,20 @@ const TabContent = ({
       // ========== 檢查是否為六線譜段落 ==========
       const tabSectionCheck = detectGuitarTabSection(lines, i);
       if (tabSectionCheck.isTabSection) {
-        elements.push(
-          <div key={`${i}-tab`} style={{ 
-            marginBottom: `${lineFontSize * 0.8}px`,
-            padding: '12px 16px',
-            backgroundColor: theme === 'night' ? '#1a1a1a' : '#f5f5f5',
-            borderRadius: '8px',
-            border: `1px solid ${theme === 'night' ? '#333' : '#ddd'}`,
-            overflowX: 'auto'
-          }}>
-            {renderGuitarTab(tabSectionCheck.lines)}
-          </div>
-        );
+        if (!hideTabStaff) {
+          elements.push(
+            <div key={`${i}-tab`} style={{ 
+              marginBottom: `${lineFontSize * 0.8}px`,
+              padding: '12px 16px',
+              backgroundColor: theme === 'night' ? '#1a1a1a' : '#f5f5f5',
+              borderRadius: '8px',
+              border: `1px solid ${theme === 'night' ? '#333' : '#ddd'}`,
+              overflowX: 'auto'
+            }}>
+              {renderGuitarTab(tabSectionCheck.lines)}
+            </div>
+          );
+        }
         i = tabSectionCheck.endIndex;
         continue;
       }
@@ -3272,6 +3291,7 @@ const TabContent = ({
             </div>
           )}
           {(() => {
+            if (hideTabStaff) return null
             if (contentHasNotationAnchorsMemo) return null
             const blocks =
               Array.isArray(notationBlocks) && notationBlocks.length > 0
@@ -3296,6 +3316,7 @@ const TabContent = ({
                       alphaTex={b.notationAlphaTex}
                       noTopMargin
                       transparent
+                      theme={theme}
                       bpm={b.notationStaffSnapshot?.bpm ?? null}
                     />
                   </div>

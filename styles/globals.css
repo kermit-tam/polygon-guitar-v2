@@ -204,12 +204,21 @@ img::selection {
   }
 }
 
-/* Notation editor — alphaTab playback cursor (moving vertical line + bar highlight) */
-.notation-alphatab-preview .at-cursor-beat {
-  background-color: #ffd700 !important;
-  box-shadow: 0 0 6px rgba(255, 215, 0, 0.75);
+/* alphaTab 播放：垂直游標 + 小節底色 — 跟樂譜頁 theme（日間 #7C3AED 和弦紫） */
+.notation-alphatab-preview[data-theme='day'] .at-cursor-beat {
+  background-color: #7c3aed !important;
+  box-shadow: 0 0 6px rgba(124, 58, 237, 0.55);
   border-radius: 1px;
 }
-.notation-alphatab-preview .at-cursor-bar {
-  background-color: rgba(255, 215, 0, 0.16) !important;
+.notation-alphatab-preview[data-theme='day'] .at-cursor-bar {
+  background-color: rgba(124, 58, 237, 0.18) !important;
+}
+
+.notation-alphatab-preview[data-theme='night'] .at-cursor-beat {
+  background-color: #FFD700 !important;
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.55);
+  border-radius: 1px;
+}
+.notation-alphatab-preview[data-theme='night'] .at-cursor-bar {
+  background-color: rgba(255, 215, 0, 0.2) !important;
 }

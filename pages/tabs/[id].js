@@ -111,6 +111,7 @@ export default function TabDetail({ initialTab, artist }) {
   const [tabPageIsAutoScroll, setTabPageIsAutoScroll] = useState(false)
   const [tabPageScrollSpeed, setTabPageScrollSpeed] = useState(2)
   const [tabPageHideNotation, setTabPageHideNotation] = useState(true)
+  const [tabPageHideTabStaff, setTabPageHideTabStaff] = useState(false)
   const [showChordDiagram, setShowChordDiagram] = useState(false)
   /** null = 本曲和弦預設順序（FAB）；非 null = 該和弦排第一 + 膠囊黃色（譜內點字） */
   const [chordSheetLeadChord, setChordSheetLeadChord] = useState(null)
@@ -1233,6 +1234,8 @@ export default function TabDetail({ initialTab, artist }) {
           onScrollSpeedChange={setTabPageScrollSpeed}
           externalHideNotation={tabPageHideNotation}
           onHideNotationChange={setTabPageHideNotation}
+          externalHideTabStaff={tabPageHideTabStaff}
+          onHideTabStaffChange={setTabPageHideTabStaff}
           scrollSmoothRef={pageWrapRef}
           onChordPress={handleChordPressFromTab}
         />
@@ -1433,7 +1436,7 @@ export default function TabDetail({ initialTab, artist }) {
       >
         {showFloatingControls && (
           <div
-            className="rounded-2xl bg-[#1a1a1a] shadow-xl border border-neutral-700 shrink-0 w-[142px] px-0 py-3.5 md:w-[168px] md:px-0.5 md:py-4.5"
+            className="rounded-2xl bg-[#1a1a1a] shadow-xl border border-neutral-700 shrink-0 w-[152px] px-0 py-3.5 md:w-[176px] md:px-0.5 md:py-4.5"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-label="顯示設定"
@@ -1494,30 +1497,48 @@ export default function TabDetail({ initialTab, artist }) {
               {/* 分隔線（縮短長度、置中） */}
               <div className="mx-auto w-[75%] md:w-[86%] border-b border-neutral-600 max-md:my-0" />
 
-              {/* 底部 2 個圓形按鈕：模式 → 隱藏簡譜（本曲和弦改為第三粒浮動掣） */}
-              <div className="flex items-center justify-center gap-2.5 md:gap-4">
+              {/* 底部圓形按鈕：日/夜 → 六線譜 → 簡譜 */}
+              <div className="flex items-center justify-center gap-1.5 md:gap-2 flex-wrap">
                 <button
                   onClick={() => setTheme(theme === 'night' ? 'day' : 'night')}
-                  className={`w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center shrink-0 transition ${theme === 'night' ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600 hover:text-white' : 'bg-[#FFD700] text-black'}`}
+                  className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 transition ${theme === 'night' ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600 hover:text-white' : 'bg-[#FFD700] text-black'}`}
                   title={theme === 'night' ? '日間模式' : '夜間模式'}
                 >
                   {theme === 'night' ? (
-                    <svg className="w-6 h-6 md:w-7 md:h-7 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                     </svg>
                   ) : (
-                    <svg className="w-6 h-6 md:w-7 md:h-7 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                   )}
                 </button>
                 <button
+                  type="button"
+                  onClick={() => setTabPageHideTabStaff(!tabPageHideTabStaff)}
+                  className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 transition ${tabPageHideTabStaff ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600 hover:text-white' : 'bg-[#FFD700] text-black'}`}
+                  title={tabPageHideTabStaff ? '顯示六線譜' : '隱藏六線譜'}
+                  aria-label={tabPageHideTabStaff ? '顯示六線譜' : '隱藏六線譜'}
+                >
+                  {tabPageHideTabStaff ? (
+                    <svg className="w-5 h-5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                      <path d="M3 5h18M3 8h18M3 11h18M3 14h18M3 17h18M3 20h18" />
+                      <path d="M4 4l16 16" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+                      <path d="M3 5h18M3 8h18M3 11h18M3 14h18M3 17h18M3 20h18" />
+                    </svg>
+                  )}
+                </button>
+                <button
                   onClick={() => setTabPageHideNotation(!tabPageHideNotation)}
-                  className={`w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center shrink-0 transition ${tabPageHideNotation ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600' : 'bg-[#FFD700] text-black'}`}
+                  className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 transition ${tabPageHideNotation ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600' : 'bg-[#FFD700] text-black'}`}
                   title={tabPageHideNotation ? '顯示簡譜' : '隱藏簡譜'}
                 >
                   {tabPageHideNotation ? (
-                    <svg className="w-9 h-9 md:w-11 md:h-11 shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                    <svg className="w-[2.125rem] h-[2.125rem] shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                       <path fill="currentColor" d="M11.87,14.35l-.73-.73h-.58c0,.41-.07.76-.2,1.06-.14.29-.31.53-.53.73-.21.19-.46.34-.73.43-.27.1-.55.15-.84.15v1.31c.27,0,.52-.03.78-.08.25-.06.48-.14.68-.25.21-.11.38-.24.53-.41.15-.16.25-.34.31-.55v4.71h-1.34v1.18h3.98v-1.18h-1.33v-6.37Z" />
                       <polygon fill="currentColor" points="16.62 20.72 17.45 19.93 16.58 19.06 14.91 20.67 14.91 21.9 19.42 21.9 18.24 20.72 16.62 20.72" />
                       <path fill="currentColor" d="M17.69,14.66c.16,0,.33.02.49.07.17.04.31.11.44.21.13.1.24.23.32.39.08.15.12.34.12.56,0,.18-.03.37-.12.57l.94.94c.07-.11.13-.21.19-.32.21-.41.31-.81.31-1.19s-.07-.74-.22-1.05c-.14-.3-.34-.55-.59-.75s-.53-.35-.86-.45c-.32-.11-.66-.16-1.02-.16-.56,0-1.04.09-1.44.29l.95.95c.15-.04.31-.06.49-.06Z" />
@@ -1525,7 +1546,7 @@ export default function TabDetail({ initialTab, artist }) {
                       <path fill="currentColor" d="M19.18,18.26l-.87-.87-2.04-2.04-.9-.9-3.71-3.71c-.25-.25-.67-.25-.92,0s-.25.66,0,.92l4.1,4.1.71.71,1.83,1.83.86.86.81.81,1.19,1.19,3.63,3.63c.13.13.29.19.46.19s.33-.06.46-.19c.25-.26.25-.67,0-.92l-5.61-5.61Z" />
                     </svg>
                   ) : (
-                    <svg className="w-9 h-9 md:w-11 md:h-11 shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                    <svg className="w-[2.125rem] h-[2.125rem] shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                       <path fill="currentColor" d="M13.2,21.91h-3.97v-1.18h1.33v-4.71c-.06.21-.16.39-.31.55-.15.16-.32.3-.53.4-.21.11-.43.19-.69.25-.25.06-.51.09-.78.09v-1.31c.29,0,.57-.05.84-.14.27-.1.52-.24.73-.44s.39-.44.52-.73c.13-.29.2-.65.2-1.06h1.31v7.1h1.33v1.18Z" />
                       <path fill="currentColor" d="M20.38,15.89c0,.39-.1.79-.31,1.19s-.49.79-.86,1.16l-2.59,2.49h2.43v-1.14h1.19v2.32h-5.33v-1.24l3.33-3.19c.29-.3.5-.57.62-.83.13-.26.19-.51.19-.75,0-.22-.04-.4-.12-.56s-.19-.28-.32-.38c-.13-.1-.28-.17-.44-.22-.17-.04-.33-.07-.49-.07-.52,0-.93.15-1.23.46s-.45.76-.45,1.35h-1.23c0-.94.25-1.67.75-2.2s1.22-.79,2.16-.79c.36,0,.7.05,1.02.16.33.1.61.25.86.45.25.2.44.45.59.76.15.3.22.65.22,1.04Z" />
                       <path fill="currentColor" d="M27.27,19.66c0,.36-.07.69-.22.99-.15.29-.35.54-.59.75-.25.21-.53.37-.86.48-.32.11-.66.17-1.02.17-.4,0-.78-.05-1.12-.16s-.65-.27-.91-.49c-.26-.22-.48-.5-.64-.85s-.26-.76-.3-1.24l1.23-.2c.04.55.22.98.53,1.29.31.32.72.47,1.21.47.42,0,.75-.11,1-.33.25-.22.38-.51.38-.88,0-.5-.16-.85-.48-1.06-.32-.21-.88-.32-1.69-.32v-1.18c.28,0,.55-.03.79-.08s.46-.14.64-.25c.18-.11.33-.24.43-.4s.16-.34.16-.54c0-.35-.1-.63-.31-.84-.21-.21-.51-.32-.91-.32-.52,0-.92.14-1.2.42-.28.28-.42.73-.42,1.35h-1.25c0-.49.07-.91.21-1.28s.33-.68.58-.92c.25-.25.55-.43.9-.56.35-.12.74-.19,1.17-.19.36,0,.69.05.99.16.31.11.58.26.81.47s.41.45.54.74c.13.29.19.61.19.98,0,.23-.04.45-.11.66-.07.21-.18.39-.32.55s-.31.29-.51.39-.43.16-.68.17c.29.03.54.1.76.22.22.12.41.28.56.46s.27.4.35.63.12.48.12.74Z" />
