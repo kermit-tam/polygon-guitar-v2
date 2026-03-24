@@ -141,6 +141,8 @@ export default function NotationAlphaTabPreview({
   noTopMargin = false,
   /** No border or outer/inner chrome bg (e.g. tab read view) */
   transparent = false,
+  /** Keep cursor overlay clipped inside preview bounds (prevents top-bar overlap on some browsers). */
+  clipCursorOverflow = false,
   /** With transparent, still show outer border (e.g. 六線譜編輯器 modal preview). */
   outlined = false,
   /** Explicit BPM to display — only shown if non-null. */
@@ -347,7 +349,7 @@ export default function NotationAlphaTabPreview({
   return (
     <div
       data-theme={theme}
-      className={`notation-alphatab-preview ${noTopMargin ? '' : 'mt-[25px]'} rounded-xl ${transparent ? 'overflow-visible' : 'overflow-hidden'} ${outerBg} ${borderCls} ${outlined ? 'px-4 pt-4' : ''}`}
+      className={`notation-alphatab-preview ${noTopMargin ? '' : 'mt-[25px]'} rounded-xl ${(transparent && !clipCursorOverflow) ? 'overflow-visible' : 'overflow-hidden'} ${outerBg} ${borderCls} ${outlined ? 'px-4 pt-4' : ''}`}
     >
       {loadError && (
         <div className="py-3 text-sm text-red-400 bg-red-950/40 px-0">{loadError}</div>

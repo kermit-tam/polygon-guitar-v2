@@ -131,8 +131,11 @@ export default function TabDetail({ initialTab, artist }) {
   const [resolvedArtistName, setResolvedArtistName] = useState('')
   const [resolvedArtistNamesById, setResolvedArtistNamesById] = useState({})
   const [prevId, setPrevId] = useState(null)
+  const [isSongMetaCollapsed, setIsSongMetaCollapsed] = useState(false)
   const justRefetchedIdRef = useRef(null)
   const topBarRef = useRef(null)
+  const songMetaSectionRef = useRef(null)
+  const songMetaBottomSentinelRef = useRef(null)
   const ytPlayerRef = useRef(null)
   const ytIntervalRef = useRef(null)
   const ytContainerRef = useRef(null)
@@ -447,6 +450,42 @@ export default function TabDetail({ initialTab, artist }) {
     setIsClientMounted(true)
     if (topBarRef.current) setTopBarHeight(topBarRef.current.offsetHeight);
   });
+
+  useEffect(() => {
+    const updateCollapsed = () => {
+      if (!songMetaBottomSentinelRef.current) return
+      const rect = songMetaBottomSentinelRef.current.getBoundingClientRect()
+      const collapseAt = topBarHeight + 1
+      const expandAt = topBarHeight + 14 // hysteresis: prevent rapid toggle near threshold
+      setIsSongMetaCollapsed(prev => {
+        if (!prev && rect.top <= collapseAt) return true
+        if (prev && rect.top >= expandAt) return false
+        return prev
+      })
+    }
+
+    updateCollapsed()
+    const observer = new IntersectionObserver(() => updateCollapsed(), {
+      threshold: [0, 1],
+    })
+    if (songMetaBottomSentinelRef.current) observer.observe(songMetaBottomSentinelRef.current)
+
+    let rafId = 0
+    const tick = () => {
+      updateCollapsed()
+      rafId = window.requestAnimationFrame(tick)
+    }
+    if (tabPageIsAutoScroll) rafId = window.requestAnimationFrame(tick)
+
+    window.addEventListener('scroll', updateCollapsed, { passive: true })
+    window.addEventListener('resize', updateCollapsed)
+    return () => {
+      observer.disconnect()
+      if (rafId) window.cancelAnimationFrame(rafId)
+      window.removeEventListener('scroll', updateCollapsed)
+      window.removeEventListener('resize', updateCollapsed)
+    }
+  }, [topBarHeight, tab?.id, tabPageIsAutoScroll])
 
   // Pre-load YouTube IFrame API script
   useEffect(() => {
@@ -831,6 +870,14 @@ export default function TabDetail({ initialTab, artist }) {
     : tabArtistIds.length > 1
       ? tabArtistIds.map(getArtistNameById).join(isFeat ? ' feat. ' : ' / ')
       : (resolvedSingleName || resolvedArtistName || '')
+  const tabCoverImageUrl = (() => {
+    if (tab.coverImage) return tab.coverImage
+    if (tab.albumImage) return tab.albumImage
+    const videoId = tab.youtubeVideoId || tab.youtubeUrl?.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/)?.[1]
+    if (videoId) return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+    if (tab.thumbnail) return tab.thumbnail
+    return effectiveArtistPhoto
+  })()
 
   const hasSongInfo = tab.songYear || tab.composer || tab.lyricist || tab.arranger || tab.producer || tab.album || tab.uploaderPenName
   const baseKeyForChords = tab.playKey || tab.originalKey || 'C'
@@ -838,6 +885,7 @@ export default function TabDetail({ initialTab, artist }) {
   const tabChords = tab.content
     ? getTransposedUniqueChordsFromContent(tab.content, baseKeyForChords, selectedKeyForChords)
     : []
+  const shouldShowCollapsedSongMeta = isSongMetaCollapsed
 
   // SEO 配置
   const seoTitle = generateTabTitle(tab.title, artistDisplayName)
@@ -891,7 +939,7 @@ export default function TabDetail({ initialTab, artist }) {
       </Head>
       
       <Layout>
-        <div ref={pageWrapRef} className="w-full">
+        <div className="w-full">
         {/* Firebase 原始資料：加 ?debug=1 到 URL 即可顯示 */}
         {showDebug && tab && (
           <details className="mx-4 mt-2 p-3 bg-[#1a1a1a] border border-neutral-700 rounded-lg text-left">
@@ -902,7 +950,18 @@ export default function TabDetail({ initialTab, artist }) {
           </details>
         )}
         {/* 頂bar（固定，唔跟住滾動） */}
-        <div ref={topBarRef} className="sticky top-0 z-[1000] bg-black pt-1.5 relative isolate">
+        <div
+          ref={topBarRef}
+          className="sticky top-0 z-[1000] bg-black pt-1.5 relative isolate"
+          style={{
+            zIndex: 2147483000,
+            transform: 'translateZ(0)',
+            WebkitTransform: 'translateZ(0)',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+            contain: 'paint',
+          }}
+        >
           <div className="px-4 pb-1.5 flex items-center justify-between gap-1 sm:gap-2 border-b border-[#1a1a1a]">
           <button type="button" onClick={() => router.back()} className="p-0 text-neutral-400 hover:text-white transition -ml-0.5 min-w-[40px] min-h-[40px] flex items-center" title="返回上一頁" aria-label="返回上一頁">
             <ArrowLeft className="w-6 h-6" strokeWidth={1.75} />
@@ -997,8 +1056,45 @@ export default function TabDetail({ initialTab, artist }) {
               </button>
             </div>
           )}
+          {shouldShowCollapsedSongMeta && (
+            <div className="px-4 py-2 flex items-center justify-between gap-3 border-b border-[#1a1a1a] bg-black/95">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className="w-10 h-10 rounded-[4px] overflow-hidden bg-neutral-800 flex-shrink-0">
+                  {tabCoverImageUrl ? (
+                    <img
+                      src={tabCoverImageUrl}
+                      alt={tab.title}
+                      className="w-full h-full object-cover"
+                      loading="eager"
+                      decoding="async"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-neutral-600">🎵</div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-white text-sm font-semibold leading-tight truncate">{tab.title}</p>
+                  <p className="mt-0.5 text-neutral-400 text-xs truncate">{artistDisplayName}</p>
+                </div>
+              </div>
+              {tab.uploaderPenName && (
+                uploaderProfileId ? (
+                  <Link href={`/profile/${uploaderProfileId}`} className="text-[#FFD700] text-xs flex items-center gap-1 flex-shrink-0 self-center">
+                    <PenLine className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[110px]">{tab.uploaderPenName}</span>
+                  </Link>
+                ) : (
+                  <p className="text-[#FFD700] text-xs flex items-center gap-1 flex-shrink-0 self-center">
+                    <PenLine className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[110px]">{tab.uploaderPenName}</span>
+                  </p>
+                )
+              )}
+            </div>
+          )}
         </div>
 
+        <div ref={pageWrapRef} className="w-full">
         {/* Key 選擇器：日間／夜間模式都保持同一套深色樣式（唔跟譜面日間換白底） */}
         {tab && (
           <div className="bg-black pt-2 pb-3">
@@ -1038,24 +1134,14 @@ export default function TabDetail({ initialTab, artist }) {
         </div>
 
         {/* 歌id section */}
-        <div className="pt-3 sm:pt-4 md:pt-5 pb-3 sm:pb-4 md:pb-5 px-4">
+        <div ref={songMetaSectionRef} className="pt-3 sm:pt-4 md:pt-5 pb-3 sm:pb-4 md:pb-5 px-4">
           <div className="flex items-start gap-4 md:gap-6">
             {/* 封面圖片 */}
             <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-800">
               {/* 統一封面優先順序：coverImage > albumImage > youtubeVideoId > thumbnail > artistPhoto (incl. search-data fallback) */}
-              {(() => {
-                const videoId = tab.youtubeVideoId || tab.youtubeUrl?.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/)?.[1]
-                return tab.coverImage || tab.albumImage || videoId || tab.thumbnail || effectiveArtistPhoto
-              })() ? (
+              {tabCoverImageUrl ? (
                 <img 
-                  src={(() => {
-                    if (tab.coverImage) return tab.coverImage
-                    if (tab.albumImage) return tab.albumImage
-                    const videoId = tab.youtubeVideoId || tab.youtubeUrl?.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/)?.[1]
-                    if (videoId) return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
-                    if (tab.thumbnail) return tab.thumbnail
-                    return effectiveArtistPhoto
-                  })()}
+                  src={tabCoverImageUrl}
                   alt={tab.title}
                   className="w-full h-full object-cover"
                   loading="eager"
@@ -1158,6 +1244,7 @@ export default function TabDetail({ initialTab, artist }) {
             </div>
           </div>
         </div>
+        <div ref={songMetaBottomSentinelRef} className="h-px w-full" aria-hidden />
 
         {/* 歌id section 與 譜section 之間分隔線 */}
         <div className="px-4">
@@ -1365,6 +1452,7 @@ export default function TabDetail({ initialTab, artist }) {
             </div>
           </>
         )}
+      </div>
       </div>
       {isClientMounted && showInfo && (tab?.youtubeVideoId || tab?.youtubeUrl || hasSongInfo) && createPortal(
         <div

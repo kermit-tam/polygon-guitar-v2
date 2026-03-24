@@ -1886,6 +1886,7 @@ const TabContent = ({
                       alphaTex={block.notationAlphaTex}
                       noTopMargin
                       transparent
+                      clipCursorOverflow={hideKeyRowAndBottomBar}
                       theme={theme}
                       bpm={block.notationStaffSnapshot?.bpm ?? null}
                     />
@@ -2055,6 +2056,7 @@ const TabContent = ({
                   alphaTex={block.notationAlphaTex}
                   noTopMargin
                   transparent
+                  clipCursorOverflow={hideKeyRowAndBottomBar}
                   theme={theme}
                   bpm={block.notationStaffSnapshot?.bpm ?? null}
                 />
@@ -3359,6 +3361,7 @@ const TabContent = ({
                       alphaTex={b.notationAlphaTex}
                       noTopMargin
                       transparent
+                      clipCursorOverflow={hideKeyRowAndBottomBar}
                       theme={theme}
                       bpm={b.notationStaffSnapshot?.bpm ?? null}
                     />
