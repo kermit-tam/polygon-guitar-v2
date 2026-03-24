@@ -37,6 +37,7 @@ import {
   mergePendingNotationIntoBlocks,
   mergeCachedAndPrevNotationBlocks,
 } from '@/lib/notationBlocks'
+import { notationSnapshotToAlphaTex } from '@/lib/notationToAlphaTex'
 import {
   readTabEditNotationCache,
   writeTabEditNotationCache,
@@ -58,6 +59,32 @@ function clearPendingNotationBlockIdFromSession() {
   try {
     sessionStorage.removeItem(NOTATION_PENDING_BLOCK_ID_SESSION_KEY)
   } catch (_) {}
+}
+
+function sanitizeLegacyAlphaTex(tex) {
+  if (typeof tex !== 'string') return ''
+  // Legacy docs/cache may store escaped newline sequences as plain text.
+  return tex.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n')
+}
+
+function normalizeNotationBlocksForEdit(blocks) {
+  return (blocks || []).map((b) => {
+    const staff = b?.notationStaffSnapshot
+    if (staff && Array.isArray(staff.firstBeats) && staff.firstBeats.length > 0) {
+      try {
+        return {
+          ...b,
+          notationAlphaTex: notationSnapshotToAlphaTex(staff),
+        }
+      } catch (_) {
+        // fall back to sanitizing stored alphaTex
+      }
+    }
+    return {
+      ...b,
+      notationAlphaTex: sanitizeLegacyAlphaTex(b?.notationAlphaTex || ''),
+    }
+  })
 }
 
 // Key 對應的 semitone 位置 (C = 0)
@@ -531,6 +558,7 @@ export default function EditTab() {
             notationHandoff.blockId
           )
         }
+        notationBlocks = normalizeNotationBlocksForEdit(notationBlocks)
         return {
           title: data.title,
           artist: resolvedArtistName || (parsedArtists[0]?.name) || data.artist || data.artistName || '',
