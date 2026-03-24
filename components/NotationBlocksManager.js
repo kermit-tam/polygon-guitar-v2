@@ -218,6 +218,7 @@ export default function NotationBlocksManager({ blocks = [], onChange }) {
                       alphaTex={block.notationAlphaTex}
                       transparent
                       noTopMargin
+                      bpm={block.notationStaffSnapshot?.bpm ?? null}
                     />
                   </div>
                 ) : (

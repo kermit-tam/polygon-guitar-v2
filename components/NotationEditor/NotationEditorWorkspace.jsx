@@ -54,7 +54,7 @@ function applyDraftPayload(setters, d) {
   if (typeof bp === 'number' && !Number.isNaN(bp)) {
     setBpm(Math.min(480, Math.max(1, Math.round(bp))))
   } else {
-    setBpm(100)
+    setBpm(null)
   }
   const cp = d.capo
   if (typeof cp === 'number' && !Number.isNaN(cp)) {
