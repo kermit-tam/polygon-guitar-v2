@@ -142,6 +142,14 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && isOwner(resource.data.userId);
     }
 
+    // ==================== Tab Drafts (雲端草稿) ====================
+    match /tabDrafts/{draftId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
     // ==================== Ratings ====================
     match /ratings/{ratingId} {
       allow read: if true;

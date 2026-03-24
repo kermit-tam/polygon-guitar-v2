@@ -14,6 +14,7 @@ import SpotifyTrackSearch from '@/components/SpotifyTrackSearch'
 import { extractYouTubeVideoId } from '@/lib/wikipedia'
 import { removeFromRecentViews } from '@/lib/recentViews'
 import { processTabContent, autoFixTabFormatWithFactor, cleanPastedText } from '@/lib/tabFormatter'
+import { getTabDraftById, removeTabDraft, upsertTabDraft } from '@/lib/tabDrafts'
 import { uploadToCloudinary, validateImageFile } from '@/lib/cloudinary'
 import { auth, db } from '@/lib/firebase'
 import { clearArtistMapCache } from '@/lib/useArtistMap'
@@ -232,6 +233,7 @@ export default function EditTab() {
   const spotifyJustAppliedRef = useRef(false)
   /** 防止 loadTab 並行時搶先 consume 記譜 handoff */
   const loadTabGenerationRef = useRef(0)
+  const activeDraftIdRef = useRef(null)
 
   // Spotify 歌曲搜尋狀態
   const [isSpotifyModalOpen, setIsSpotifyModalOpen] = useState(false)
@@ -323,6 +325,20 @@ export default function EditTab() {
     }
     // 唔好將 user?.penName 放依度：會觸發第二次 loadTab，搶先 consume session handoff 後再用 server-only 覆寫 form
   }, [id, isAuthenticated])
+
+  useEffect(() => {
+    if (!id || isLoading) return
+    const hydrateEditDraft = async () => {
+      const draftIdFromQuery = router.query?.draft
+      const draftId = Array.isArray(draftIdFromQuery) ? draftIdFromQuery[0] : draftIdFromQuery
+      if (!draftId) return
+      const savedDraft = await getTabDraftById(user?.uid, draftId)
+      if (!savedDraft || savedDraft.mode !== 'edit' || String(savedDraft.tabId || '') !== String(id)) return
+      activeDraftIdRef.current = savedDraft.id
+      setFormData(prev => ({ ...prev, ...savedDraft.data }))
+    }
+    hydrateEditDraft()
+  }, [id, isLoading, router.query?.draft, user?.uid])
 
   /**
    * 未寫入 Firestore 嘅六線譜段落：全頁重新整理時 prev 會清空，要靠 session 保留。
@@ -748,6 +764,7 @@ export default function EditTab() {
       try {
         clearTabEditNotationCache(id)
       } catch (_) {}
+      if (activeDraftIdRef.current) await removeTabDraft(user?.uid, activeDraftIdRef.current)
       router.push(`/tabs/${id}?updated=1`)
     } catch (error) {
       console.error('Update tab error:', error)
@@ -874,6 +891,25 @@ export default function EditTab() {
     // 重置使用現有歌手狀態
     if (name === 'artist') {
       setUseExistingArtistSelected(false)
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    const saved = await upsertTabDraft(user?.uid, {
+      id: activeDraftIdRef.current,
+      mode: 'edit',
+      tabId: id,
+      data: formData
+    })
+    if (saved?.id) {
+      activeDraftIdRef.current = saved.id
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        router.back()
+      } else {
+        router.push('/')
+      }
+    } else {
+      alert('儲存草稿失敗，請重試')
     }
   }
 
@@ -1146,12 +1182,21 @@ E|----------------------------------------------------------------|
           </div>
           
           {/* 頂部保存按鈕 */}
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-[#FFD700] text-black rounded-lg font-medium hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={isSubmitting}
+              className="flex items-center justify-center gap-2 px-3 py-2 bg-[#282828] text-white rounded-lg font-medium hover:bg-[#3E3E3E] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              儲存草稿
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-[#FFD700] text-black rounded-lg font-medium hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
             {isSubmitting ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" />
@@ -1165,7 +1210,8 @@ E|----------------------------------------------------------------|
                 <span>保存更改</span>
               </>
             )}
-          </button>
+            </button>
+          </div>
         </div>
 
         {/* Metadata Info */}
@@ -2012,7 +2058,15 @@ Chord會自動追蹤歌詞中( )位置
             </FormSection>
 
             {/* Submit */}
-            <div className="flex items-center pt-0">
+            <div className="flex items-center gap-3 pt-0">
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={isSubmitting}
+                className="px-5 min-h-11 py-3 bg-[#282828] text-white rounded-lg font-semibold hover:bg-[#3E3E3E] transition disabled:opacity-50"
+              >
+                儲存草稿
+              </button>
               <button
                 type="submit"
                 disabled={isSubmitting}

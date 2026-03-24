@@ -13,6 +13,7 @@ import YouTubeSearchModal from '@/components/YouTubeSearchModal'
 import SpotifyTrackSearch from '@/components/SpotifyTrackSearch'
 import { extractYouTubeVideoId } from '@/lib/wikipedia'
 import { processTabContent, autoFixTabFormatWithFactor, cleanPastedText } from '@/lib/tabFormatter'
+import { getTabDraftById, removeTabDraft, upsertTabDraft } from '@/lib/tabDrafts'
 import { doc, getDoc, updateDoc } from '@/lib/firestore-tracked'
 import { db, auth } from '@/lib/firebase'
 import { clearArtistMapCache } from '@/lib/useArtistMap'
@@ -184,6 +185,7 @@ export default function NewTab() {
   const computedKeyFieldRef = useRef(null)
   const formDataRef = useRef(formData)
   const clearDraftRef = useRef(false)
+  const activeDraftIdRef = useRef(null)
   // 歌名／歌手變更時：清空或還原 Spotify 擷取資料（key = artist|||title）
   const spotifySnapshotByKeyRef = useRef({})
   // 撳「獲取歌曲資訊」後，未成功獲取資料嘅輸入欄閃紅框
@@ -204,21 +206,38 @@ export default function NewTab() {
     if (typeof window === 'undefined') return
     const savedFactor = localStorage.getItem('tabAlignFactor')
     if (savedFactor) setAlignFactor(parseFloat(savedFactor))
-    const draft = localStorage.getItem(TAB_NEW_DRAFT_KEY)
-    if (draft) {
-      try {
-        const parsed = JSON.parse(draft)
-        if (parsed && typeof parsed === 'object') {
-          setFormData(prev => ({ ...prev, ...parsed }))
-          // 若草稿有已確認歌手（artists[0].id），還原「已揀選歌手」狀態，類型／地區會顯示為唯讀並自動帶出
-          if (parsed.artists?.[0]?.id) {
-            setUseExistingArtistSelected(true)
-          }
+    const hydrateDraft = async () => {
+      const draftIdFromQuery = router.query?.draft
+      const draftId = Array.isArray(draftIdFromQuery) ? draftIdFromQuery[0] : draftIdFromQuery
+      if (draftId) {
+        const savedDraft = await getTabDraftById(user?.uid, draftId)
+        if (savedDraft?.mode === 'new' && savedDraft?.data) {
+          activeDraftIdRef.current = savedDraft.id
+          setFormData(prev => ({ ...prev, ...savedDraft.data }))
         }
-      } catch (e) {
-        console.warn('[tab-new] draft parse error', e)
+      }
+      const legacyDraft = localStorage.getItem(TAB_NEW_DRAFT_KEY)
+      if (legacyDraft) {
+        try {
+          const parsed = JSON.parse(legacyDraft)
+          if (parsed && typeof parsed === 'object') {
+            if (!activeDraftIdRef.current) {
+              const saved = await upsertTabDraft(user?.uid, { mode: 'new', data: parsed })
+              activeDraftIdRef.current = saved?.id || null
+            }
+            setFormData(prev => ({ ...prev, ...parsed }))
+            // 若草稿有已確認歌手（artists[0].id），還原「已揀選歌手」狀態，類型／地區會顯示為唯讀並自動帶出
+            if (parsed.artists?.[0]?.id) {
+              setUseExistingArtistSelected(true)
+            }
+          }
+        } catch (e) {
+          console.warn('[tab-new] draft parse error', e)
+        }
+        try { localStorage.removeItem(TAB_NEW_DRAFT_KEY) } catch (_) {}
       }
     }
+    hydrateDraft()
     const tex = peekPendingNotationTex()
     const pendingStaff = peekPendingNotationStaffSnapshot()
     if (tex || pendingStaff) {
@@ -235,7 +254,7 @@ export default function NewTab() {
       clearPendingNotationStaffSnapshot()
     }, 5000)
     return () => clearTimeout(clearLater)
-  }, [])
+  }, [router.query?.draft, user?.uid])
 
   // 離開頁面時保存草稿（除非按了出譜或取消）
   useEffect(() => {
@@ -243,6 +262,13 @@ export default function NewTab() {
       if (clearDraftRef.current) return
       try {
         localStorage.setItem(TAB_NEW_DRAFT_KEY, JSON.stringify(formDataRef.current))
+        upsertTabDraft(user?.uid, {
+          id: activeDraftIdRef.current,
+          mode: 'new',
+          data: formDataRef.current
+        }).then((saved) => {
+          if (saved?.id) activeDraftIdRef.current = saved.id
+        }).catch(() => {})
       } catch (e) {
         console.warn('[tab-new] draft save error', e)
       }
@@ -582,6 +608,7 @@ export default function NewTab() {
       const newTab = await createTab(submitData, user.uid)
       clearDraftRef.current = true
       try { localStorage.removeItem(TAB_NEW_DRAFT_KEY) } catch (_) {}
+      if (activeDraftIdRef.current) await removeTabDraft(user?.uid, activeDraftIdRef.current)
       try {
         const token = await auth.currentUser?.getIdToken?.()
         if (token) {
@@ -675,6 +702,24 @@ export default function NewTab() {
     if (name === 'youtubeUrl') {
       const videoId = extractYouTubeVideoId(value);
       setFormData(prev => ({ ...prev, youtubeUrl: value, youtubeVideoId: videoId, youtubeVideoTitle: '', youtubeChannelTitle: '' }));
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    const saved = await upsertTabDraft(user?.uid, {
+      id: activeDraftIdRef.current,
+      mode: 'new',
+      data: formData
+    })
+    if (saved?.id) {
+      activeDraftIdRef.current = saved.id
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        router.back()
+      } else {
+        router.push('/')
+      }
+    } else {
+      alert('儲存草稿失敗，請重試')
     }
   }
 
@@ -1687,7 +1732,15 @@ Chord會自動追蹤歌詞中( )位置
           <FormSection title="六線譜">{sectionContents.notation}</FormSection>
 
           {/* Submit */}
-          <div className="flex gap-4 -mt-2">
+          <div className="flex gap-3 -mt-2">
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={isSubmitting}
+              className="px-5 min-h-11 py-3 bg-[#282828] text-white rounded-lg font-semibold hover:bg-[#3E3E3E] transition disabled:opacity-50"
+            >
+              儲存草稿
+            </button>
             <button type="submit" disabled={isSubmitting}
               className="flex-1 min-h-11 py-3 flex items-center justify-center gap-2 text-base bg-[#FFD700] text-black px-6 rounded-lg font-semibold hover:bg-yellow-400 transition disabled:opacity-50">
               {isSubmitting ? (

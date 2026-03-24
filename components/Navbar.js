@@ -161,6 +161,18 @@ export default function Navbar() {
                       出譜
                     </Link>
                     <Link
+                      href="/library/drafts"
+                      className="flex items-center gap-2 text-black/70 px-4 py-2 font-medium"
+                      onClick={(e) => { e.preventDefault(); router.push('/library/drafts') }}
+                    >
+                      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24">
+                        <path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        <path d="M19.5 7.125L16.875 4.5" />
+                        <path d="M18 14.25V18A2.25 2.25 0 0115.75 20.25H6A2.25 2.25 0 013.75 18V8.25A2.25 2.25 0 016 6h3.75" />
+                      </svg>
+                      草稿
+                    </Link>
+                    <Link
                       href={`/profile/${user.uid}`}
                       className="flex items-center gap-2 text-black/70 px-4 py-2 font-medium"
                       onClick={(e) => { e.preventDefault(); router.push(`/profile/${user.uid}`) }}
@@ -318,6 +330,17 @@ export default function Navbar() {
                     <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                   </svg>
                   出譜
+                </Link>
+                <Link
+                  href="/library/drafts"
+                  className="flex items-center gap-2 text-black/70 px-3 py-2 font-medium"
+                >
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24">
+                    <path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                    <path d="M19.5 7.125L16.875 4.5" />
+                    <path d="M18 14.25V18A2.25 2.25 0 0115.75 20.25H6A2.25 2.25 0 013.75 18V8.25A2.25 2.25 0 016 6h3.75" />
+                  </svg>
+                  草稿
                 </Link>
                 <Link
                   href={`/profile/${user.uid}`}
