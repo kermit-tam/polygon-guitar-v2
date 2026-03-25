@@ -406,7 +406,11 @@ export default function NotationEditorWorkspace({
       <div>
         <div className={`${maxW} ${padEditorRow}`}>
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-bold text-white">{compactChrome ? '' : 'Editor'}</h2>
+            <h2 className="text-sm text-[#999]">
+              <span class="whitespace-nowrap mr-3"><span class="border border-[#666] px-[5px] rounded-[6px] mt-2 mr-1">TAB</span>新增拍子</span>
+              <span class="whitespace-nowrap mr-3"><span class="border border-[#666] px-[3px] rounded-[6px] mt-2 mr-1">←</span><span class="border border-[#666] px-[3px] rounded-[6px] mr-1 mt-2">→</span>選擇拍子</span>
+              <span class="whitespace-nowrap mr-3"><span class="border border-[#666] px-[3px] rounded-[6px] mt-2 mr-1">↑</span><span class="border border-[#666] px-[3px] rounded-[6px] mr-1 mt-2">↓</span>選擇結他線</span>
+            </h2>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
