@@ -3338,39 +3338,10 @@ const TabContent = ({
             </div>
           )}
           {(() => {
+            // 六線譜（notation blocks）只會喺譜內容中存在 `!label` 錨點時顯示。
+            // （移除「未輸入 ID 仍置頂顯示」嘅 fallback，符合 NotationBlocksManager 的使用說明）
             if (hideTabStaff) return null
-            if (contentHasNotationAnchorsMemo) return null
-            const blocks =
-              Array.isArray(notationBlocks) && notationBlocks.length > 0
-                ? notationBlocks.filter((b) => (b?.notationAlphaTex || '').trim())
-                : (notationAlphaTex || '').trim()
-                  ? [{ id: 'block_0', notationAlphaTex }]
-                  : []
-            if (blocks.length === 0) return null
-            return (
-              <div>
-                {blocks.map((b, bi) => (
-                  <div
-                    key={b.id ? `${b.id}-${bi}` : `nb-${bi}`}
-                    className="mb-[25px]"
-                  >
-                    {shouldShowNotationBlockHeadingLabel(b.label) && (
-                      <div style={{ fontSize: `${fontSize}px`, marginBottom: '0.3em', textDecoration: 'underline', textUnderlineOffset: '4px', color: colors.lyricInside }}>
-                        {b.label}
-                      </div>
-                    )}
-                    <NotationAlphaTabPreview
-                      alphaTex={b.notationAlphaTex}
-                      noTopMargin
-                      transparent
-                      clipCursorOverflow={hideKeyRowAndBottomBar}
-                      theme={theme}
-                      bpm={b.notationStaffSnapshot?.bpm ?? null}
-                    />
-                  </div>
-                ))}
-              </div>
-            )
+            return null
           })()}
           {renderContent()}
         </div>

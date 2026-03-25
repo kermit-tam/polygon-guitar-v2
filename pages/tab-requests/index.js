@@ -12,6 +12,7 @@ import SearchFormModal from '@/components/tab-requests/SearchFormModal'
 import LoginPromptModal from '@/components/tab-requests/LoginPromptModal'
 import DeleteConfirmModal from '@/components/tab-requests/DeleteConfirmModal'
 import PasteLinkModal from '@/components/tab-requests/PasteLinkModal'
+import RequestFulfillersModal from '@/components/tab-requests/RequestFulfillersModal'
 
 // 求譜列表排序：fulfilled 最底；其餘 自己嘅求譜（新至舊）最頂 → 我投過 → voteCount、createdAt
 function compareTabRequests(a, b, uid) {
@@ -54,6 +55,7 @@ export default function TabRequestsPage() {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
   const [pasteLinkModalRequest, setPasteLinkModalRequest] = useState(null)
+  const [requestFulfillersModalRequest, setRequestFulfillersModalRequest] = useState(null)
 
   // Admin edit
   const [editingRequest, setEditingRequest] = useState(null)
@@ -70,7 +72,7 @@ export default function TabRequestsPage() {
   const displayAsUnvotedTimerRef = useRef(null)
 
   const scrollPositionRef = useRef(0)
-  const modalOpen = showForm || showLoginPrompt || deleteConfirmId || pasteLinkModalRequest
+  const modalOpen = showForm || showLoginPrompt || deleteConfirmId || pasteLinkModalRequest || requestFulfillersModalRequest
 
   // --- Effects ---
 
@@ -412,6 +414,7 @@ export default function TabRequestsPage() {
     onVote: voteForRequest,
     onFulfill: (request) => setPasteLinkModalRequest(request),
     onDelete: (id) => setDeleteConfirmId(id),
+    onShowRequestFulfillers: (request) => setRequestFulfillersModalRequest(request),
   }
 
   // --- Render ---
@@ -467,6 +470,13 @@ export default function TabRequestsPage() {
             onClose={() => setPasteLinkModalRequest(null)}
             setRequests={setRequests}
             refreshCache={refreshCache}
+          />
+        )}
+
+        {requestFulfillersModalRequest && (
+          <RequestFulfillersModal
+            request={requestFulfillersModalRequest}
+            onClose={() => setRequestFulfillersModalRequest(null)}
           />
         )}
 

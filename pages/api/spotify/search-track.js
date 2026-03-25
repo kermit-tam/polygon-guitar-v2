@@ -210,11 +210,11 @@ export default async function handler(req, res) {
     
     let results = tracks.map(track => formatTrackData(track))
     
-    // 按年份排序（最早的優先）
+    // 按年份排序（最遲的優先：最新歌曲排最前）
     results.sort((a, b) => {
       const yearA = parseInt(a.releaseYear) || 9999
       const yearB = parseInt(b.releaseYear) || 9999
-      return yearA - yearB
+      return yearB - yearA
     })
     
     return res.status(200).json({ results })

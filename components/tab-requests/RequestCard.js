@@ -17,6 +17,7 @@ export default function RequestCard({
   onVote,
   onFulfill,
   onDelete,
+  onShowRequestFulfillers,
 }) {
   const router = useRouter()
   const isFulfilled = request.status === 'fulfilled'
@@ -84,11 +85,42 @@ export default function RequestCard({
             </div>
             <div className="text-neutral-500 text-sm truncate">{request.artistName}</div>
             <div className="text-[#FFD700] text-xs mt-0.5 flex items-center gap-2 min-w-0">
-              {isFulfilled ? (
-                <span className="text-green-400 truncate min-w-0">{request.voteCount ?? 0} 人求譜成功</span>
-              ) : (
-                <span>{request.voteCount} 人求譜</span>
-              )}
+              {(() => {
+                const voteCount = request.voteCount ?? 0
+                // Admin 點擊「N 人求譜 / N 人求譜成功」都顯示彈窗（求譜用戶 + 出譜者）
+                const clickable = isAdmin && typeof onShowRequestFulfillers === 'function'
+                const label = isFulfilled ? `${voteCount} 人求譜成功` : `${voteCount} 人求譜`
+
+                if (!clickable) {
+                  return isFulfilled ? (
+                    <span className="text-green-400 truncate min-w-0">{label}</span>
+                  ) : (
+                    <span>{label}</span>
+                  )
+                }
+
+                return isFulfilled ? (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onShowRequestFulfillers(request) }}
+                    className="text-green-400 truncate min-w-0 hover:opacity-90 text-left"
+                    aria-label="查看求譜用戶"
+                    title="查看求譜用戶"
+                  >
+                    {label}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onShowRequestFulfillers(request) }}
+                    className="truncate min-w-0 hover:opacity-90 text-left"
+                    aria-label="查看求譜用戶"
+                    title="查看求譜用戶"
+                  >
+                    {label}
+                  </button>
+                )
+              })()}
             </div>
           </>
         )}

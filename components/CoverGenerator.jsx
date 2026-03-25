@@ -40,18 +40,23 @@ function getSongCover(song) {
   return null
 }
 
-export default function CoverGenerator({ songs = [], playlistTitle = '', onGenerated }) {
+export default function CoverGenerator({ songs = [], playlistTitle = '', onGenerated, showTitleTextColorPicker = false }) {
   const { getArtistName } = useArtistMap()
   const [mode, setMode] = useState('single')
   const [selectedSongs, setSelectedSongs] = useState(() => songs.length > 0 ? [songs[0]] : [])
   const [frameColor, setFrameColor] = useState('#F15A24')
   const [titleText, setTitleText] = useState(playlistTitle.slice(0, 6))
+  const [titleTextColor, setTitleTextColor] = useState('#000000')
   const [generating, setGenerating] = useState(false)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [svgTemplate, setSvgTemplate] = useState(null)
   const [eyedropperMode, setEyedropperMode] = useState(false)
   const canvasRef = useRef(null)
   const previewRef = useRef(null)
+  const TITLE_TEXT_COLORS = [
+    { label: '淺灰字', value: '#f2f2f2' },
+    { label: '黑色字', value: '#000000' },
+  ]
 
   useEffect(() => {
     fetch('/templates/playlist-cover.svg')
@@ -170,14 +175,14 @@ export default function CoverGenerator({ songs = [], playlistTitle = '', onGener
 
         const title = titleText || ''
         if (title) {
-          ctx.fillStyle = '#000000'
-        ctx.textBaseline = 'middle'
-        ctx.textAlign = 'center'
-        ctx.letterSpacing = '1px'
-        const textX = CANVAS_SIZE / 2
-        const bottomBarY = 320.9
-        const textY = bottomBarY + (CANVAS_SIZE - bottomBarY) / 2 - 2
-        const maxWidth = CANVAS_SIZE - 32
+          ctx.fillStyle = titleTextColor
+          ctx.textBaseline = 'middle'
+          ctx.textAlign = 'center'
+          ctx.letterSpacing = '1px'
+          const textX = CANVAS_SIZE / 2
+          const bottomBarY = 320.9
+          const textY = bottomBarY + (CANVAS_SIZE - bottomBarY) / 2 - 2
+          const maxWidth = CANVAS_SIZE - 32
 
           let fontSize = 52.9
           ctx.font = `800 ${fontSize}px "Noto Sans TC", sans-serif`
@@ -197,7 +202,7 @@ export default function CoverGenerator({ songs = [], playlistTitle = '', onGener
     } finally {
       if (id === genRef.current) setGenerating(false)
     }
-  }, [selectedSongs, mode, svgTemplate, titleText, frameColor])
+  }, [selectedSongs, mode, svgTemplate, titleText, frameColor, titleTextColor])
 
   useEffect(() => {
     generate()
@@ -285,6 +290,32 @@ export default function CoverGenerator({ songs = [], playlistTitle = '', onGener
             </svg>
           </button>
         </div>
+
+        {/* Title text color picker - under frame colors */}
+        {showTitleTextColorPicker && mode === 'single' && (
+          <div className="mt-2 flex items-center gap-1.5">
+            {TITLE_TEXT_COLORS.map((c) => {
+              const isSelected = titleTextColor === c.value
+              const chipBg = c.value === '#000000' ? '#f2f2f2' : '#000000'
+              const chipText = c.value
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setTitleTextColor(c.value)}
+                  className={`w-7 h-7 rounded-md border-2 transition flex-shrink-0 flex items-center justify-center font-extrabold ${
+                    isSelected ? 'border-white scale-110' : 'border-neutral-600 hover:border-neutral-400'
+                  }`}
+                  style={{ backgroundColor: chipBg, color: chipText }}
+                  title={c.value === '#f2f2f2' ? 'f2f2f2' : '000000'}
+                  aria-label={`封面文字顏色 ${c.value}`}
+                >
+                  A
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Title text (single mode only) */}
