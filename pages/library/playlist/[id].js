@@ -314,6 +314,7 @@ export default function UserPlaylistDetail() {
     try {
       await updateDoc(doc(db, 'userPlaylists', id), { songIds: newSongIds, updatedAt: serverTimestamp() });
       setPlaylist((p) => (p ? { ...p, songIds: newSongIds } : p));
+      setSongs(reordered);
     } catch (e) {
       console.error(e);
       alert('更新次序失敗，請重試');
@@ -1176,11 +1177,12 @@ export default function UserPlaylistDetail() {
                                 clone.style.cssText = `position:absolute;left:-9999px;width:${row.offsetWidth}px;opacity:0.95;background:#282828;border-radius:8px;pointer-events:none;`;
                                 document.body.appendChild(clone);
                                 e.dataTransfer.setDragImage(clone, row.offsetWidth / 2, row.offsetHeight / 2);
+                                const el = e.currentTarget;
                                 const onDragEnd = () => {
-                                  document.body.removeChild(clone);
-                                  e.currentTarget.removeEventListener('dragend', onDragEnd);
+                                  if (document.body.contains(clone)) document.body.removeChild(clone);
+                                  el.removeEventListener('dragend', onDragEnd);
                                 };
-                                e.currentTarget.addEventListener('dragend', onDragEnd);
+                                el.addEventListener('dragend', onDragEnd);
                               }
                             }}
                             aria-label="拖曳改次序"

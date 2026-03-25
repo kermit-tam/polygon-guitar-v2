@@ -93,7 +93,7 @@ export default function NotationToolbar({
   onToggleDivision,
   timeSignatureId,
   onSelectTimeSignature,
-  bpm = 100,
+  bpm = null,
   onBpmChange,
   onBpmBlur,
   capo = 0,

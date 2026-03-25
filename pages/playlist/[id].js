@@ -467,6 +467,7 @@ export default function PlaylistDetail({
     try {
       await updateSitePlaylist(id, { songIds: newSongIds })
       setPlaylist((p) => p ? { ...p, songIds: newSongIds } : p)
+      setSongs(reordered)
       bustPlaylistPageCache().catch(() => {})
     } catch (e) {
       console.error(e)
@@ -1300,8 +1301,9 @@ export default function PlaylistDetail({
                                 clone.style.cssText = `position:absolute;left:-9999px;width:${row.offsetWidth}px;opacity:0.95;background:#282828;border-radius:8px;pointer-events:none;`
                                 document.body.appendChild(clone)
                                 e.dataTransfer.setDragImage(clone, row.offsetWidth / 2, row.offsetHeight / 2)
-                                const onDragEnd = () => { document.body.removeChild(clone); e.currentTarget.removeEventListener('dragend', onDragEnd) }
-                                e.currentTarget.addEventListener('dragend', onDragEnd)
+                                const el = e.currentTarget
+                                const onDragEnd = () => { if (document.body.contains(clone)) document.body.removeChild(clone); el.removeEventListener('dragend', onDragEnd) }
+                                el.addEventListener('dragend', onDragEnd)
                               }
                             }}
                             aria-label="拖曳改次序"
