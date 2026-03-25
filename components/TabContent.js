@@ -1191,7 +1191,7 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
   
   // 檢查和弦數量是否匹配括號數量
   const mismatch = chordTokens.length !== bracketPositions.length;
-  
+
   // 即使不匹配，也嘗試對齊（取最小值）
   const minCount = Math.min(chordTokens.length, bracketPositions.length);
   const extraChordCount = chordTokens.length - minCount;
@@ -1309,23 +1309,8 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
     const token = tokens[idx];
     const targetPos = tokenPositions[idx];
     
-    // bar-start 和弦（如 |E）一般扣返 1 欄。
-    // 但如果後面緊接住 dash bridge（例如 |E - - B/D#），唔扣可避免 E 被拉左。
-    let hasDashBridgeAhead = false;
-    if (token.isBarStart && token.isChord) {
-      for (let j = idx + 1; j < tokens.length; j++) {
-        if (tokens[j].isChord) break;
-        if (tokens[j].isDash) {
-          hasDashBridgeAhead = true;
-          break;
-        }
-      }
-    }
-    let startCol = targetPos - (
-      token.isBarStart
-        ? (hasDashBridgeAhead ? 2 : 1)
-        : 0
-    );
+    // bar-start 和弦（如 |E）扣返 1 欄，令 | 放喺 chord 字母之前。
+    let startCol = targetPos - (token.isBarStart ? 1 : 0);
     startCol = Math.round(startCol);
     if (startCol < 0) startCol = 0;
     
@@ -1334,9 +1319,6 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
     if (spacesNeeded > 0) {
       newChordLine += ' '.repeat(spacesNeeded);
       currentVisualWidth += spacesNeeded;
-    } else if (idx > 0) {
-      newChordLine += ' ';
-      currentVisualWidth += 1;
     }
     
     newChordLine += token.fullToken;
@@ -2503,10 +2485,8 @@ const TabContent = ({
             const currentSuffix = pairIndex === pairs.length - 1 ? suffix : null;
             // 一律用 grid 對齊（以歌詞為 spacer）；多出嘅和弦放喺最後加 10px 間距
             const hasNoChordToken = /(^|[\s|｜])N\.?C\.?(?=([\s|｜]|$))/i.test(pair.chordLine || '');
-            const hasDashLikeToken = /(^|[\s|｜])(?:-+|[—–－]+)(?=([\s|｜]|$))/.test(pair.chordLine || '');
             // NC / N.C. 唔應該追蹤括號，改用原始 chordLine 排版（非 grid 對位）
-            // Dash-like token（- / — / – / －）交回 processPair 位置計算，避免黐住前一個 chord
-            const useGridAlignment = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && !hasDashLikeToken && (result.lyricSplit.segments?.length ?? 0) > 0;
+            const useGridAlignment = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && (result.lyricSplit.segments?.length ?? 0) > 0;
             const chordFontFamily = displayFont === 'arial'
               ? "Arial, Helvetica, sans-serif"
               : "'Source Code Pro', monospace";
@@ -2697,7 +2677,7 @@ const TabContent = ({
                               {seg.trimmedRemainder != null ? seg.trimmedRemainder : seg.remainder}
                             </span>
                             {seg.chord && seg.chord.trailing && seg.chord.trailing.length > 0 && (
-                              <span style={{ gridRow: 1, gridColumn: 1, justifySelf: 'start', display: 'flex', gap: '0.5em' }}>
+                              <span style={{ gridRow: 1, gridColumn: 1, justifySelf: 'stretch', display: 'flex', justifyContent: 'space-evenly', alignItems: 'flex-start' }}>
                                 {seg.chord.trailing.map((t, tIdx) => (
                                   <span key={tIdx} style={{ fontFamily: chordFontFamily, color: colors.chord, whiteSpace: 'nowrap' }}>
                                     {t.isBarStart && '|'}
@@ -2860,8 +2840,7 @@ const TabContent = ({
             const notationFontSize = getLineFontSize(notationLine);
             const result = processPair(cleanLine, notationLine, transposeSemitones, hideBrackets, displayFont, preferFlats);
             const hasNoChordToken = /(^|[\s|｜])N\.?C\.?(?=([\s|｜]|$))/i.test(cleanLine || '');
-            const hasDashLikeToken = /(^|[\s|｜])(?:-+|[—–－]+)(?=([\s|｜]|$))/.test(cleanLine || '');
-            const useGrid = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && !hasDashLikeToken && (result.lyricSplit.segments?.length ?? 0) > 0;
+            const useGrid = result.lyricSplit && result.alignedChords && displayFont !== 'arial' && !hasNoChordToken && (result.lyricSplit.segments?.length ?? 0) > 0;
 
             elements.push(
               <div key={`${i}-notation-only-${nlIdx}`} style={{ marginBottom: `${lineFontSize * 0.3}px` }}>
