@@ -962,7 +962,9 @@ export default function UserPlaylistDetail() {
               style={{
                 paddingBottom: 'env(safe-area-inset-bottom, 0)',
                 transform: `translateY(${addSongDragY}px)`,
-                transition: addSongDragY === 0 ? 'transform 0.2s ease-out' : 'none'
+                transition: addSongDragY === 0 ? 'transform 0.2s ease-out' : 'none',
+                maxWidth: '1050px',
+                margin: '0 auto'
               }}
             >
               {/* Handle + 標題列：成塊都可以向下拖曳關閉，搜尋 bar 對上嘅面積都觸發到 */}
@@ -1037,7 +1039,7 @@ export default function UserPlaylistDetail() {
                             type="button"
                             onClick={() => handleAddSongToPlaylist(tab.id)}
                             disabled={isAdding}
-                            className="w-full flex items-center gap-2 py-1.5 rounded-2xl md:hover:bg-white/5 text-left disabled:opacity-70"
+                            className="w-full flex items-center gap-2 py-1.5 px-2 rounded-2xl md:hover:bg-white/5 text-left disabled:opacity-70"
                           >
                             <div className="flex-1 min-w-0 flex flex-col justify-center">
                               <p className="text-white font-medium truncate leading-tight" style={{ fontSize: 15, lineHeight: '20px' }}>{tab.title}</p>
@@ -1220,7 +1222,9 @@ export default function UserPlaylistDetail() {
               style={{
                 paddingBottom: 'env(safe-area-inset-bottom, 0)',
                 transform: `translateY(${sortModalDragY}px)`,
-                transition: sortModalDragY === 0 ? 'transform 0.2s ease-out' : 'none'
+                transition: sortModalDragY === 0 ? 'transform 0.2s ease-out' : 'none',
+                maxWidth: '1050px',
+                margin: '0 auto'
               }}
             >
               <div
@@ -1296,7 +1300,9 @@ export default function UserPlaylistDetail() {
               style={{
                 paddingBottom: 'env(safe-area-inset-bottom, 0)',
                 transform: `translateY(${playlistMenuDragY}px)`,
-                transition: playlistMenuDragY === 0 ? 'transform 0.2s ease-out' : 'none'
+                transition: playlistMenuDragY === 0 ? 'transform 0.2s ease-out' : 'none',
+                maxWidth: '1050px',
+                margin: '0 auto'
               }}
             >
               <div
