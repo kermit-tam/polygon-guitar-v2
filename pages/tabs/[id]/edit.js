@@ -44,6 +44,9 @@ import {
   clearTabEditNotationCache,
 } from '@/lib/tabEditNotationCache'
 
+/** 編輯頁「Guitar Pro 段落」區塊；改為 true 可恢復（仍僅管理員可見） */
+const SHOW_GP_SECTION_ON_TAB_EDIT = false
+
 function readPendingNotationBlockIdFromSession() {
   if (typeof window === 'undefined') return null
   try {
@@ -1783,7 +1786,7 @@ E|----------------------------------------------------------------|
             </div>
             </FormSection>
 
-            {isAdmin && (
+            {SHOW_GP_SECTION_ON_TAB_EDIT && isAdmin && (
             <FormSection>
             {/* Guitar Pro Segments */}
             <div className="p-4 bg-neutral-900/50 rounded-lg border border-neutral-700">
