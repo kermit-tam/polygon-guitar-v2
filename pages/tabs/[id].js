@@ -1141,7 +1141,7 @@ export default function TabDetail({ initialTab, artist }) {
         <div ref={songMetaSectionRef} className="pt-3 sm:pt-4 md:pt-5 pb-3 sm:pb-4 md:pb-5 px-4">
           <div className="flex items-start gap-4 md:gap-6">
             {/* 封面圖片 */}
-            <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-800">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-[105px] md:h-[105px] flex-shrink-0 rounded-lg overflow-hidden bg-neutral-800">
               {/* 統一封面優先順序：coverImage > albumImage > youtubeVideoId > thumbnail > artistPhoto (incl. search-data fallback) */}
               {tabCoverImageUrl ? (
                 <img 
