@@ -1075,10 +1075,13 @@ export default function UserPlaylistDetail() {
               aria-hidden
             />
             <div
-              className="fixed bottom-0 left-0 right-0 h-[65vh] bg-[#121212] rounded-t-3xl z-[9999] flex flex-col overflow-hidden"
+              className="fixed bottom-0 h-[65vh] bg-[#121212] rounded-t-3xl z-[9999] flex flex-col overflow-hidden"
               style={{
                 paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                transform: `translateY(${editPlaylistDragY}px)`,
+                left: '50%',
+                width: '100%',
+                maxWidth: '1050px',
+                transform: `translateX(-50%) translateY(${editPlaylistDragY}px)`,
                 transition: editPlaylistDragY === 0 ? 'transform 0.2s ease-out' : 'none'
               }}
             >

@@ -1242,8 +1242,8 @@ export default function PlaylistDetail({
           <>
             <div className="fixed inset-0 bg-black/60 z-[9999]" onClick={() => { setShowAdminEditSongs(false); setAdminEditDragY(0) }} aria-hidden />
             <div
-              className="fixed bottom-0 left-0 right-0 h-[65vh] bg-[#121212] rounded-t-3xl z-[9999] flex flex-col overflow-hidden"
-              style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)', transform: `translateY(${adminEditDragY}px)`, transition: adminEditDragY === 0 ? 'transform 0.2s ease-out' : 'none' }}
+              className="fixed bottom-0 h-[65vh] bg-[#121212] rounded-t-3xl z-[9999] flex flex-col overflow-hidden"
+              style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)', left: '50%', width: '100%', maxWidth: '1050px', transform: `translateX(-50%) translateY(${adminEditDragY}px)`, transition: adminEditDragY === 0 ? 'transform 0.2s ease-out' : 'none' }}
             >
               <div
                 className="flex flex-col flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
@@ -1272,7 +1272,7 @@ export default function PlaylistDetail({
                       return (
                         <li
                           key={song.id}
-                          className={`flex items-center gap-2 py-1.5 rounded-2xl md:hover:bg-white/5 transition-opacity ${isDragging ? 'opacity-0' : ''}`}
+                          className={`flex items-center gap-2 py-1.5 px-1.5 rounded-2xl md:hover:bg-white/5 transition-opacity ${isDragging ? 'opacity-0' : ''}`}
                           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
                           onDrop={(e) => { e.preventDefault(); if (adminReordering) return; try { const { index: fromIndex } = JSON.parse(e.dataTransfer.getData('application/json') || '{}'); if (typeof fromIndex === 'number') handleAdminReorder(fromIndex, index) } catch (_) {} }}
                         >
