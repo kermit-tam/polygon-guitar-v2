@@ -290,6 +290,32 @@ export default function CoverGenerator({ songs = [], playlistTitle = '', onGener
             </svg>
           </button>
         </div>
+
+        {/* Title text color picker - under frame colors */}
+        {showTitleTextColorPicker && mode === 'single' && (
+          <div className="mt-2 flex items-center gap-1.5">
+            {TITLE_TEXT_COLORS.map((c) => {
+              const isSelected = titleTextColor === c.value
+              const chipBg = c.value === '#000000' ? '#f2f2f2' : '#000000'
+              const chipText = c.value
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setTitleTextColor(c.value)}
+                  className={`w-7 h-7 rounded-md border-2 transition flex-shrink-0 flex items-center justify-center font-extrabold ${
+                    isSelected ? 'border-white scale-110' : 'border-neutral-600 hover:border-neutral-400'
+                  }`}
+                  style={{ backgroundColor: chipBg, color: chipText }}
+                  title={c.value === '#f2f2f2' ? 'f2f2f2' : '000000'}
+                  aria-label={`封面文字顏色 ${c.value}`}
+                >
+                  A
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Title text (single mode only) */}
@@ -304,31 +330,6 @@ export default function CoverGenerator({ songs = [], playlistTitle = '', onGener
             placeholder="歌單名稱（最多6字）"
             className="w-full px-3 py-2 bg-[#1A1A1A] border border-neutral-700 rounded-lg text-white text-sm outline-none"
           />
-
-          {showTitleTextColorPicker && (
-            <div className="mt-3">
-              <p className="text-xs text-neutral-500 mb-1">封面文字顏色</p>
-              <div className="flex gap-2">
-                {TITLE_TEXT_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setTitleTextColor(c.value)}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition touch-manipulation ${
-                      titleTextColor === c.value
-                        ? 'bg-[#282828] border-[#FFD700] text-[#FFD700]'
-                        : 'bg-[#1A1A1A] border-neutral-700 text-neutral-300 hover:bg-[#232323]'
-                    }`}
-                  >
-                    <span className="inline-flex items-center justify-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.value }} />
-                      {c.value === '#f2f2f2' ? 'f2f2f2' : '000000'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
