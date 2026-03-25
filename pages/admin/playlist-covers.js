@@ -161,6 +161,7 @@ function PlaylistCovers() {
                   songs={songs}
                   playlistTitle={selectedPlaylist.title}
                   onGenerated={handleGenerated}
+                  showTitleTextColorPicker
                 />
               )
             ) : (
