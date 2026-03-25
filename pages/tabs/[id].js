@@ -133,6 +133,7 @@ export default function TabDetail({ initialTab, artist }) {
   const [prevId, setPrevId] = useState(null)
   const [isSongMetaCollapsed, setIsSongMetaCollapsed] = useState(false)
   const justRefetchedIdRef = useRef(null)
+  const viewCountFiredForRef = useRef(null)
   const topBarRef = useRef(null)
   const songMetaSectionRef = useRef(null)
   const songMetaBottomSentinelRef = useRef(null)
@@ -268,7 +269,10 @@ export default function TabDetail({ initialTab, artist }) {
   const fireSideEffects = (data) => {
     setFallbackArtistPhoto(null)
     const effects = []
-    effects.push(incrementViewCount(id))
+    if (viewCountFiredForRef.current !== id) {
+      viewCountFiredForRef.current = id
+      effects.push(incrementViewCount(id))
+    }
     recordTabView(id, data)
     if (user) effects.push(recordSongView(user.uid, data))
     effects.push(
