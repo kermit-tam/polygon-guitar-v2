@@ -1019,16 +1019,30 @@ const StaffCanvas = forwardRef(function StaffCanvas(
       if (active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA' || active?.isContentEditable) return
       const hasFocus = focus.subdivIndex !== null && focus.beatIndex !== null
 
-      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && hasFocus && typeof onSelectDuration === 'function') {
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && hasFocus) {
         e.preventDefault()
-        const idx = DURATION_ORDER.indexOf(selectedDuration)
-        const i = idx < 0 ? DURATION_ORDER.indexOf('quarter') : idx
-        const len = DURATION_ORDER.length
-        const next =
-          e.key === 'ArrowRight'
-            ? DURATION_ORDER[(i + 1) % len]
-            : DURATION_ORDER[(i - 1 + len) % len]
-        onSelectDuration(next)
+        const { subdivIndex, beatIndex } = focus
+        const getBeats = (si) => {
+          if (si === 0) return firstBeats
+          const sub = subdivisions[si - 1]
+          return sub?.beats ?? (sub ? [sub] : [])
+        }
+        const totalSubdivs = subdivisions.length + 1
+        if (e.key === 'ArrowRight') {
+          const beats = getBeats(subdivIndex)
+          if (beatIndex < beats.length - 1) {
+            setFocus({ subdivIndex, beatIndex: beatIndex + 1 })
+          } else if (subdivIndex < totalSubdivs - 1) {
+            setFocus({ subdivIndex: subdivIndex + 1, beatIndex: 0 })
+          }
+        } else {
+          if (beatIndex > 0) {
+            setFocus({ subdivIndex, beatIndex: beatIndex - 1 })
+          } else if (subdivIndex > 0) {
+            const prevBeats = getBeats(subdivIndex - 1)
+            setFocus({ subdivIndex: subdivIndex - 1, beatIndex: prevBeats.length - 1 })
+          }
+        }
         return
       }
 
@@ -1083,8 +1097,6 @@ const StaffCanvas = forwardRef(function StaffCanvas(
     firstBeats,
     subdivisions,
     removeNoteFromBeat,
-    selectedDuration,
-    onSelectDuration,
   ])
 
   // First subdivision total beats and over check
