@@ -292,10 +292,16 @@ async function handleTabAction(adminDb, tab, action) {
     }
   }
 
-  const artistId = getTabArtistId(tab) || tab.artistId
-  if (artistId) {
-    results.artistPageDeleted = await deleteArtistPageCache(adminDb, artistId)
+  const allArtistIds = [...new Set([
+    ...(getTabArtistIds(tab).length > 0 ? getTabArtistIds(tab) : []),
+    ...(tab.artistId ? [tab.artistId] : []),
+  ])].filter(Boolean)
+  let anyArtistPageDeleted = false
+  for (const aid of allArtistIds) {
+    const deleted = await deleteArtistPageCache(adminDb, aid)
+    if (deleted) anyArtistPageDeleted = true
   }
+  results.artistPageDeleted = anyArtistPageDeleted
 
   return results
 }
