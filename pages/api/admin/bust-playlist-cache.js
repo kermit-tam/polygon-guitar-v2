@@ -45,10 +45,22 @@ export default async function handler(req, res) {
 
     const ref = adminDb.collection('cache').doc(`${CACHE_DOC_PREFIX}${playlistId}`)
     await ref.delete()
+
+    // Also trigger Next.js ISR revalidation so the static page is rebuilt immediately,
+    // not just on the next 300s revalidation window.
+    let isr = false
+    try {
+      await res.revalidate(`/playlist/${playlistId}`)
+      isr = true
+    } catch (isrErr) {
+      console.warn('[bust-playlist-cache] ISR revalidate failed:', isrErr?.message)
+    }
+
     return res.status(200).json({
       ok: true,
       playlistId,
       deleted: true,
+      isr,
       message: 'Playlist page cache cleared; next load will show updated songs'
     })
   } catch (e) {
