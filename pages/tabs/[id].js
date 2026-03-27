@@ -459,8 +459,12 @@ export default function TabDetail({ initialTab, artist }) {
     const updateCollapsed = () => {
       if (!songMetaBottomSentinelRef.current) return
       const rect = songMetaBottomSentinelRef.current.getBoundingClientRect()
-      const collapseAt = topBarHeight + 1
-      const expandAt = topBarHeight + 14 // hysteresis: prevent rapid toggle near threshold
+      // Read offsetHeight live from the DOM so we always use the current bar height,
+      // not the stale closure value — prevents jitter when the collapsed bar
+      // appears/disappears and shifts the sentinel before topBarHeight state updates.
+      const liveTopBarHeight = topBarRef.current ? topBarRef.current.offsetHeight : topBarHeight
+      const collapseAt = liveTopBarHeight + 1
+      const expandAt = liveTopBarHeight + 14 // hysteresis: prevent rapid toggle near threshold
       setIsSongMetaCollapsed(prev => {
         if (!prev && rect.top <= collapseAt) return true
         if (prev && rect.top >= expandAt) return false
