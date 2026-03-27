@@ -1302,27 +1302,32 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
   }
 
   // 重建和弦行 - 使用半形空格對齊（避免全形空格字體 fallback 不一致）
+  // 當歌詞無括號時，無法對齊，直接用原本嘅 token 排列（保留原始間距）
   let newChordLine = '';
-  let currentVisualWidth = 0;
-  
-  for (let idx = 0; idx < tokens.length; idx++) {
-    const token = tokens[idx];
-    const targetPos = tokenPositions[idx];
-    
-    // bar-start 和弦（如 |E）扣返 1 欄，令 | 放喺 chord 字母之前。
-    let startCol = targetPos - (token.isBarStart ? 1 : 0);
-    startCol = Math.round(startCol);
-    if (startCol < 0) startCol = 0;
-    
-    // 計算需要填充嘅視覺寬度
-    const spacesNeeded = startCol - currentVisualWidth;
-    if (spacesNeeded > 0) {
-      newChordLine += ' '.repeat(spacesNeeded);
-      currentVisualWidth += spacesNeeded;
+  if (bracketPositions.length === 0) {
+    // 無括號：無法對齊，保留用戶輸入嘅原始空格（包括轉調）
+    newChordLine = transposeChordLine(chordLine, transposeSemitones, preserveBarSpacing, preferFlats)
+  } else {
+    let currentVisualWidth = 0;
+    for (let idx = 0; idx < tokens.length; idx++) {
+      const token = tokens[idx];
+      const targetPos = tokenPositions[idx];
+
+      // bar-start 和弦（如 |E）扣返 1 欄，令 | 放喺 chord 字母之前。
+      let startCol = targetPos - (token.isBarStart ? 1 : 0);
+      startCol = Math.round(startCol);
+      if (startCol < 0) startCol = 0;
+
+      // 計算需要填充嘅視覺寬度
+      const spacesNeeded = startCol - currentVisualWidth;
+      if (spacesNeeded > 0) {
+        newChordLine += ' '.repeat(spacesNeeded);
+        currentVisualWidth += spacesNeeded;
+      }
+
+      newChordLine += token.fullToken;
+      currentVisualWidth += token.width;
     }
-    
-    newChordLine += token.fullToken;
-    currentVisualWidth += token.width;
   }
 
   const parts = [];
