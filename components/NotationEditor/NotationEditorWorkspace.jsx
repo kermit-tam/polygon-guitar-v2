@@ -466,6 +466,7 @@ export default function NotationEditorWorkspace({
             onSelectDuration={setSelectedDuration}
             selectedDivision={selectedDivision}
             onTieApplied={() => setSelectedDivision(null)}
+            onToggleDivision={onToggleDivision}
             onBeatFocus={onBeatFocus}
             onStaffStructureChange={bumpPersistStaff}
           />

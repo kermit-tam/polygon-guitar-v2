@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
-import { DURATION_ORDER } from '@/components/NotationEditor/NotationToolbar'
+import { DURATION_ORDER, DIVISION_IDS } from '@/components/NotationEditor/NotationToolbar'
 
 /** No useLayoutEffect on server (avoids React SSR warning); full useLayoutEffect on client for toolbar sync order. */
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
@@ -686,6 +686,7 @@ const StaffCanvas = forwardRef(function StaffCanvas(
     onSelectDuration,
     selectedDivision,
     onTieApplied,
+    onToggleDivision,
     /** When focus moves to a beat, parent should mirror its duration / dotted / tuplet (keeps toolbar in sync; avoids clearing dotted on click). */
     onBeatFocus,
     /** Called when beats / subdivisions change (for debounced localStorage). */
@@ -942,10 +943,22 @@ const StaffCanvas = forwardRef(function StaffCanvas(
   }, [])
 
   const tryApplyTie = useCallback((subdivIndex, beatIndex, stringIndex) => {
-    if (beatIndex < 1) return false
-    const beats = subdivIndex === 0 ? firstBeats : (subdivisions[subdivIndex - 1]?.beats ?? [subdivisions[subdivIndex - 1]])
-    const beatsArray = Array.isArray(beats) ? beats : [beats]
-    const prevBeat = beatsArray[beatIndex - 1]
+    let prevBeat = null
+    if (beatIndex >= 1) {
+      // Previous beat is within the same segment
+      const beats = subdivIndex === 0 ? firstBeats : (subdivisions[subdivIndex - 1]?.beats ?? [subdivisions[subdivIndex - 1]])
+      const beatsArray = Array.isArray(beats) ? beats : [beats]
+      prevBeat = beatsArray[beatIndex - 1] ?? null
+    } else if (beatIndex === 0 && subdivIndex > 0) {
+      // First beat of a non-first segment → last beat of the previous segment
+      if (subdivIndex === 1) {
+        prevBeat = firstBeats[firstBeats.length - 1] ?? null
+      } else {
+        const prevSub = subdivisions[subdivIndex - 2]
+        const prevBeats = Array.isArray(prevSub?.beats) ? prevSub.beats : (prevSub ? [prevSub] : [])
+        prevBeat = prevBeats[prevBeats.length - 1] ?? null
+      }
+    }
     if (!prevBeat?.notes?.some((n) => n.stringIndex === stringIndex)) return false
     setTieFromPrevious(subdivIndex, beatIndex, stringIndex, true)
     return true
@@ -955,7 +968,8 @@ const StaffCanvas = forwardRef(function StaffCanvas(
   useEffect(() => {
     if (selectedDivision !== 'tie' || !onTieApplied) return
     const { subdivIndex, beatIndex } = focus
-    if (subdivIndex === null || beatIndex === null || beatIndex === 0) {
+    // Can't tie the very first beat (nothing before it); cross-segment ties (beatIndex===0, subdivIndex>0) are allowed
+    if (subdivIndex === null || beatIndex === null || (beatIndex === 0 && subdivIndex === 0)) {
       onTieApplied()
       return
     }
@@ -1019,7 +1033,8 @@ const StaffCanvas = forwardRef(function StaffCanvas(
       if (active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA' || active?.isContentEditable) return
       const hasFocus = focus.subdivIndex !== null && focus.beatIndex !== null
 
-      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && hasFocus) {
+      // ←：navigate to previous beat
+      if (e.key === 'ArrowLeft' && hasFocus) {
         e.preventDefault()
         const { subdivIndex, beatIndex } = focus
         const getBeats = (si) => {
@@ -1027,26 +1042,51 @@ const StaffCanvas = forwardRef(function StaffCanvas(
           const sub = subdivisions[si - 1]
           return sub?.beats ?? (sub ? [sub] : [])
         }
-        const totalSubdivs = subdivisions.length + 1
-        if (e.key === 'ArrowRight') {
-          const beats = getBeats(subdivIndex)
-          if (beatIndex < beats.length - 1) {
-            setFocus({ subdivIndex, beatIndex: beatIndex + 1 })
-          } else if (subdivIndex < totalSubdivs - 1) {
-            setFocus({ subdivIndex: subdivIndex + 1, beatIndex: 0 })
-          }
-        } else {
-          if (beatIndex > 0) {
-            setFocus({ subdivIndex, beatIndex: beatIndex - 1 })
-          } else if (subdivIndex > 0) {
-            const prevBeats = getBeats(subdivIndex - 1)
-            setFocus({ subdivIndex: subdivIndex - 1, beatIndex: prevBeats.length - 1 })
-          }
+        if (beatIndex > 0) {
+          setFocus({ subdivIndex, beatIndex: beatIndex - 1 })
+        } else if (subdivIndex > 0) {
+          const prevBeats = getBeats(subdivIndex - 1)
+          setFocus({ subdivIndex: subdivIndex - 1, beatIndex: prevBeats.length - 1 })
         }
         return
       }
 
-      // ↑/↓：已揀某條弦時，改揀上一條／下一條弦（唔改品號）
+      // →：navigate to next beat; if at end of segment, add a new beat
+      if (e.key === 'ArrowRight' && hasFocus) {
+        e.preventDefault()
+        const { subdivIndex, beatIndex } = focus
+        const getBeats = (si) => {
+          if (si === 0) return firstBeats
+          const sub = subdivisions[si - 1]
+          return sub?.beats ?? (sub ? [sub] : [])
+        }
+        const beats = getBeats(subdivIndex)
+        if (beatIndex < beats.length - 1) {
+          setFocus({ subdivIndex, beatIndex: beatIndex + 1 })
+        } else {
+          // at end of segment — add a new beat and focus it
+          justAddedBeatRef.current = true
+          addBeatToSubdivision(subdivIndex)
+          setFocus({ subdivIndex, beatIndex: beats.length })
+        }
+        return
+      }
+
+      // Tab：add new segment, keep current focus
+      if (e.key === 'Tab' && hasFocus) {
+        e.preventDefault()
+        setSubdivisions((prev) => [
+          ...prev,
+          {
+            timeSignatureId: normalizeTimeSignatureId(timeSignatureId),
+            beats: [{ duration: selectedDuration, dotted: selectedDivision === 'dotted', tuplet: selectedDivision === 'tuplet' }],
+          },
+        ])
+        onAddNotation?.()
+        return
+      }
+
+      // ↑/↓：change selected string
       if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && hasFocus && focusedBeatClickedLine !== null) {
         e.preventDefault()
         const line = focusedBeatClickedLine
@@ -1058,17 +1098,22 @@ const StaffCanvas = forwardRef(function StaffCanvas(
         return
       }
 
-      if (e.key === 'Tab' && hasFocus) {
+      // 1 → toggle dotted, 2 → toggle tie, 3 → toggle tuplet
+      if (e.key === '1' && onToggleDivision) { e.preventDefault(); onToggleDivision(DIVISION_IDS.DOTTED); return }
+      if (e.key === '2' && onToggleDivision) { e.preventDefault(); onToggleDivision(DIVISION_IDS.TIE); return }
+      if (e.key === '3' && onToggleDivision) { e.preventDefault(); onToggleDivision(DIVISION_IDS.TUPLET); return }
+
+      // + → next duration, - → previous duration
+      if ((e.key === '+' || e.key === '=') && onSelectDuration) {
         e.preventDefault()
-        justAddedBeatRef.current = true
-        addBeatToSubdivision(focus.subdivIndex)
-        if (focus.subdivIndex === 0) {
-          setFocus({ subdivIndex: 0, beatIndex: firstBeats.length })
-        } else {
-          const sub = subdivisions[focus.subdivIndex - 1]
-          const beats = sub.beats ?? [sub]
-          setFocus({ subdivIndex: focus.subdivIndex, beatIndex: beats.length })
-        }
+        const idx = DURATION_ORDER.indexOf(selectedDuration)
+        if (idx < DURATION_ORDER.length - 1) onSelectDuration(DURATION_ORDER[idx + 1])
+        return
+      }
+      if (e.key === '-' && onSelectDuration) {
+        e.preventDefault()
+        const idx = DURATION_ORDER.indexOf(selectedDuration)
+        if (idx > 0) onSelectDuration(DURATION_ORDER[idx - 1])
         return
       }
 
@@ -1097,6 +1142,13 @@ const StaffCanvas = forwardRef(function StaffCanvas(
     firstBeats,
     subdivisions,
     removeNoteFromBeat,
+    addBeatToSubdivision,
+    onToggleDivision,
+    onSelectDuration,
+    selectedDuration,
+    selectedDivision,
+    timeSignatureId,
+    onAddNotation,
   ])
 
   // First subdivision total beats and over check
@@ -1313,7 +1365,7 @@ const StaffCanvas = forwardRef(function StaffCanvas(
                       onAddNote={(stringIndex, fret) => addNoteToBeat(subdivIndex, beatIdx, stringIndex, fret)}
                       onLineClick={(si) => {
                         setFocusedBeatClickedLine(si)
-                        if (selectedDivision === 'tie' && beatIdx >= 1) tryApplyTie(subdivIndex, beatIdx, si)
+                        if (selectedDivision === 'tie' && (beatIdx >= 1 || subdivIndex > 0)) tryApplyTie(subdivIndex, beatIdx, si)
                       }}
                       selectedLine={isFocused ? focusedBeatClickedLine : null}
                       restChar={restChar}
