@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import { useAuth } from '@/contexts/AuthContext'
 import { db } from '@/lib/firebase'
@@ -45,10 +46,13 @@ function compareTabRequests(a, b, uid) {
 }
 
 export default function TabRequestsPage() {
+  const router = useRouter()
   const { user, isAdmin, signInWithGoogle } = useAuth()
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+
+  const [formPrefill, setFormPrefill] = useState({ song: '', artist: '' })
 
   // Modal visibility
   const [showForm, setShowForm] = useState(false)
@@ -77,6 +81,19 @@ export default function TabRequestsPage() {
   // --- Effects ---
 
   useEffect(() => { loadRequests() }, [])
+
+  useEffect(() => {
+    if (!router.isReady) return
+    const ps = router.query.prefillSong
+    const pa = router.query.prefillArtist
+    if (typeof ps !== 'string' && typeof pa !== 'string') return
+    setFormPrefill({
+      song: typeof ps === 'string' ? ps : '',
+      artist: typeof pa === 'string' ? pa : ''
+    })
+    setShowForm(true)
+    router.replace('/tab-requests', undefined, { shallow: true })
+  }, [router.isReady, router.query.prefillSong, router.query.prefillArtist])
 
   // Lock body scroll when any modal is open
   useEffect(() => {
@@ -443,9 +460,14 @@ export default function TabRequestsPage() {
         {/* Modals */}
         {showForm && (
           <SearchFormModal
-            onClose={() => setShowForm(false)}
+            onClose={() => {
+              setShowForm(false)
+              setFormPrefill({ song: '', artist: '' })
+            }}
             onSubmit={handleSearchSubmit}
             submitting={submitting}
+            initialSongTitle={formPrefill.song}
+            initialArtistName={formPrefill.artist}
           />
         )}
 

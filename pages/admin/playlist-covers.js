@@ -4,6 +4,7 @@ import Layout from '@/components/Layout'
 import AdminGuard from '@/components/AdminGuard'
 import CoverGenerator from '@/components/CoverGenerator'
 import { getAllPlaylists, updatePlaylist } from '@/lib/playlists'
+import { isChaksaPlaylist } from '@/lib/chaksaPlaylist'
 import { getTabsByIds } from '@/lib/tabs'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { BarChart2, Sparkles } from 'lucide-react'
@@ -145,6 +146,11 @@ function PlaylistCovers() {
             <h2 className="text-white font-medium">
               {selectedPlaylist ? `生成封面：${selectedPlaylist.title}` : '請先揀歌單'}
             </h2>
+            {selectedPlaylist && isChaksaPlaylist(selectedPlaylist) && (
+              <p className="text-xs text-amber-200/90 bg-amber-950/40 border border-amber-800/50 rounded-lg px-3 py-2">
+                叱咤歌單嘅「封面生成器」只會用有站內譜嘅歌曲（<code className="text-amber-100">songIds</code>）。無譜項目唔會出現；可改用歌單管理上傳自訂封面。
+              </p>
+            )}
             {uploading && (
               <div className="p-3 bg-blue-900/30 border border-blue-700 rounded-lg text-blue-400 text-sm">
                 上傳中...

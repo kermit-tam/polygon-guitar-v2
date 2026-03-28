@@ -192,6 +192,11 @@ function NewPlaylist() {
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">新增精選歌單</h1>
             <p className="text-neutral-500">人工策劃的音樂旅程</p>
+            <p className="text-sm text-neutral-600 mt-2">
+              <Link href="/admin/playlists/chaksa/new" className="text-[#FFD700] hover:underline">
+                改用叱咤十大歌單（按年 × 十位）
+              </Link>
+            </p>
           </div>
           <Link
             href="/admin/playlists"

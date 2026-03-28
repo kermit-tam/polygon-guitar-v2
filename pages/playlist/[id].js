@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { getPlaylist, getPlaylistSongs, getAllActivePlaylists, AUTO_PLAYLIST_TYPES, updatePlaylist as updateSitePlaylist } from '@/lib/playlists'
+import { isChaksaPlaylist, resolveChaksaPlaylistItems } from '@/lib/chaksaPlaylist'
+import { groupChaksaSongsByYear } from '@/lib/chartYearRange'
 import { getPlaylistPageCache, setPlaylistPageCache } from '@/lib/playlistPageCache'
 import { toSlimSongs } from '@/lib/playlistSlim'
 import { getSongThumbnail } from '@/lib/getSongThumbnail'
@@ -12,7 +14,8 @@ import Link from '@/components/Link'
 import { recordPlaylistView } from '@/lib/recentViews'
 import { useArtistMap } from '@/lib/useArtistMap'
 import { useAuth } from '@/contexts/AuthContext'
-import { Share, Heart, Music, User, Plus, Copy, ArrowLeft, Bookmark, ListMusic, ArrowUpDown, Pencil, X, Search } from 'lucide-react'
+import { Share, Heart, Music, User, Plus, Copy, ArrowLeft, Bookmark, ListMusic, ArrowUpDown, Pencil, X, Search, Crown } from 'lucide-react'
+import ChaksaPasteTabLinkModal from '@/components/chaksa/ChaksaPasteTabLinkModal'
 import { getTabsByIds, getArtistSlug } from '@/lib/tabs'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { auth } from '@/lib/firebase'
@@ -29,6 +32,145 @@ function serializePlaylistData(obj) {
     console.error('[playlist] serializePlaylistData:', e?.message)
     return Array.isArray(obj) ? [] : null
   }
+}
+
+function ChaksaSongRow({
+  song,
+  getArtistName,
+  getSongThumbnail,
+  handleSongClick,
+  handleMoreClick,
+  playlistSource,
+  showViewCount,
+  onChaksaOutTab,
+  playlistId,
+  supremeYearBadge = false,
+  showChartRank = false
+}) {
+  const ext = song.playlistItemKind === 'external'
+  const yearLabel =
+    song.chartYear != null && !Number.isNaN(Number(song.chartYear)) ? String(Number(song.chartYear)) : null
+
+  const thumb = (
+    <div className="w-[49px] h-[49px] rounded-[5px] bg-neutral-800 flex-shrink-0 overflow-hidden">
+      {getSongThumbnail(song) ? (
+        <img
+          src={getSongThumbnail(song)}
+          alt={song.title}
+          className={`w-full h-full object-cover ${ext ? 'opacity-75' : ''}`}
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <span className="w-full h-full flex items-center justify-center text-neutral-500">
+          <Music className="w-6 h-6" strokeWidth={1.5} />
+        </span>
+      )}
+    </div>
+  )
+
+  const yearBadgeEl =
+    yearLabel != null ? (
+      <span
+        className="text-[0.7rem] leading-none px-1.5 py-1 rounded-[4px] flex-shrink-0 tabular-nums font-semibold bg-[#3a3420] text-[#FFD700] border border-[#5c4f2a]/30 self-center"
+        aria-label={`榜單年份 ${yearLabel}`}
+      >
+        {yearLabel}
+      </span>
+    ) : null
+
+  /** 至尊歌曲：年份 tag 喺 cover 左邊 */
+  const thumbWithSupremeYear =
+    supremeYearBadge && yearBadgeEl ? (
+      <div className="flex shrink-0 items-center gap-2">
+        {yearBadgeEl}
+        {thumb}
+      </div>
+    ) : (
+      thumb
+    )
+
+  const textBlock = (
+    <div className="flex-1 text-left min-w-0">
+      <h3 className={`text-[1rem] font-medium truncate md:transition ${ext ? 'text-neutral-500' : 'text-[#e6e6e6] md:group-hover:text-[#FFD700]'}`}>
+        {song.title}
+      </h3>
+      <p className={`text-[0.85rem] truncate ${ext ? 'text-neutral-600' : 'text-[#999]'}`}>{getArtistName(song)}</p>
+    </div>
+  )
+
+  const rankNum =
+    song.chartPosition != null && !Number.isNaN(Number(song.chartPosition)) ? Number(song.chartPosition) : null
+  const rankEl =
+    showChartRank && rankNum != null ? (
+      <span
+        className={`shrink-0 min-w-[2rem] sm:min-w-[2.25rem] inline-flex items-center justify-center leading-none pt-0.5 px-1.5 sm:px-2 ${
+          rankNum === 1 ? 'text-[#FFD700]' : 'text-[#737373] text-sm font-semibold tabular-nums'
+        }`}
+        aria-label={`第 ${rankNum} 位`}
+      >
+        {rankNum === 1 ? (
+          <Crown className="w-[1.125rem] h-[1.125rem] sm:w-5 sm:h-5" strokeWidth={2} aria-hidden />
+        ) : (
+          rankNum
+        )}
+      </span>
+    ) : null
+
+  return (
+    <div
+      className={`group flex w-full min-w-0 items-center gap-1 sm:gap-2 py-2 pl-0 pr-0 rounded-[7px] ${ext ? 'opacity-[0.88]' : 'md:hover:bg-white/5 md:transition'}`}
+    >
+      {rankEl}
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        {ext ? (
+          <>
+            {thumbWithSupremeYear}
+            {textBlock}
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleSongClick(song)}
+            className="flex min-w-0 flex-1 items-center gap-3 py-0 pl-0 pr-0 rounded-[7px] text-left bg-transparent border-0 cursor-pointer"
+          >
+            {thumbWithSupremeYear}
+            {textBlock}
+            {playlistSource === 'auto' && showViewCount && (
+              <span className="text-xs text-neutral-600 hidden sm:block shrink-0">
+                {(song.viewCount || 0).toLocaleString('zh-HK')} 瀏覽
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center justify-end">
+        {ext && playlistId && song.chaksaEntryId && (
+          <button
+            type="button"
+            onClick={() => onChaksaOutTab?.(song)}
+            className="px-2.5 sm:px-3 py-1.5 bg-[#FFD700] text-black rounded-full font-medium text-xs sm:text-sm touch-manipulation"
+          >
+            出譜
+          </button>
+        )}
+        {!ext && (
+          <button
+            type="button"
+            onClick={(e) => handleMoreClick(e, song)}
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0 text-[#999] hover:text-white transition -my-1"
+            aria-label="更多"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 14.96 2.54" fill="currentColor" aria-hidden>
+              <circle cx="1.27" cy="1.27" r="1.27" />
+              <circle cx="7.48" cy="1.27" r="1.27" />
+              <circle cx="13.69" cy="1.27" r="1.27" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function PlaylistDetail({
@@ -67,6 +209,9 @@ export default function PlaylistDetail({
   const [playlistModalDragY, setPlaylistModalDragY] = useState(0)
   const playlistModalTouchStartY = useRef(0)
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
+  const [chaksaPasteSong, setChaksaPasteSong] = useState(null)
+  /** null = 顯示至尊歌曲 + 完整名單；數字 = 只顯示該年叱咤十大 */
+  const [chaksaFocusYear, setChaksaFocusYear] = useState(null)
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [hasMounted, setHasMounted] = useState(false)
 
@@ -198,6 +343,10 @@ export default function PlaylistDetail({
     setShuffleOrder([])
   }, [id])
 
+  useEffect(() => {
+    setChaksaFocusYear(null)
+  }, [id])
+
   // 載入「是否已加入已收藏歌單」
   useEffect(() => {
     if (!id || !user?.uid) {
@@ -217,13 +366,14 @@ export default function PlaylistDetail({
     }
   }, [sortMode, songs.length])
 
-  const loadPlaylistData = async () => {
+  const loadPlaylistData = async (opts = {}) => {
+    const { quiet = false } = opts
     try {
-      setIsLoading(true)
+      if (!quiet) setIsLoading(true)
       const res = await fetch(`/api/playlist-page?id=${encodeURIComponent(id)}`)
       if (!res.ok) {
         if (res.status === 404) {
-          router.push('/')
+          if (!quiet) router.push('/')
           return
         }
         throw new Error(res.statusText)
@@ -242,21 +392,31 @@ export default function PlaylistDetail({
         ;[combined[i], combined[j]] = [combined[j], combined[i]]
       }
       setOtherPlaylists(combined)
-      recordPlaylistView(user?.uid || null, data.playlist)
+      if (!quiet) recordPlaylistView(user?.uid || null, data.playlist)
     } catch (error) {
       console.error('Error loading playlist:', error)
-      router.push('/')
+      if (!quiet) router.push('/')
     } finally {
-      setIsLoading(false)
+      if (!quiet) setIsLoading(false)
     }
   }
 
-  const handleSongClick = (songId) => {
-    router.push(`/tabs/${songId}`)
+  const isChaksa = isChaksaPlaylist(playlist)
+
+  const handleSongClick = (song) => {
+    if (!song) return
+    if (song.playlistItemKind === 'external') {
+      if (song.spotifyUrl && typeof window !== 'undefined') {
+        window.open(song.spotifyUrl, '_blank', 'noopener,noreferrer')
+      }
+      return
+    }
+    router.push(`/tabs/${song.id}`)
   }
 
   // 獲取排序後的歌曲列表（預設=撳排序 icon，歌手/年份/隨機）
   const getSortedSongs = () => {
+    if (isChaksa) return [...songs]
     const sorted = [...songs]
     switch (sortMode) {
       case 'default':
@@ -292,6 +452,35 @@ export default function PlaylistDetail({
   }
 
   const sortedSongs = getSortedSongs()
+
+  const chaksaSupremeList = useMemo(() => {
+    if (!isChaksa || !songs.length) return []
+    return [...songs]
+      .filter((s) => s.chartPosition === 1)
+      .sort((a, b) => (b.chartYear || 0) - (a.chartYear || 0))
+  }, [isChaksa, songs])
+
+  const chaksaFullGrouped = useMemo(() => {
+    if (!isChaksa || !songs.length) return []
+    return groupChaksaSongsByYear([...songs])
+  }, [isChaksa, songs])
+
+  const chaksaChartYearPills = useMemo(() => {
+    if (!isChaksa || !songs.length) return []
+    const ys = new Set()
+    for (const s of songs) {
+      const y = s.chartYear
+      if (y != null && !Number.isNaN(Number(y))) ys.add(Number(y))
+    }
+    return Array.from(ys).sort((a, b) => b - a)
+  }, [isChaksa, songs])
+
+  const chaksaYearTop10List = useMemo(() => {
+    if (chaksaFocusYear == null || !isChaksa || !songs.length) return []
+    return [...songs]
+      .filter((s) => Number(s.chartYear) === chaksaFocusYear)
+      .sort((a, b) => (a.chartPosition || 99) - (b.chartPosition || 99))
+  }, [isChaksa, songs, chaksaFocusYear])
 
   // 格式化時間（僅 client 用，避免 server/client 時間唔同導致 hydration mismatch）
   const formatTimeAgo = (timestamp) => {
@@ -576,6 +765,12 @@ export default function PlaylistDetail({
   const handleMoreClick = async (e, song) => {
     e.stopPropagation()
     setSelectedSong(song)
+    if (song.playlistItemKind === 'external') {
+      setSelectedSongLiked(false)
+      setUserPlaylists([])
+      setShowActionModal(true)
+      return
+    }
     if (user) {
       const [liked, playlists] = await Promise.all([
         checkIsLiked(user.uid, song.id),
@@ -587,6 +782,26 @@ export default function PlaylistDetail({
       setSelectedSongLiked(false)
     }
     setShowActionModal(true)
+  }
+
+  const handleChaksaOutTab = (song) => {
+    if (!song?.chaksaEntryId) return
+    if (!user) {
+      setShowLoginPrompt(true)
+      return
+    }
+    setChaksaPasteSong(song)
+  }
+
+  const handleCopyChaksaTrackLabel = async () => {
+    if (!selectedSong) return
+    const line = `${selectedSong.title || ''} - ${getArtistName(selectedSong)}`
+    try {
+      await navigator.clipboard.writeText(line)
+      alert('已複製歌名同歌手')
+    } catch {
+      alert('複製失敗')
+    }
   }
 
   const handleCopyShareLink = async () => {
@@ -801,11 +1016,69 @@ export default function PlaylistDetail({
                   {playlist.savedCount} 收藏
                 </span>
               )}
+              {isChaksa && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!user) {
+                      setShowLoginPrompt(true)
+                      return
+                    }
+                    if (isSavingPlaylist) return
+                    setIsSavingPlaylist(true)
+                    try {
+                      if (isSavedToLibrary) {
+                        await removeSavedPlaylist(user.uid, id)
+                        setIsSavedToLibrary(false)
+                        setPlaylist((prev) => (prev ? { ...prev, savedCount: Math.max(0, (prev.savedCount || 0) - 1) } : prev))
+                      } else {
+                        await savePlaylistToLibrary(user.uid, id)
+                        setIsSavedToLibrary(true)
+                        setPlaylist((prev) => (prev ? { ...prev, savedCount: (prev.savedCount || 0) + 1 } : prev))
+                      }
+                    } catch (err) {
+                      console.error('加入收藏失敗:', err)
+                      alert('加入收藏失敗，請重試')
+                    } finally {
+                      setIsSavingPlaylist(false)
+                    }
+                  }}
+                  disabled={isSavingPlaylist}
+                  title={isSavedToLibrary ? '已收藏（撳一下取消）' : '加入我的收藏'}
+                  className={`mt-1 flex items-center gap-2 rounded-full outline-none self-end ${
+                    isSavedToLibrary ? 'text-[#FFD700] py-1 pl-1 pr-0' : 'text-neutral-400 p-1'
+                  } ${isSavingPlaylist ? 'opacity-50' : ''}`}
+                >
+                  {isSavedToLibrary ? (
+                    <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 8.73 8.73" fill="none" stroke="currentColor" strokeWidth="0.75" strokeLinecap="round" strokeMiterlimit="10">
+                      <circle cx="4.36" cy="4.36" r="3.99" />
+                      <line x1="2.22" y1="4.36" x2="6.51" y2="4.36" />
+                    </svg>
+                  ) : (
+                    <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 8.73 8.73" fill="none" stroke="currentColor" strokeWidth="0.75" strokeLinecap="round" strokeMiterlimit="10">
+                      <circle cx="4.36" cy="4.36" r="3.99" />
+                      <line x1="2.22" y1="4.36" x2="6.51" y2="4.36" />
+                      <line x1="4.36" y1="2.22" x2="4.36" y2="6.51" />
+                    </svg>
+                  )}
+                  {isSavedToLibrary && <span className="text-sm whitespace-nowrap">已收藏</span>}
+                </button>
+              )}
             </div>
           </div>
 
           {/* Admin action bar */}
-          {isAdmin && playlist.source === 'manual' && (
+          {isAdmin && playlist.source === 'manual' && isChaksa && (
+            <div className="py-2 flex flex-wrap items-center gap-2">
+              <Link href={`/admin/playlists/chaksa/${id}`} className="inline-flex items-center justify-center gap-1 px-4 py-1.5 rounded-full bg-[#FFD700] text-black text-sm font-medium hover:opacity-90 transition">
+                <Pencil className="w-4 h-4 shrink-0" />編輯叱咤榜單
+              </Link>
+              <button type="button" onClick={() => { setAdminEditTitle(playlist.title || ''); setAdminEditDescription(playlist.description || ''); setAdminEditCuratedBy(playlist.curatedBy || user?.displayName || ''); setAdminEditCoverImage(playlist.coverImage || ''); setShowAdminSettings(true) }} className="flex items-center justify-center gap-1 w-[85px] px-3 py-1.5 rounded-full bg-[#282828] text-white text-sm font-medium hover:bg-[#3E3E3E] transition">
+                <Pencil className="w-4 h-4 shrink-0" />歌單
+              </button>
+            </div>
+          )}
+          {isAdmin && playlist.source === 'manual' && !isChaksa && (
             <div className="py-2 flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => setShowAdminAddSong(true)} className="flex items-center justify-center gap-1 w-[85px] px-3 py-1.5 rounded-full bg-[#282828] text-white text-sm font-medium hover:bg-[#3E3E3E] transition">
                 <Plus className="w-4 h-4 shrink-0" />加入
@@ -819,7 +1092,7 @@ export default function PlaylistDetail({
             </div>
           )}
 
-          {playlist && (
+          {playlist && !isChaksa && (
           <div className="mb-1 pt-0 pb-1 flex items-center gap-3">
             {songs.length > 0 && (
             <div className="flex flex-1 min-w-0 overflow-x-auto scrollbar-hide items-center gap-0">
@@ -882,7 +1155,6 @@ export default function PlaylistDetail({
               </button>
             </div>
             )}
-            {/* 加入我的收藏（右邊，再撳可取消收藏） */}
             <button
               type="button"
               onClick={async () => {
@@ -896,11 +1168,11 @@ export default function PlaylistDetail({
                   if (isSavedToLibrary) {
                     await removeSavedPlaylist(user.uid, id)
                     setIsSavedToLibrary(false)
-                    setPlaylist(prev => prev ? { ...prev, savedCount: Math.max(0, (prev.savedCount || 0) - 1) } : prev)
+                    setPlaylist((prev) => (prev ? { ...prev, savedCount: Math.max(0, (prev.savedCount || 0) - 1) } : prev))
                   } else {
                     await savePlaylistToLibrary(user.uid, id)
                     setIsSavedToLibrary(true)
-                    setPlaylist(prev => prev ? { ...prev, savedCount: (prev.savedCount || 0) + 1 } : prev)
+                    setPlaylist((prev) => (prev ? { ...prev, savedCount: (prev.savedCount || 0) + 1 } : prev))
                   }
                 } catch (err) {
                   console.error('加入收藏失敗:', err)
@@ -933,54 +1205,177 @@ export default function PlaylistDetail({
           )}
         </div>
 
+        {/* 叱咤：年份藥丸（有邊些年份先顯示） */}
+        {isChaksa && chaksaChartYearPills.length > 0 && (
+          <div className="mb-3" style={{ paddingLeft: '1rem', paddingRight: '1rem' }}>
+            <div className="flex overflow-x-auto scrollbar-hide gap-2 py-1 pb-2">
+              <button
+                type="button"
+                onClick={() => setChaksaFocusYear(null)}
+                className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-semibold transition border ${
+                  chaksaFocusYear === null
+                    ? 'bg-[#FFD700] text-black border-[#FFD700]'
+                    : 'bg-[#282828] text-neutral-300 border-neutral-700 hover:border-neutral-500'
+                }`}
+              >
+                全部
+              </button>
+              {chaksaChartYearPills.map((y) => (
+                <button
+                  key={y}
+                  type="button"
+                  onClick={() => setChaksaFocusYear(y)}
+                  className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-semibold tabular-nums transition border ${
+                    chaksaFocusYear === y
+                      ? 'bg-[#FFD700] text-black border-[#FFD700]'
+                      : 'bg-[#282828] text-neutral-300 border-neutral-700 hover:border-neutral-500'
+                  }`}
+                  title={`${y} 年`}
+                >
+                  {String(y % 100).padStart(2, '0')}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 叱咤：至尊歌曲（每年第 1 位）—揀咗單年時隱藏 */}
+        {isChaksa && chaksaFocusYear === null && chaksaSupremeList.length > 0 && (
+          <section className="mb-5" style={{ paddingLeft: '1rem', paddingRight: '1rem' }}>
+            <h2 className="font-bold text-white text-[1.2rem] md:text-[1.375rem] pb-3">至尊歌曲</h2>
+            <div>
+              {chaksaSupremeList.map((song) => (
+                <ChaksaSongRow
+                  key={`sup-${song.id}-${song.chartYear}-${song.chartPosition}`}
+                  song={song}
+                  getArtistName={getArtistName}
+                  getSongThumbnail={getSongThumbnail}
+                  handleSongClick={handleSongClick}
+                  handleMoreClick={handleMoreClick}
+                  playlistSource={playlist.source}
+                  showViewCount={false}
+                  onChaksaOutTab={handleChaksaOutTab}
+                  playlistId={typeof id === 'string' ? id : Array.isArray(id) ? id[0] || '' : ''}
+                  supremeYearBadge
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 叱咤：揀年份後只顯示該年 10 首 */}
+        {isChaksa && chaksaFocusYear != null && (
+          <section className="mb-5" style={{ paddingLeft: '1rem', paddingRight: '1rem' }}>
+            <h2 className="font-bold text-white text-[1.2rem] md:text-[1.375rem] pb-3">
+              {chaksaFocusYear} 叱咤十大
+            </h2>
+            {chaksaYearTop10List.length === 0 ? (
+              <p className="text-neutral-500 text-sm py-2">呢年暫時冇榜單資料</p>
+            ) : (
+              <div>
+                {chaksaYearTop10List.map((song) => (
+                  <ChaksaSongRow
+                    key={`yr-${chaksaFocusYear}-${song.id}-${song.chartPosition}`}
+                    song={song}
+                    getArtistName={getArtistName}
+                    getSongThumbnail={getSongThumbnail}
+                    handleSongClick={handleSongClick}
+                    handleMoreClick={handleMoreClick}
+                    playlistSource={playlist.source}
+                    showViewCount={false}
+                    onChaksaOutTab={handleChaksaOutTab}
+                    playlistId={typeof id === 'string' ? id : Array.isArray(id) ? id[0] || '' : ''}
+                    showChartRank
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Songs List */}
         {songs.length > 0 && (
           <div style={{ paddingLeft: '1rem', paddingRight: '1rem' }}>
-            {sortedSongs.map((song) => (
-              <div key={song.id} className="group flex items-center gap-3 py-2 pl-0 pr-0 rounded-[7px] md:hover:bg-white/5 md:transition">
-                <button
-                  type="button"
-                  onClick={() => handleSongClick(song.id)}
-                  className="flex-1 flex items-center gap-3 py-0 pl-0 pr-0 rounded-[7px] min-w-0 text-left bg-transparent border-0 cursor-pointer"
-                >
-                  <div className="w-[49px] h-[49px] rounded-[5px] bg-neutral-800 flex-shrink-0 overflow-hidden">
-                    {getSongThumbnail(song) ? (
-                      <img
-                        src={getSongThumbnail(song)}
-                        alt={song.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <span className="w-full h-full flex items-center justify-center text-neutral-500"><Music className="w-6 h-6" strokeWidth={1.5} /></span>
-                    )}
-                  </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <h3 className="text-[1rem] font-medium text-[#e6e6e6] truncate md:group-hover:text-[#FFD700] md:transition">
-                      {song.title}
+            {isChaksa && chaksaFocusYear === null && (
+              <h2 className="font-bold text-white text-[1.1rem] md:text-[1.25rem] pb-2">叱咤十大（完整名單）</h2>
+            )}
+            {isChaksa && chaksaFocusYear != null ? null : isChaksa
+              ? chaksaFullGrouped.map(([yearRange, rangeSongs]) => (
+                  <div key={`full-range-${yearRange}`} style={{ marginBottom: '0.5rem' }}>
+                    <h3
+                      className={`text-sm font-medium sticky top-0 bg-black/95 py-2 z-10 ${
+                        yearRange === '未知年份' ? 'text-neutral-500 italic' : 'text-[#FFD700]'
+                      }`}
+                    >
+                      {yearRange}
+                      {yearRange === '未知年份' && rangeSongs.length > 0 && (
+                        <span className="ml-2 text-xs">({rangeSongs.length} 首)</span>
+                      )}
                     </h3>
-                    <p className="text-[0.85rem] text-[#999] truncate">{getArtistName(song)}</p>
+                    <div>
+                      {rangeSongs.map((song) => (
+                        <ChaksaSongRow
+                          key={`${song.id}-${song.chartYear}-${song.chartPosition}`}
+                          song={song}
+                          getArtistName={getArtistName}
+                          getSongThumbnail={getSongThumbnail}
+                          handleSongClick={handleSongClick}
+                          handleMoreClick={handleMoreClick}
+                          playlistSource={playlist.source}
+                          showViewCount={playlist.source === 'auto'}
+                          onChaksaOutTab={handleChaksaOutTab}
+                          playlistId={typeof id === 'string' ? id : Array.isArray(id) ? id[0] || '' : ''}
+                          showChartRank
+                        />
+                      ))}
+                    </div>
                   </div>
-                  {playlist.source === 'auto' && (
-                    <span className="text-xs text-neutral-600 hidden sm:block">
-                      {(song.viewCount || 0).toLocaleString('zh-HK')} 瀏覽
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => handleMoreClick(e, song)}
-                  className="min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0 text-[#999] hover:text-white transition -my-1"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 14.96 2.54" fill="currentColor" aria-hidden>
-                    <circle cx="1.27" cy="1.27" r="1.27" />
-                    <circle cx="7.48" cy="1.27" r="1.27" />
-                    <circle cx="13.69" cy="1.27" r="1.27" />
-                  </svg>
-                </button>
-              </div>
-            ))}
+                ))
+              : sortedSongs.map((song) => (
+                  <div key={`${song.id}-${song.chartYear}-${song.chartPosition}`} className="group flex items-center gap-3 py-2 pl-0 pr-0 rounded-[7px] md:hover:bg-white/5 md:transition">
+                    <button
+                      type="button"
+                      onClick={() => handleSongClick(song)}
+                      className="flex-1 flex items-center gap-3 py-0 pl-0 pr-0 rounded-[7px] min-w-0 text-left bg-transparent border-0 cursor-pointer"
+                    >
+                      <div className="w-[49px] h-[49px] rounded-[5px] bg-neutral-800 flex-shrink-0 overflow-hidden">
+                        {getSongThumbnail(song) ? (
+                          <img
+                            src={getSongThumbnail(song)}
+                            alt={song.title}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          <span className="w-full h-full flex items-center justify-center text-neutral-500"><Music className="w-6 h-6" strokeWidth={1.5} /></span>
+                        )}
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <h3 className="text-[1rem] font-medium text-[#e6e6e6] truncate md:group-hover:text-[#FFD700] md:transition">
+                          {song.title}
+                        </h3>
+                        <p className="text-[0.85rem] text-[#999] truncate">{getArtistName(song)}</p>
+                      </div>
+                      {playlist.source === 'auto' && (
+                        <span className="text-xs text-neutral-600 hidden sm:block">
+                          {(song.viewCount || 0).toLocaleString('zh-HK')} 瀏覽
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleMoreClick(e, song)}
+                      className="min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0 text-[#999] hover:text-white transition -my-1"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 14.96 2.54" fill="currentColor" aria-hidden>
+                        <circle cx="1.27" cy="1.27" r="1.27" />
+                        <circle cx="7.48" cy="1.27" r="1.27" />
+                        <circle cx="13.69" cy="1.27" r="1.27" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
           </div>
         )}
 
@@ -1072,7 +1467,24 @@ export default function PlaylistDetail({
           onAddToLiked={handleAddToLiked}
           onAddToPlaylist={handleAddToPlaylistClick}
           artistHref={selectedSong && (selectedSong.artistId || selectedSong.artist_id || selectedSong.artistSlug) ? `/artists/${selectedSong.artistId || selectedSong.artist_id || selectedSong.artistSlug}` : undefined}
+          externalItem={selectedSong?.playlistItemKind === 'external'}
+          spotifyUrl={selectedSong?.spotifyUrl || null}
+          onOpenSpotify={() => {
+            if (selectedSong?.spotifyUrl && typeof window !== 'undefined') {
+              window.open(selectedSong.spotifyUrl, '_blank', 'noopener,noreferrer')
+            }
+            setShowActionModal(false)
+          }}
+          onCopyTrackLabel={handleCopyChaksaTrackLabel}
           paddingBottom="env(safe-area-inset-bottom, 0)"
+        />
+
+        <ChaksaPasteTabLinkModal
+          open={!!chaksaPasteSong}
+          onClose={() => setChaksaPasteSong(null)}
+          playlistId={typeof id === 'string' ? id : Array.isArray(id) ? id[0] || '' : ''}
+          entryId={chaksaPasteSong?.chaksaEntryId || ''}
+          onSuccess={() => loadPlaylistData({ quiet: true })}
         />
 
         {/* 歌單「更多」- 底部彈出 Menu（同歌曲「更多」一樣 style） */}
@@ -1606,10 +2018,18 @@ export async function getStaticProps({ params }) {
     if (!playlistData) {
       return { props: { initialPlaylist: null, initialSongs: [], initialUniqueArtists: [], initialOtherPlaylists: [] }, revalidate: 60 }
     }
-    const songIds = playlistData.songIds || []
-    const { songs, uniqueArtists } = songIds.length > 0
-      ? await getPlaylistSongs(songIds)
-      : { songs: [], uniqueArtists: [] }
+    let songs = []
+    let uniqueArtists = []
+    if (isChaksaPlaylist(playlistData) && Array.isArray(playlistData.chartEntries) && playlistData.chartEntries.length > 0) {
+      const resolved = await resolveChaksaPlaylistItems(playlistData.chartEntries)
+      songs = resolved.songs
+      uniqueArtists = resolved.uniqueArtists
+    } else {
+      const songIds = playlistData.songIds || []
+      const res = songIds.length > 0 ? await getPlaylistSongs(songIds) : { songs: [], uniqueArtists: [] }
+      songs = res.songs
+      uniqueArtists = res.uniqueArtists
+    }
     const otherPlaylists = await getAllActivePlaylists()
     const autoFiltered = (otherPlaylists.auto || []).filter((p) => p.id !== id).slice(0, 2)
     const manualFiltered = (otherPlaylists.manual || []).filter((p) => p.id !== id).slice(0, 6)
