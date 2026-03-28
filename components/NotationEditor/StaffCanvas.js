@@ -1098,10 +1098,10 @@ const StaffCanvas = forwardRef(function StaffCanvas(
         return
       }
 
-      // 1 → toggle dotted, 2 → toggle tie, 3 → toggle tuplet
-      if (e.key === '1' && onToggleDivision) { e.preventDefault(); onToggleDivision(DIVISION_IDS.DOTTED); return }
-      if (e.key === '2' && onToggleDivision) { e.preventDefault(); onToggleDivision(DIVISION_IDS.TIE); return }
-      if (e.key === '3' && onToggleDivision) { e.preventDefault(); onToggleDivision(DIVISION_IDS.TUPLET); return }
+      // . → toggle dotted, l → toggle tie, ? → toggle tuplet
+      if (e.key === '.' && onToggleDivision) { e.preventDefault(); onToggleDivision(DIVISION_IDS.DOTTED); return }
+      if (e.key === 'l' && onToggleDivision) { e.preventDefault(); onToggleDivision(DIVISION_IDS.TIE); return }
+      if (e.key === '/' && onToggleDivision) { e.preventDefault(); onToggleDivision(DIVISION_IDS.TUPLET); return }
 
       // + → next duration, - → previous duration
       if ((e.key === '+' || e.key === '=') && onSelectDuration) {
