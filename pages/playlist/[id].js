@@ -38,7 +38,6 @@ function ChaksaSongRow({
   song,
   getArtistName,
   getSongThumbnail,
-  handleSongClick,
   handleMoreClick,
   playlistSource,
   showViewCount,
@@ -129,10 +128,10 @@ function ChaksaSongRow({
             {textBlock}
           </>
         ) : (
-          <button
-            type="button"
-            onClick={() => handleSongClick(song)}
-            className="flex min-w-0 flex-1 items-center gap-3 py-0 pl-0 pr-0 rounded-[7px] text-left bg-transparent border-0 cursor-pointer"
+          <Link
+            href={`/tabs/${song.id}`}
+            prefetch={false}
+            className="flex min-w-0 flex-1 items-center gap-3 py-0 pl-0 pr-0 rounded-[7px] text-left bg-transparent border-0 cursor-pointer text-inherit no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFD700]/40"
           >
             {thumbWithSupremeYear}
             {textBlock}
@@ -141,7 +140,7 @@ function ChaksaSongRow({
                 {(song.viewCount || 0).toLocaleString('zh-HK')} 瀏覽
               </span>
             )}
-          </button>
+          </Link>
         )}
       </div>
       <div className="flex shrink-0 items-center justify-end">
@@ -402,17 +401,6 @@ export default function PlaylistDetail({
   }
 
   const isChaksa = isChaksaPlaylist(playlist)
-
-  const handleSongClick = (song) => {
-    if (!song) return
-    if (song.playlistItemKind === 'external') {
-      if (song.spotifyUrl && typeof window !== 'undefined') {
-        window.open(song.spotifyUrl, '_blank', 'noopener,noreferrer')
-      }
-      return
-    }
-    router.push(`/tabs/${song.id}`)
-  }
 
   // 獲取排序後的歌曲列表（預設=撳排序 icon，歌手/年份/隨機）
   const getSortedSongs = () => {
@@ -1250,7 +1238,6 @@ export default function PlaylistDetail({
                   song={song}
                   getArtistName={getArtistName}
                   getSongThumbnail={getSongThumbnail}
-                  handleSongClick={handleSongClick}
                   handleMoreClick={handleMoreClick}
                   playlistSource={playlist.source}
                   showViewCount={false}
@@ -1279,7 +1266,6 @@ export default function PlaylistDetail({
                     song={song}
                     getArtistName={getArtistName}
                     getSongThumbnail={getSongThumbnail}
-                    handleSongClick={handleSongClick}
                     handleMoreClick={handleMoreClick}
                     playlistSource={playlist.source}
                     showViewCount={false}
@@ -1319,7 +1305,6 @@ export default function PlaylistDetail({
                           song={song}
                           getArtistName={getArtistName}
                           getSongThumbnail={getSongThumbnail}
-                          handleSongClick={handleSongClick}
                           handleMoreClick={handleMoreClick}
                           playlistSource={playlist.source}
                           showViewCount={playlist.source === 'auto'}
@@ -1333,10 +1318,10 @@ export default function PlaylistDetail({
                 ))
               : sortedSongs.map((song) => (
                   <div key={`${song.id}-${song.chartYear}-${song.chartPosition}`} className="group flex items-center gap-3 py-2 pl-0 pr-0 rounded-[7px] md:hover:bg-white/5 md:transition">
-                    <button
-                      type="button"
-                      onClick={() => handleSongClick(song)}
-                      className="flex-1 flex items-center gap-3 py-0 pl-0 pr-0 rounded-[7px] min-w-0 text-left bg-transparent border-0 cursor-pointer"
+                    <Link
+                      href={`/tabs/${song.id}`}
+                      prefetch={false}
+                      className="flex-1 flex items-center gap-3 py-0 pl-0 pr-0 rounded-[7px] min-w-0 text-left bg-transparent border-0 cursor-pointer text-inherit no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFD700]/40"
                     >
                       <div className="w-[49px] h-[49px] rounded-[5px] bg-neutral-800 flex-shrink-0 overflow-hidden">
                         {getSongThumbnail(song) ? (
@@ -1362,7 +1347,7 @@ export default function PlaylistDetail({
                           {(song.viewCount || 0).toLocaleString('zh-HK')} 瀏覽
                         </span>
                       )}
-                    </button>
+                    </Link>
                     <button
                       type="button"
                       onClick={(e) => handleMoreClick(e, song)}
