@@ -14,12 +14,15 @@ import Link from '@/components/Link'
 import { recordPlaylistView } from '@/lib/recentViews'
 import { useArtistMap } from '@/lib/useArtistMap'
 import { useAuth } from '@/contexts/AuthContext'
-import { Share, Heart, Music, User, Plus, Copy, ArrowLeft, Bookmark, ListMusic, ArrowUpDown, Pencil, X, Search, Crown } from 'lucide-react'
+import { Share, Heart, Music, User, Plus, Copy, ArrowLeft, Bookmark, ListMusic, ArrowUpDown, Pencil, X, Search, Crown, ChevronUp, ChevronDown } from 'lucide-react'
 import ChaksaPasteTabLinkModal from '@/components/chaksa/ChaksaPasteTabLinkModal'
 import { getTabsByIds, getArtistSlug } from '@/lib/tabs'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { auth } from '@/lib/firebase'
 import { toggleLikeSong, checkIsLiked, getUserPlaylists, addSongToPlaylist, createPlaylist, savePlaylistToLibrary, removeSavedPlaylist, checkIsPlaylistSaved, removeSongFromPlaylist } from '@/lib/playlistApi'
+
+/** 叱咤「至尊歌曲」預設顯示數量（與個人主頁「所有出譜」一致） */
+const CHAKSA_SUPREME_INITIAL = 10
 
 function serializePlaylistData(obj) {
   try {
@@ -211,6 +214,8 @@ export default function PlaylistDetail({
   const [chaksaPasteSong, setChaksaPasteSong] = useState(null)
   /** null = 顯示至尊歌曲 + 完整名單；數字 = 只顯示該年叱咤十大 */
   const [chaksaFocusYear, setChaksaFocusYear] = useState(null)
+  /** 至尊歌曲：預設只顯示頭 CHAKSA_SUPREME_INITIAL 首，與個人主頁「所有出譜」同款展開 */
+  const [chaksaSupremeExpanded, setChaksaSupremeExpanded] = useState(false)
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [hasMounted, setHasMounted] = useState(false)
 
@@ -344,6 +349,7 @@ export default function PlaylistDetail({
 
   useEffect(() => {
     setChaksaFocusYear(null)
+    setChaksaSupremeExpanded(false)
   }, [id])
 
   // 載入「是否已加入已收藏歌單」
@@ -1227,12 +1233,29 @@ export default function PlaylistDetail({
           </div>
         )}
 
-        {/* 叱咤：至尊歌曲（每年第 1 位）—揀咗單年時隱藏 */}
+        {/* 叱咤：至尊歌曲（每年第 1 位）—揀咗單年時隱藏；預設最多 10 首，展開方式同個人主頁「所有出譜」 */}
         {isChaksa && chaksaFocusYear === null && chaksaSupremeList.length > 0 && (
           <section className="mb-5" style={{ paddingLeft: '1rem', paddingRight: '1rem' }}>
-            <h2 className="font-bold text-white text-[1.2rem] md:text-[1.375rem] pb-3">至尊歌曲</h2>
-            <div>
-              {chaksaSupremeList.map((song) => (
+            <div className="flex items-center gap-2 mb-2">
+              <h2 className="font-bold text-white text-[1.2rem] md:text-[1.375rem]">至尊歌曲</h2>
+              {chaksaSupremeList.length > CHAKSA_SUPREME_INITIAL && (
+                <button
+                  type="button"
+                  onClick={() => setChaksaSupremeExpanded((prev) => !prev)}
+                  className="p-1 text-[#B3B3B3] hover:text-[#FFD700] transition flex-shrink-0"
+                  title={chaksaSupremeExpanded ? '收埋' : '展開'}
+                  aria-expanded={chaksaSupremeExpanded}
+                >
+                  {chaksaSupremeExpanded ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                </button>
+              )}
+            </div>
+            <div className="space-y-0">
+              {(chaksaSupremeExpanded ? chaksaSupremeList : chaksaSupremeList.slice(0, CHAKSA_SUPREME_INITIAL)).map((song) => (
                 <ChaksaSongRow
                   key={`sup-${song.id}-${song.chartYear}-${song.chartPosition}`}
                   song={song}
@@ -1246,6 +1269,18 @@ export default function PlaylistDetail({
                   supremeYearBadge
                 />
               ))}
+              {chaksaSupremeList.length > CHAKSA_SUPREME_INITIAL && !chaksaSupremeExpanded && (
+                <div className="flex justify-center mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setChaksaSupremeExpanded(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-neutral-600 text-white/90 text-xs hover:text-[#FFD700] hover:border-[#FFD700]/50 transition"
+                  >
+                    顯示全部
+                    <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
+                  </button>
+                </div>
+              )}
             </div>
           </section>
         )}
