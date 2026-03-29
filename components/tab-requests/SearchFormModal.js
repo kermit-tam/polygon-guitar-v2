@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import MusicNoteIcon from '@/components/icons/MusicNoteIcon'
 
 const SPOTIFY_ICON = (
@@ -31,13 +31,25 @@ const YOUTUBE_BADGE = (
   </span>
 )
 
-export default function SearchFormModal({ onClose, onSubmit, submitting }) {
+export default function SearchFormModal({ onClose, onSubmit, submitting, initialSongTitle = '', initialArtistName = '' }) {
   const [formData, setFormData] = useState({ songTitle: '', artistName: '' })
   const [searchResults, setSearchResults] = useState(null)
   const [multipleResults, setMultipleResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [searchSource, setSearchSource] = useState(null)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
+
+  useEffect(() => {
+    setFormData({
+      songTitle: initialSongTitle || '',
+      artistName: initialArtistName || ''
+    })
+    setSearchResults(null)
+    setMultipleResults([])
+    setSearchSource(null)
+    setShowConfirmModal(false)
+    setSearching(false)
+  }, [initialSongTitle, initialArtistName])
 
   const buildQuery = () =>
     formData.songTitle && formData.artistName

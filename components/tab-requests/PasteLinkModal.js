@@ -1,21 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-
-function parsePolygonTabLink(url) {
-  const s = (url || '').trim()
-  if (!s) return null
-  try {
-    const u = new URL(s)
-    const pathMatch = u.pathname.match(/^\/tabs\/([a-zA-Z0-9_-]+)$/)
-    if (!pathMatch) return null
-    const host = u.hostname.toLowerCase()
-    if (host === 'polygon.guitars' || host.endsWith('.polygon.guitars') || host === 'localhost' || host.startsWith('192.168.') || host.startsWith('127.0.0.1')) {
-      return pathMatch[1]
-    }
-    return null
-  } catch {
-    return null
-  }
-}
+import { parsePolygonTabLink } from '@/lib/polygonTabLink'
 
 export default function PasteLinkModal({ request, user, onClose, setRequests, refreshCache }) {
   const [pastedLink, setPastedLink] = useState('')

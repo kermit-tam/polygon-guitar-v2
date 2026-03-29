@@ -7,6 +7,7 @@
 
 import { getPlaylistPageCache, setPlaylistPageCache } from '@/lib/playlistPageCache'
 import { getPlaylist, getPlaylistSongs, getAllActivePlaylists } from '@/lib/playlists'
+import { isChaksaPlaylist, resolveChaksaPlaylistItems } from '@/lib/chaksaPlaylist'
 import { toSlimSongs } from '@/lib/playlistSlim'
 
 function serializePayload(obj) {
@@ -37,10 +38,18 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Playlist not found' })
     }
 
-    const songIds = playlistData.songIds || []
-    const { songs, uniqueArtists } = songIds.length > 0
-      ? await getPlaylistSongs(songIds)
-      : { songs: [], uniqueArtists: [] }
+    let songs = []
+    let uniqueArtists = []
+    if (isChaksaPlaylist(playlistData) && Array.isArray(playlistData.chartEntries) && playlistData.chartEntries.length > 0) {
+      const resolved = await resolveChaksaPlaylistItems(playlistData.chartEntries)
+      songs = resolved.songs
+      uniqueArtists = resolved.uniqueArtists
+    } else {
+      const songIds = playlistData.songIds || []
+      const res = songIds.length > 0 ? await getPlaylistSongs(songIds) : { songs: [], uniqueArtists: [] }
+      songs = res.songs
+      uniqueArtists = res.uniqueArtists
+    }
     const slimSongs = toSlimSongs(songs)
     const otherPlaylists = await getAllActivePlaylists()
 

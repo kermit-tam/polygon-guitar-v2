@@ -12,6 +12,7 @@ import {
   updatePlaylist,
   AUTO_PLAYLIST_TYPES
 } from '@/lib/playlists'
+import { isChaksaPlaylist } from '@/lib/chaksaPlaylist'
 import { getTabsByIds } from '@/lib/tabs'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { ArrowLeft, BarChart2, Sparkles } from 'lucide-react'
@@ -370,7 +371,8 @@ function PlaylistAdmin() {
       theme: '主題', 
       series: '系列',
       mood: '場景',
-      custom: '精選'
+      custom: '精選',
+      chaksa: '叱咤十大'
     }
     return labels[type] || '精選'
   }
@@ -575,12 +577,17 @@ function PlaylistAdmin() {
                 </svg>
                 拖曳歌單可調整排序
               </p>
-              <Link href="/admin/playlists/new" className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFD700] text-black rounded-lg font-medium hover:opacity-90 transition text-sm">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                新增精選歌單
-              </Link>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <Link href="/admin/playlists/chaksa/new" className="inline-flex items-center gap-2 px-4 py-2 bg-[#282828] text-[#FFD700] border border-[#FFD700]/40 rounded-lg font-medium hover:bg-[#3E3E3E] transition text-sm">
+                  新增叱咤歌單
+                </Link>
+                <Link href="/admin/playlists/new" className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFD700] text-black rounded-lg font-medium hover:opacity-90 transition text-sm">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  新增精選歌單
+                </Link>
+              </div>
             </div>
 
             {/* Manual Playlist List - Compact with Drag */}
@@ -650,9 +657,17 @@ function PlaylistAdmin() {
                         <p className="text-xs text-neutral-500 mt-0.5">{(playlist.description || '無描述').length > 8 ? (playlist.description || '無描述').slice(0, 8) + '…' : (playlist.description || '無描述')}</p>
                         <div className="flex items-center justify-between mt-1.5">
                           <p className="text-xs text-neutral-600">
-                            {playlist.songIds?.length || 0} 首 • {getTypeLabel(playlist.manualType)}
+                            {(isChaksaPlaylist(playlist) ? playlist.chartEntries?.length : playlist.songIds?.length) || 0} 首 • {getTypeLabel(playlist.manualType)}
                           </p>
                           <div className="flex items-center gap-1">
+                            {isChaksaPlaylist(playlist) && (
+                              <Link href={`/admin/playlists/chaksa/${playlist.id}`}
+                                className="p-1.5 text-[#FFD700] hover:text-white transition" title="編輯叱咤榜單">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </Link>
+                            )}
                             <button onClick={() => openCoverGenerator(playlist)}
                               className="p-1.5 text-neutral-500 hover:text-[#FFD700] transition" title="生成封面">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
