@@ -102,18 +102,21 @@ function transposeChordLine(line, semitones, preserveBarSpacing = false, preferF
   
   const normalizedLine = normalizeChordSpacing(line, preserveBarSpacing);
   const barOut = preserveBarSpacing ? '|' : ' |';
-  let out = normalizedLine.replace(/([\|｜]\s*|\s+)([A-G][#b]?[^\s|｜]*|-)|([\|｜])/g, (match, separator, chord, barOnly) => {
+  // (^|…)：行首第一個和弦（如「C Em/B」）前面冇空白/|，舊 regex 會漏轉
+  let out = normalizedLine.replace(/(^|[\|｜]\s*|\s+)([A-G][#b]?[^\s|｜]*|-)|([\|｜])/g, (match, separator, chord, barOnly) => {
     if (barOnly === '|' || barOnly === '｜') return barOut;
     const hasBar = separator && (/[\|｜]/.test(separator));
     const leadingSpace = separator && separator.match(/\s*$/)?.[0] || '';
+    const atLineStart = separator === '';
+    const prefix = hasBar ? barOut : (atLineStart ? '' : (leadingSpace || ' '));
     if (chord === '-') {
-      return (hasBar ? barOut : leadingSpace || ' ') + '-';
+      return prefix + '-';
     }
     const hasDash = chord.endsWith('-');
     const cleanChord = hasDash ? chord.slice(0, -1) : chord;
     const transposed = transposeChord(cleanChord, semitones, preferFlats);
     const result = hasDash ? transposed + '-' : transposed;
-    return (hasBar ? barOut : leadingSpace || ' ') + result;
+    return prefix + result;
   })
   // 「C /B」「Am /G」：空格或 | 後嘅 /根音（唔係 E7/G# 嗰種，因前面唔係空白）
   out = out.replace(/(^|[\s|])(\/[A-G][#b]?)(?=[\s|]|$)/g, (m, pre, slashBass) => pre + transposeSlashBassOnly(slashBass, semitones, preferFlats))
