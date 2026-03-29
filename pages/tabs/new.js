@@ -585,22 +585,29 @@ export default function NewTab() {
         if (empty(cleanFormData.producer) && parsedCredits.producer) cleanFormData.producer = parsedCredits.producer
       }
 
-      // 強制使用個人主頁嘅出譜者名稱；若未設則自動生成並寫入 users（寫入樂譜嘅名唔可以係空）
-      let penNameToUse = (formData.uploaderPenName || '').trim() || '結他友'
+      // 一般用户：強制用個人主頁 penName（與個人主頁同步）。Admin 有填「出譜者名稱」則以表單為準，唔好覆蓋成自己帳號個名。
+      const penNameFromForm = (formData.uploaderPenName || '').trim()
+      let penNameToUse = penNameFromForm || '結他友'
       try {
         const userRef = doc(db, 'users', user.uid)
         const userSnap = await getDoc(userRef)
         if (userSnap.exists()) {
           const userData = userSnap.data()
           const fromProfile = (userData.penName || '').trim()
-          if (fromProfile) {
-            penNameToUse = fromProfile
+          const useProfilePenName = !isAdmin || !penNameFromForm
+          if (useProfilePenName) {
+            if (fromProfile) {
+              penNameToUse = fromProfile
+            } else {
+              penNameToUse = (userData.displayName || '').trim() || (userData.email || '').split('@')[0]?.trim() || '結他友'
+              await updateDoc(userRef, { penName: penNameToUse, updatedAt: new Date().toISOString() })
+            }
           } else {
-            penNameToUse = (userData.displayName || '').trim() || (userData.email || '').split('@')[0]?.trim() || '結他友'
-            await updateDoc(userRef, { penName: penNameToUse, updatedAt: new Date().toISOString() })
+            penNameToUse = penNameFromForm
           }
         }
       } catch (_) {}
+      if (!penNameToUse) penNameToUse = '結他友'
       const submitData = {
         ...cleanFormData,
         uploaderPenName: penNameToUse
