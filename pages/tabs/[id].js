@@ -1561,18 +1561,17 @@ export default function TabDetail({ initialTab, artist }) {
               aria-hidden
             />
             <div
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(100%-2rem,20rem)] max-h-[min(75vh,100%-2rem)] z-[2147483641] bg-[#121212] rounded-2xl border border-neutral-700 overflow-hidden flex flex-col shadow-xl"
-              style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(100%-2rem,20rem)] z-[2147483641] bg-[#121212] rounded-2xl border border-neutral-700 overflow-hidden shadow-xl"
               role="dialog"
               aria-modal="true"
               aria-labelledby="alternate-versions-title"
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a] shrink-0">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-[#2a2a2a]">
                 <h3 id="alternate-versions-title" className="text-white font-bold text-base pr-2">其他版本</h3>
                 <button
                   type="button"
                   onClick={() => setShowAlternateVersionsModal(false)}
-                  className="p-2 text-neutral-400 hover:text-white rounded-lg shrink-0"
+                  className="p-1.5 text-neutral-400 hover:text-white rounded-lg shrink-0"
                   aria-label="關閉"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
@@ -1580,7 +1579,11 @@ export default function TabDetail({ initialTab, artist }) {
                   </svg>
                 </button>
               </div>
-              <ul className="overflow-y-auto px-2 py-2 space-y-1">
+              {/* max-h 只加喺 ul：少項目時視窗貼內容；多項目先捲動（避免整個 dialog flex+max-h 喺 Safari 撑出大片底空） */}
+              <ul
+                className="overflow-y-auto overflow-x-hidden px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] space-y-1 max-h-[min(60vh,calc(100svh-8rem))]"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
                 {alternateUploaderVersions.map((row) => {
                   const pen = row.uploaderPenName?.trim() || '—'
                   return (
@@ -1591,7 +1594,7 @@ export default function TabDetail({ initialTab, artist }) {
                         className="flex items-center gap-1.5 min-w-0 w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#1a1a1a] transition"
                       >
                         <span className="flex-1 min-w-0 truncate text-base font-bold text-white">{row.title || tab.title}</span>
-                        <ChordLogPenIcon className="h-[18px] w-[18px] text-[#FFD700]" />
+                        <ChordLogPenIcon className="h-[18px] w-[18px] shrink-0 text-[#FFD700]" />
                         <span className="min-w-0 max-w-[42%] sm:max-w-[45%] truncate text-xs font-medium text-[#B3B3B3]">{pen}</span>
                       </Link>
                     </li>
