@@ -38,7 +38,6 @@ import {
   mergeCachedAndPrevNotationBlocks,
 } from '@/lib/notationBlocks'
 import { notationSnapshotToAlphaTex } from '@/lib/notationToAlphaTex'
-import { normalizePlayKeyForTab } from '@/lib/keyUtils'
 import {
   readTabEditNotationCache,
   writeTabEditNotationCache,
@@ -570,7 +569,13 @@ export default function EditTab() {
           artistType: fallbackArtistType,
           originalKey: data.originalKey || 'C',
           capo: data.capo || '',
-          playKey: normalizePlayKeyForTab(data.originalKey || 'C', data.capo, data.playKey) || '',
+          playKey: (() => {
+            const o = data.originalKey || 'C'
+            const p = data.playKey || ''
+            if (!p) return ''
+            if (o.endsWith('m') !== p.endsWith('m')) return '' // major/minor 唔一致時當「同原調」
+            return p
+          })(),
           content: data.content,
           artistPhoto: artistPhoto || data.artistPhoto || '',
           artistBio: data.artistBio || '',
