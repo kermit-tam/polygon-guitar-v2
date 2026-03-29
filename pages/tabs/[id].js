@@ -463,6 +463,12 @@ export default function TabDetail({ initialTab, artist }) {
     setShowAlternateVersionsModal(false)
   }, [id])
 
+  // 自動滾動時持續 scrollBy／rAF 會干擾頂欄撳掣；彈窗一出即停滾動
+  useEffect(() => {
+    if (!showAlternateVersionsModal) return
+    setTabPageIsAutoScroll(false)
+  }, [showAlternateVersionsModal])
+
   useEffect(() => {
     if (!tab?.id) {
       setAlternateUploaderVersions([])
@@ -1050,7 +1056,10 @@ export default function TabDetail({ initialTab, artist }) {
           {alternateUploaderVersions.length > 0 && (
             <button
               type="button"
-              onClick={() => setShowAlternateVersionsModal(true)}
+              onClick={() => {
+                setTabPageIsAutoScroll(false)
+                setShowAlternateVersionsModal(true)
+              }}
               className="shrink-0 text-[10px] sm:text-xs font-semibold px-2 py-1 rounded-full border border-[#00ffab] text-[#00ffab] bg-[#00ffab]/10 hover:bg-[#00ffab]/20 transition leading-none"
               title="其他出譜人版本"
             >
