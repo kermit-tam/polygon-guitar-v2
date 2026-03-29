@@ -84,6 +84,65 @@ function applyDraftPayload(setters, d) {
  * @param {string} [props.className] — wrapper class
  * @param {boolean} [props.compactChrome] — tighter padding when inside modal
  */
+
+const KEY = ({ children }) => (
+  <span className="inline-flex items-center justify-center border border-[#666] rounded-[5px] text-[#aaa] font-mono" style={{ minWidth: '1.4em', height: '1.5em', padding: '0 4px' }}>{children}</span>
+)
+
+const ArrowKey = ({ rotate, marginTop, children }) => (
+  <KEY><span style={{ display: 'inline-block', ...(rotate ? { transform: `rotate(${rotate}deg)` } : {}), ...(marginTop ? { marginTop } : {}) }}>{children}</span></KEY>
+)
+
+const SHORTCUTS = [
+  { keys: [<ArrowKey key="tab">TAB</ArrowKey>],                              label: '新增段落' },
+  { keys: [<ArrowKey key="r">→</ArrowKey>],                                  label: '新增拍子 / 前往下一拍' },
+  { keys: [<ArrowKey key="l" rotate={180} marginTop="3px">→</ArrowKey>],     label: '前往上一拍' },
+  { keys: [<ArrowKey key="u" rotate={180}>↓</ArrowKey>, <ArrowKey key="d">↓</ArrowKey>], label: '選擇結他線' },
+  { keys: [<ArrowKey key="+">+</ArrowKey>, <ArrowKey key="-">-</ArrowKey>],  label: '切換音符時值' },
+  { keys: [<ArrowKey key=".">.</ArrowKey>],                                  label: '附點' },
+  { keys: [<ArrowKey key="l2">l</ArrowKey>],                                 label: '連音線' },
+  { keys: [<ArrowKey key="/">/</ArrowKey>],                                  label: '連音組' },
+]
+
+function ShortcutsPopup() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-[#999] hover:text-[#ccc] transition-colors"
+      >
+        <span className="rounded-full text-xs flex items-center justify-center leading-none shrink-0" style={{ width: '1rem', height: '1rem', border: '2px solid #666' }}>i</span>
+        <span className="text-xs">快捷鍵</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-7 z-50 bg-[#1a1a1a] border border-[#444] rounded-lg p-3 shadow-xl text-[#999] text-xs min-w-[240px]">
+          <div className="grid gap-y-1.5" style={{ gridTemplateColumns: 'auto 1fr' }}>
+            {SHORTCUTS.map(({ keys, label }) => (
+              <>
+                <div className="flex items-center gap-1 pr-3">
+                  {keys}
+                </div>
+                <span className="flex items-center">{label}</span>
+              </>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function NotationEditorWorkspace({
   draftScopeId,
   initialData = null,
@@ -406,11 +465,7 @@ export default function NotationEditorWorkspace({
       <div>
         <div className={`${maxW} ${padEditorRow}`}>
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm text-[#999]">
-              <span class="whitespace-nowrap mr-3"><span class="border border-[#666] px-[5px] rounded-[6px] mt-2 mr-1">TAB</span>新增拍子</span>
-              <span class="whitespace-nowrap mr-3"><span class="border border-[#666] px-[3px] rounded-[6px] mt-2 mr-1">←</span><span class="border border-[#666] px-[3px] rounded-[6px] mr-1 mt-2">→</span>選擇拍子</span>
-              <span class="whitespace-nowrap mr-3"><span class="border border-[#666] px-[3px] rounded-[6px] mt-2 mr-1">↑</span><span class="border border-[#666] px-[3px] rounded-[6px] mr-1 mt-2">↓</span>選擇結他線</span>
-            </h2>
+            <ShortcutsPopup />
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
