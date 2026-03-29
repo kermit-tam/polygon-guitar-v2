@@ -5,6 +5,7 @@ import { auth } from '@/lib/firebase'
 import { useRouter } from 'next/router'
 import Link from '@/components/Link'
 import { getTab, getTabCached, setTabCache, clearTabCache, deleteTab, incrementViewCount, getArtistByIdOrSlug, getTabArtistId, getTabArtistIds } from '@/lib/tabs'
+import { findAlternateUploaderVersions } from '@/lib/tabAlternateVersions'
 import { useAuth } from '@/contexts/AuthContext'
 import Layout from '@/components/Layout'
 import TabContent from '@/components/TabContent'
@@ -29,6 +30,24 @@ const InstagramIcon = ({ className }) => (
     <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
     <circle cx="12" cy="12" r="4" />
     <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" />
+  </svg>
+)
+
+/** CHORD LOG 風格：斜鉛筆 + 底線（24 方格，用固定正方形尺寸避免 flex 拉扁） */
+const ChordLogPenIcon = ({ className = '' }) => (
+  <svg
+    className={`shrink-0 aspect-square ${className}`}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    preserveAspectRatio="xMidYMid meet"
+    aria-hidden
+  >
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
   </svg>
 )
 import { toggleLikeSong, checkIsLiked, getUserPlaylists, addSongToPlaylist, createPlaylist, removeSongFromPlaylist } from '@/lib/playlistApi'
@@ -120,6 +139,8 @@ export default function TabDetail({ initialTab, artist }) {
   const [chordSheetHeightPx, setChordSheetHeightPx] = useState(null)
   const [showFloatingControls, setShowFloatingControls] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const [alternateUploaderVersions, setAlternateUploaderVersions] = useState([])
+  const [showAlternateVersionsModal, setShowAlternateVersionsModal] = useState(false)
   const [ytPlaying, setYtPlaying] = useState(false)
   const [ytCurrentTime, setYtCurrentTime] = useState(0)
   const [ytDuration, setYtDuration] = useState(0)
@@ -427,6 +448,57 @@ export default function TabDetail({ initialTab, artist }) {
       setMenuTabLiked(false);
     }
   }, [user, tab?.id]);
+
+  const alternateVersionsKey = tab
+    ? [
+        tab.id,
+        tab.title,
+        tab.uploaderPenName || '',
+        getTabArtistId(tab),
+        JSON.stringify(getTabArtistIds(tab)),
+      ].join('\0')
+    : ''
+
+  useEffect(() => {
+    setShowAlternateVersionsModal(false)
+  }, [id])
+
+  useEffect(() => {
+    if (!tab?.id) {
+      setAlternateUploaderVersions([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        let catalogTabs = null
+        try {
+          const raw = typeof window !== 'undefined' && localStorage.getItem('searchPageData')
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed.tabs) && Date.now() - (parsed.ts || 0) < 45_000) {
+              catalogTabs = parsed.tabs
+            }
+          }
+        } catch {}
+        if (!catalogTabs) {
+          const r = await fetch('/api/search-data')
+          const data = r.ok ? await r.json() : null
+          catalogTabs = data?.tabs || []
+          try {
+            if (typeof window !== 'undefined' && data && !data.error) {
+              localStorage.setItem('searchPageData', JSON.stringify({ ...data, ts: Date.now() }))
+            }
+          } catch {}
+        }
+        if (cancelled) return
+        setAlternateUploaderVersions(findAlternateUploaderVersions(tab, catalogTabs))
+      } catch {
+        if (!cancelled) setAlternateUploaderVersions([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [alternateVersionsKey])
 
   // 加入歌單需要歌單列表：優先用 cache，無 cache 才 Firestore
   useEffect(() => {
@@ -975,6 +1047,17 @@ export default function TabDetail({ initialTab, artist }) {
             <ArrowLeft className="w-6 h-6" strokeWidth={1.75} />
           </button>
           <div className="flex items-center gap-0.5 sm:gap-1">
+          {alternateUploaderVersions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAlternateVersionsModal(true)}
+              className="shrink-0 text-[10px] sm:text-xs font-semibold px-2 py-1 rounded-full border border-[#00ffab] text-[#00ffab] bg-[#00ffab]/10 hover:bg-[#00ffab]/20 transition leading-none"
+              title="其他出譜人版本"
+            >
+              其他版本
+              <span className="ml-0.5 tabular-nums opacity-90">{alternateUploaderVersions.length}</span>
+            </button>
+          )}
           {videoId && (
             <button onClick={toggleYtPlay} className={`p-1.5 transition ${ytPlaying ? 'text-[#FFD700]' : 'text-neutral-400 hover:text-white'}`} title={ytPlaying ? '暫停' : '播放'}>
               {ytPlaying ? (
@@ -1457,6 +1540,55 @@ export default function TabDetail({ initialTab, artist }) {
                 )}
               </div>
               </div>
+            </div>
+          </>
+        )}
+
+        {showAlternateVersionsModal && alternateUploaderVersions.length > 0 && (
+          <>
+            <div
+              className="fixed inset-0 bg-black/70 z-[2147483640]"
+              onClick={() => setShowAlternateVersionsModal(false)}
+              aria-hidden
+            />
+            <div
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(100%-2rem,20rem)] max-h-[min(75vh,100%-2rem)] z-[2147483641] bg-[#121212] rounded-2xl border border-neutral-700 overflow-hidden flex flex-col shadow-xl"
+              style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="alternate-versions-title"
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a] shrink-0">
+                <h3 id="alternate-versions-title" className="text-white font-bold text-base pr-2">其他版本</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAlternateVersionsModal(false)}
+                  className="p-2 text-neutral-400 hover:text-white rounded-lg shrink-0"
+                  aria-label="關閉"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <ul className="overflow-y-auto px-2 py-2 space-y-1">
+                {alternateUploaderVersions.map((row) => {
+                  const pen = row.uploaderPenName?.trim() || '—'
+                  return (
+                    <li key={row.id}>
+                      <Link
+                        href={`/tabs/${row.id}`}
+                        onClick={() => setShowAlternateVersionsModal(false)}
+                        className="flex items-center gap-1.5 min-w-0 w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#1a1a1a] transition"
+                      >
+                        <span className="flex-1 min-w-0 truncate text-base font-bold text-white">{row.title || tab.title}</span>
+                        <ChordLogPenIcon className="h-[18px] w-[18px] text-[#FFD700]" />
+                        <span className="min-w-0 max-w-[42%] sm:max-w-[45%] truncate text-xs font-medium text-[#B3B3B3]">{pen}</span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
           </>
         )}
