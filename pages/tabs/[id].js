@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { pacificTime } from '@/lib/logTime'
 import { auth } from '@/lib/firebase'
@@ -55,7 +55,7 @@ import { isSongLikedInCache, getPlaylistsFromCache } from '@/lib/userLibraryCach
 import Head from 'next/head'
 import { generateTabTitle, generateTabDescription, generateTabSchema, generateBreadcrumbSchema, getAbsoluteOgImage } from '@/lib/seo'
 import { siteConfig } from '@/lib/seo'
-import { calculateCapo, getKeyOptions } from '@/lib/keyUtils'
+import { calculateCapo, getKeyOptions, getChordShapeBaseKey } from '@/lib/keyUtils'
 import { getTransposedUniqueChordsFromContent } from '@/lib/chordUtils'
 import ChordDiagramBottomSheet, { CHORD_SHEET_MAX_HEIGHT } from '@/components/ChordDiagramBottomSheet'
 import { tabUploaderPenNameMatchesUser } from '@/lib/tabEditPermission'
@@ -169,6 +169,12 @@ export default function TabDetail({ initialTab, artist }) {
   // Fallback: when tab has no artistPhoto, get from search-data API (cache, no extra Firestore reads). Remove after backfill.
   const [fallbackArtistPhoto, setFallbackArtistPhoto] = useState(null)
 
+  /** 和弦譜實際形狀基準調（修正匯入時「有 Capo、彈奏 Key 空／等於原調」） */
+  const chordShapeBaseKey = useMemo(
+    () => getChordShapeBaseKey(tab),
+    [tab?.id, tab?.originalKey, tab?.capo, tab?.playKey]
+  )
+
   const handleChordSheetHeight = useCallback((h) => {
     if (typeof h === 'number' && h > 0) setChordSheetHeightPx(h)
   }, [])
@@ -195,13 +201,13 @@ export default function TabDetail({ initialTab, artist }) {
       setIsLoading(true)
     } else if (fromInitial) {
       setTab(initialTab)
-      setCurrentKey(queryKey || initialTab.playKey || initialTab.originalKey || 'C')
+      setCurrentKey(queryKey || initialTab.originalKey || initialTab.playKey || 'C')
       setRatingData({ averageRating: initialTab.averageRating || 0, ratingCount: initialTab.ratingCount || 0 })
       setShowInfo(false)
       setIsLoading(false)
     } else if (cached) {
       setTab(cached)
-      setCurrentKey(queryKey || cached.playKey || cached.originalKey || 'C')
+      setCurrentKey(queryKey || cached.originalKey || cached.playKey || 'C')
       setRatingData({ averageRating: cached.averageRating || 0, ratingCount: cached.ratingCount || 0 })
       setShowInfo(false)
       setIsLoading(false)
@@ -232,7 +238,7 @@ export default function TabDetail({ initialTab, artist }) {
       }
       setTabCache(id, initialTab)
       setTab(initialTab)
-      setCurrentKey(queryKey || initialTab.playKey || initialTab.originalKey || 'C')
+      setCurrentKey(queryKey || initialTab.originalKey || initialTab.playKey || 'C')
       setRatingData({ averageRating: initialTab.averageRating || 0, ratingCount: initialTab.ratingCount || 0 })
       setShowInfo(false)
       setIsLoading(false)
@@ -345,7 +351,7 @@ export default function TabDetail({ initialTab, artist }) {
         setTabCache(id, data)
 
         setTab(data)
-        setCurrentKey(queryKey || data.playKey || data.originalKey || 'C')
+        setCurrentKey(queryKey || data.originalKey || data.playKey || 'C')
         setShowInfo(false)
         setRatingData({
           averageRating: data.averageRating || 0,
@@ -966,8 +972,8 @@ export default function TabDetail({ initialTab, artist }) {
   })()
 
   const hasSongInfo = tab.songYear || tab.composer || tab.lyricist || tab.arranger || tab.producer || tab.album || tab.uploaderPenName
-  const baseKeyForChords = tab.playKey || tab.originalKey || 'C'
-  const selectedKeyForChords = currentKey || tab.playKey || tab.originalKey || 'C'
+  const baseKeyForChords = chordShapeBaseKey
+  const selectedKeyForChords = currentKey || tab.originalKey || chordShapeBaseKey || 'C'
   const tabChords = tab.content
     ? getTransposedUniqueChordsFromContent(tab.content, baseKeyForChords, selectedKeyForChords)
     : []
@@ -1202,10 +1208,10 @@ export default function TabDetail({ initialTab, artist }) {
               <div className="flex flex-nowrap items-center gap-2 text-xs whitespace-nowrap min-h-6 md:min-h-7 overflow-x-auto scrollbar-hide">
                 <span className="flex-shrink-0 text-neutral-400">原調: <span className="text-white">{tab.originalKey || 'C'}</span></span>
                 <span className="flex-shrink-0 text-neutral-600">→</span>
-                <span className="flex-shrink-0 text-neutral-400">PLAY: <span className="text-[#FFD700] font-medium">{currentKey || tab.playKey || tab.originalKey || 'C'}</span></span>
+                <span className="flex-shrink-0 text-neutral-400">PLAY: <span className="text-[#FFD700] font-medium">{currentKey || tab.originalKey || chordShapeBaseKey || 'C'}</span></span>
                 {(() => {
                   const orig = tab.originalKey || 'C'
-                  const play = currentKey || tab.playKey || tab.originalKey || 'C'
+                  const play = currentKey || tab.originalKey || chordShapeBaseKey || 'C'
                   const capo = calculateCapo(orig, play)
                   return capo > 0 ? (
                     <span className="flex-shrink-0 bg-[#FFD700] text-black text-[10px] md:text-xs px-1.5 py-0.5 md:px-2 md:py-1 rounded font-medium">Capo {capo}</span>
@@ -1215,8 +1221,8 @@ export default function TabDetail({ initialTab, artist }) {
             </div>
             <div className="max-md:w-screen max-md:ml-[calc(-50vw+50%)] md:w-full md:ml-0 box-border">
               <div className="flex flex-nowrap max-md:justify-between md:justify-start gap-0.5 overflow-x-auto scrollbar-hide px-4 max-md:w-full md:w-auto">
-                {getKeyOptions(tab.playKey || tab.originalKey || 'C').map((key) => {
-                  const isCurrent = key === (currentKey || tab.playKey || tab.originalKey || 'C')
+                {getKeyOptions(chordShapeBaseKey).map((key) => {
+                  const isCurrent = key === (currentKey || tab.originalKey || chordShapeBaseKey || 'C')
                   return (
                     <button key={key} onClick={() => setCurrentKey(key)} className={`flex-shrink-0 w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center text-xs sm:text-sm md:text-base font-medium transition ${isCurrent ? 'bg-[#FFD700] text-black' : 'bg-neutral-700 text-black hover:bg-neutral-600 hover:text-black'}`}>
                       {key}
@@ -1355,8 +1361,8 @@ export default function TabDetail({ initialTab, artist }) {
         <TabContent 
           content={tab.content} 
           originalKey={tab.originalKey || 'C'}
-          playKey={tab.playKey}
-          initialKey={currentKey || tab.playKey || tab.originalKey}
+          playKey={chordShapeBaseKey}
+          initialKey={currentKey || tab.originalKey || chordShapeBaseKey}
           onKeyChange={setCurrentKey}
           fullWidth
           theme={theme}
