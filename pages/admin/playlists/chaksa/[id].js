@@ -97,7 +97,9 @@ function EditChaksaPlaylist() {
         const tabs = await getTabsByIds(tabIds)
         const map = {}
         tabs.forEach((t) => {
-          map[t.id] = `${t.title} — ${t.artistName || t.artist || ''}`
+          const pen = (t.uploaderPenName || '').trim()
+          const artist = t.artistName || t.artist || ''
+          map[t.id] = pen ? `${t.title} — ${artist} · 出譜：${pen}` : `${t.title} — ${artist}`
         })
         setTabLabels(map)
       } else {
@@ -188,7 +190,12 @@ function EditChaksaPlaylist() {
         tabId: tab.id
       }
     }))
-    setTabLabels((prev) => ({ ...prev, [tab.id]: `${tab.title} — ${tab.artistName || tab.artist || artistMapRef.current.get(tab.artistId) || ''}` }))
+    const artistLine = tab.artistName || tab.artist || artistMapRef.current.get(tab.artistId) || ''
+    const pen = (tab.uploaderPenName || '').trim()
+    setTabLabels((prev) => ({
+      ...prev,
+      [tab.id]: pen ? `${tab.title} — ${artistLine} · 出譜：${pen}` : `${tab.title} — ${artistLine}`
+    }))
     setPickYear(null)
     setPickPosition(null)
   }
@@ -241,7 +248,8 @@ function EditChaksaPlaylist() {
     return catalog
       .filter((t) => {
         const an = (t.artistName || t.artist || artistMapRef.current.get(t.artistId) || '').toLowerCase()
-        return (t.title || '').toLowerCase().includes(q) || an.includes(q)
+        const pen = (t.uploaderPenName || '').toLowerCase()
+        return (t.title || '').toLowerCase().includes(q) || an.includes(q) || pen.includes(q)
       })
       .slice(0, 80)
   }, [pickQuery, catalog])
@@ -398,9 +406,15 @@ function EditChaksaPlaylist() {
                     onClick={() => applyTabPick(tab)}
                     className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-sm text-white"
                   >
-                    {tab.title}{' '}
-                    <span className="text-neutral-500">
-                      — {tab.artistName || tab.artist || artistMapRef.current.get(tab.artistId) || ''}
+                    <span className="break-words">
+                      {tab.title}
+                      <span className="text-neutral-500">
+                        {' '}
+                        — {tab.artistName || tab.artist || artistMapRef.current.get(tab.artistId) || ''}
+                      </span>
+                      {(tab.uploaderPenName || '').trim() ? (
+                        <span className="text-neutral-600"> · 出譜：{(tab.uploaderPenName || '').trim()}</span>
+                      ) : null}
                     </span>
                   </button>
                 </li>
