@@ -17,7 +17,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Share, Heart, Music, User, Plus, Copy, ArrowLeft, Bookmark, ListMusic, ArrowUpDown, Pencil, X, Search, Crown, ChevronUp, ChevronDown } from 'lucide-react'
 import ChaksaPasteTabLinkModal from '@/components/chaksa/ChaksaPasteTabLinkModal'
 import { getTabsByIds, getArtistSlug } from '@/lib/tabs'
-import { siteConfig, getAbsoluteOgImage } from '@/lib/seo'
+import { siteConfig, getAbsoluteOgImage, getOgImage } from '@/lib/seo'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { auth } from '@/lib/firebase'
 import { toggleLikeSong, checkIsLiked, getUserPlaylists, addSongToPlaylist, createPlaylist, savePlaylistToLibrary, removeSavedPlaylist, checkIsPlaylistSaved, removeSongFromPlaylist } from '@/lib/playlistApi'
@@ -919,9 +919,9 @@ export default function PlaylistDetail({
           <meta name="theme-color" content="transparent" />
           <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
           <meta property="og:title" content={initialPlaylist?.title ? `${initialPlaylist.title} | Polygon Guitar` : 'Polygon Guitar'} />
-          <meta property="og:image" content={getAbsoluteOgImage(initialPlaylist?.coverImage)} />
+          <meta property="og:image" content={getOgImage(initialPlaylist?.coverImage)} />
           <meta name="twitter:card" content="summary_large_image" />
-          <meta name="twitter:image" content={getAbsoluteOgImage(initialPlaylist?.coverImage)} />
+          <meta name="twitter:image" content={getOgImage(initialPlaylist?.coverImage)} />
         </Head>
         <div className="relative z-10 min-h-screen pb-24 pt-[env(safe-area-inset-top)] bg-black">
           <div className="h-64 bg-neutral-800/50 animate-pulse" />
@@ -940,7 +940,7 @@ export default function PlaylistDetail({
   const seoTitle = `${playlist.title} | Polygon Guitar`
   const seoDescription = playlist.description || `${playlist.title} — Polygon Guitar 精選歌單`
   const seoUrl = `${siteConfig.url}/playlist/${id}`
-  const ogImage = getAbsoluteOgImage(playlist.coverImage)
+  const ogImage = getOgImage(playlist.coverImage)
 
   return (
     <Layout fullWidth hideHeader>

@@ -18,7 +18,7 @@ import { recordView } from '../../lib/libraryRecentViews';
 import { ArtistHeroImage } from '../../components/ArtistImage';
 import Layout from '../../components/Layout';
 import Head from 'next/head';
-import { generateArtistTitle, generateArtistDescription, generateArtistSchema, generateBreadcrumbSchema, siteConfig, getAbsoluteOgImage } from '../../lib/seo';
+import { generateArtistTitle, generateArtistDescription, generateArtistSchema, generateBreadcrumbSchema, siteConfig, getAbsoluteOgImage, getOgImage } from '../../lib/seo';
 import { useAuth } from '../../contexts/AuthContext';
 
 // No module-level Firestore: prefetch only loads the route chunk; data loads in useEffect after navigation.
@@ -573,7 +573,7 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
       <meta key="og-site-name" property="og:site_name" content={siteConfig.name} />
       <meta key="og-title" property="og:title" content={seoTitle} />
       <meta key="og-description" property="og:description" content={seoDescription} />
-      <meta key="og-image" property="og:image" content={getAbsoluteOgImage(artist.photoURL || artist.wikiPhotoURL)} />
+      <meta key="og-image" property="og:image" content={getOgImage(artist.photoURL || artist.wikiPhotoURL)} />
       <meta key="og-image-width" property="og:image:width" content="1200" />
       <meta key="og-image-height" property="og:image:height" content="630" />
       <meta key="og-image-alt" property="og:image:alt" content={`${artist.name} 結他譜 - Polygon Guitar`} />
@@ -582,7 +582,7 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
       <meta key="twitter-site" name="twitter:site" content={siteConfig.twitter} />
       <meta key="twitter-title" name="twitter:title" content={seoTitle} />
       <meta key="twitter-description" name="twitter:description" content={seoDescription} />
-      <meta key="twitter-image" name="twitter:image" content={getAbsoluteOgImage(artist.photoURL || artist.wikiPhotoURL)} />
+      <meta key="twitter-image" name="twitter:image" content={getOgImage(artist.photoURL || artist.wikiPhotoURL)} />
       <meta key="twitter-image-alt" name="twitter:image:alt" content={`${artist.name} 結他譜 - Polygon Guitar`} />
       <script
         type="application/ld+json"

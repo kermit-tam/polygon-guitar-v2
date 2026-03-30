@@ -53,7 +53,7 @@ const ChordLogPenIcon = ({ className = '' }) => (
 import { toggleLikeSong, checkIsLiked, getUserPlaylists, addSongToPlaylist, createPlaylist, removeSongFromPlaylist } from '@/lib/playlistApi'
 import { isSongLikedInCache, getPlaylistsFromCache } from '@/lib/userLibraryCache'
 import Head from 'next/head'
-import { generateTabTitle, generateTabDescription, generateTabSchema, generateBreadcrumbSchema, getAbsoluteOgImage } from '@/lib/seo'
+import { generateTabTitle, generateTabDescription, generateTabSchema, generateBreadcrumbSchema, getAbsoluteOgImage, getOgImage } from '@/lib/seo'
 import { siteConfig } from '@/lib/seo'
 import { calculateCapo, getKeyOptions } from '@/lib/keyUtils'
 import { getTransposedUniqueChordsFromContent } from '@/lib/chordUtils'
@@ -1000,7 +1000,7 @@ export default function TabDetail({ initialTab, artist }) {
         <meta key="og-site-name" property="og:site_name" content={siteConfig.name} />
         <meta key="og-title" property="og:title" content={seoTitle} />
         <meta key="og-description" property="og:description" content={seoDescription} />
-        <meta key="og-image" property="og:image" content={getAbsoluteOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
+        <meta key="og-image" property="og:image" content={getOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
         <meta key="og-image-width" property="og:image:width" content="1200" />
         <meta key="og-image-height" property="og:image:height" content="630" />
         <meta key="og-image-alt" property="og:image:alt" content={`${tab.title} - ${artistDisplayName} 結他譜`} />
@@ -1012,7 +1012,7 @@ export default function TabDetail({ initialTab, artist }) {
         <meta key="twitter-site" name="twitter:site" content={siteConfig.twitter} />
         <meta key="twitter-title" name="twitter:title" content={seoTitle} />
         <meta key="twitter-description" name="twitter:description" content={seoDescription} />
-        <meta key="twitter-image" name="twitter:image" content={getAbsoluteOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
+        <meta key="twitter-image" name="twitter:image" content={getOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
         <meta key="twitter-image-alt" name="twitter:image:alt" content={`${tab.title} - ${artistDisplayName} 結他譜`} />
         
         {/* 結構化數據 JSON-LD */}
