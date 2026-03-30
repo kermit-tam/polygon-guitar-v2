@@ -132,7 +132,7 @@ export default function Navbar() {
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
       <div className="max-w-[1050px] mx-auto pl-4 pr-3">
-        <div className="flex justify-between relative z-10 bg-[#FFD700] mt-2" style={{ height: '4.4rem' }}>
+        <div className="flex justify-between relative z-10 bg-[#FFD700] mt-1 mb-1" style={{ height: '4.4rem' }}>
           {/* Logo + 副標題 */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center gap-2">
