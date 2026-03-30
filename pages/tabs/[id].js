@@ -995,25 +995,25 @@ export default function TabDetail({ initialTab, artist }) {
         <link rel="canonical" href={seoUrl} />
         
         {/* Open Graph — unique per tab for social share preview */}
-        <meta property="og:url" content={seoUrl} />
-        <meta property="og:type" content="article" />
-        <meta property="og:site_name" content={siteConfig.name} />
-        <meta property="og:title" content={seoTitle} />
-        <meta property="og:description" content={seoDescription} />
-        <meta property="og:image" content={getAbsoluteOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
-        <meta property="og:image:alt" content={`${tab.title} - ${artistDisplayName} 結他譜`} />
+        <meta key="og-url" property="og:url" content={seoUrl} />
+        <meta key="og-type" property="og:type" content="article" />
+        <meta key="og-site-name" property="og:site_name" content={siteConfig.name} />
+        <meta key="og-title" property="og:title" content={seoTitle} />
+        <meta key="og-description" property="og:description" content={seoDescription} />
+        <meta key="og-image" property="og:image" content={getAbsoluteOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
+        <meta key="og-image-width" property="og:image:width" content="1200" />
+        <meta key="og-image-height" property="og:image:height" content="630" />
+        <meta key="og-image-alt" property="og:image:alt" content={`${tab.title} - ${artistDisplayName} 結他譜`} />
         <meta property="article:published_time" content={tab.createdAt} />
         <meta property="article:modified_time" content={tab.updatedAt} />
-        
+
         {/* Twitter Card — unique per tab */}
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:site" content={siteConfig.twitter} />
-        <meta name="twitter:title" content={seoTitle} />
-        <meta name="twitter:description" content={seoDescription} />
-        <meta name="twitter:image" content={getAbsoluteOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
-        <meta name="twitter:image:alt" content={`${tab.title} - ${artistDisplayName} 結他譜`} />
+        <meta key="twitter-card" name="twitter:card" content="summary_large_image" />
+        <meta key="twitter-site" name="twitter:site" content={siteConfig.twitter} />
+        <meta key="twitter-title" name="twitter:title" content={seoTitle} />
+        <meta key="twitter-description" name="twitter:description" content={seoDescription} />
+        <meta key="twitter-image" name="twitter:image" content={getAbsoluteOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
+        <meta key="twitter-image-alt" name="twitter:image:alt" content={`${tab.title} - ${artistDisplayName} 結他譜`} />
         
         {/* 結構化數據 JSON-LD */}
         <script

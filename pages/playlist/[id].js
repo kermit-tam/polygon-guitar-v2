@@ -950,19 +950,19 @@ export default function PlaylistDetail({
         <link rel="canonical" href={seoUrl} />
         <meta name="theme-color" content="transparent" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta property="og:url" content={seoUrl} />
-        <meta property="og:type" content="website" />
-        <meta property="og:site_name" content={siteConfig.name} />
-        <meta property="og:title" content={seoTitle} />
-        <meta property="og:description" content={seoDescription} />
-        <meta property="og:image" content={ogImage} />
-        <meta property="og:image:alt" content={playlist.title} />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:site" content={siteConfig.twitter} />
-        <meta name="twitter:title" content={seoTitle} />
-        <meta name="twitter:description" content={seoDescription} />
-        <meta name="twitter:image" content={ogImage} />
-        <meta name="twitter:image:alt" content={playlist.title} />
+        <meta key="og-url" property="og:url" content={seoUrl} />
+        <meta key="og-type" property="og:type" content="website" />
+        <meta key="og-site-name" property="og:site_name" content={siteConfig.name} />
+        <meta key="og-title" property="og:title" content={seoTitle} />
+        <meta key="og-description" property="og:description" content={seoDescription} />
+        <meta key="og-image" property="og:image" content={ogImage} />
+        <meta key="og-image-alt" property="og:image:alt" content={playlist.title} />
+        <meta key="twitter-card" name="twitter:card" content="summary_large_image" />
+        <meta key="twitter-site" name="twitter:site" content={siteConfig.twitter} />
+        <meta key="twitter-title" name="twitter:title" content={seoTitle} />
+        <meta key="twitter-description" name="twitter:description" content={seoDescription} />
+        <meta key="twitter-image" name="twitter:image" content={ogImage} />
+        <meta key="twitter-image-alt" name="twitter:image:alt" content={playlist.title} />
       </Head>
       <div className="relative z-10 min-h-screen pb-24 bg-black" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         {/* 返回：絕對定位；封面：置中 */}

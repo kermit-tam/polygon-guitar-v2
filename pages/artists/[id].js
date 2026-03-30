@@ -568,22 +568,22 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
       <meta name="description" content={seoDescription} />
       <link rel="canonical" href={seoUrl} />
       {/* Open Graph — unique per artist for social share preview */}
-      <meta property="og:url" content={seoUrl} />
-      <meta property="og:type" content="profile" />
-      <meta property="og:site_name" content={siteConfig.name} />
-      <meta property="og:title" content={seoTitle} />
-      <meta property="og:description" content={seoDescription} />
-      <meta property="og:image" content={getAbsoluteOgImage(artist.photoURL || artist.wikiPhotoURL)} />
-      <meta property="og:image:width" content="1200" />
-      <meta property="og:image:height" content="630" />
-      <meta property="og:image:alt" content={`${artist.name} 結他譜 - Polygon Guitar`} />
+      <meta key="og-url" property="og:url" content={seoUrl} />
+      <meta key="og-type" property="og:type" content="profile" />
+      <meta key="og-site-name" property="og:site_name" content={siteConfig.name} />
+      <meta key="og-title" property="og:title" content={seoTitle} />
+      <meta key="og-description" property="og:description" content={seoDescription} />
+      <meta key="og-image" property="og:image" content={getAbsoluteOgImage(artist.photoURL || artist.wikiPhotoURL)} />
+      <meta key="og-image-width" property="og:image:width" content="1200" />
+      <meta key="og-image-height" property="og:image:height" content="630" />
+      <meta key="og-image-alt" property="og:image:alt" content={`${artist.name} 結他譜 - Polygon Guitar`} />
       {/* Twitter Card — unique per artist */}
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:site" content={siteConfig.twitter} />
-      <meta name="twitter:title" content={seoTitle} />
-      <meta name="twitter:description" content={seoDescription} />
-      <meta name="twitter:image" content={getAbsoluteOgImage(artist.photoURL || artist.wikiPhotoURL)} />
-      <meta name="twitter:image:alt" content={`${artist.name} 結他譜 - Polygon Guitar`} />
+      <meta key="twitter-card" name="twitter:card" content="summary_large_image" />
+      <meta key="twitter-site" name="twitter:site" content={siteConfig.twitter} />
+      <meta key="twitter-title" name="twitter:title" content={seoTitle} />
+      <meta key="twitter-description" name="twitter:description" content={seoDescription} />
+      <meta key="twitter-image" name="twitter:image" content={getAbsoluteOgImage(artist.photoURL || artist.wikiPhotoURL)} />
+      <meta key="twitter-image-alt" name="twitter:image:alt" content={`${artist.name} 結他譜 - Polygon Guitar`} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
