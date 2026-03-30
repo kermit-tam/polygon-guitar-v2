@@ -390,7 +390,7 @@ export default function NewTab() {
         const list = data?.penNames || []
         setPenNameSuggestions(list)
         setPenNameSelectedIndex(-1)
-        if (list.length > 0) setPenNameShowDropdown(true)
+        // 唔好喺度自動展開：只喺輸入欄 onFocus 先開（同 edit 頁）
       } catch (_) {
         setPenNameSuggestions([])
       }

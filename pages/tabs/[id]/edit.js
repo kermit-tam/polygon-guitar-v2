@@ -408,7 +408,7 @@ export default function EditTab() {
         const list = data?.penNames || []
         setPenNameSuggestions(list)
         setPenNameSelectedIndex(-1)
-        if (list.length > 0) setPenNameShowDropdown(true)
+        // 唔好喺度自動 setPenNameShowDropdown：否則 loadTab 後會無端展開；只喺 onFocus 先開
       } catch (_) {
         setPenNameSuggestions([])
       }
