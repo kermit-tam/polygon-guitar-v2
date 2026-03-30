@@ -1021,7 +1021,15 @@ const StaffCanvas = forwardRef(function StaffCanvas(
         if (f.subdivIndex !== subdivIndex || f.beatIndex !== beatIndex) return f
         const sub = subdivisions[subdivIndex - 1]
         const beats = sub.beats ?? [sub]
-        if (beats.length <= 1) return { subdivIndex: null, beatIndex: null }
+        if (beats.length <= 1) {
+          // segment being deleted — move to last beat of previous segment
+          if (subdivIndex === 1) {
+            return { subdivIndex: 0, beatIndex: Math.max(0, firstBeats.length - 1) }
+          }
+          const prevSub = subdivisions[subdivIndex - 2]
+          const prevBeats = prevSub?.beats ?? (prevSub ? [prevSub] : [])
+          return { subdivIndex: subdivIndex - 1, beatIndex: Math.max(0, prevBeats.length - 1) }
+        }
         return { subdivIndex, beatIndex: Math.min(beatIndex, beats.length - 2) }
       })
     }
@@ -1051,7 +1059,7 @@ const StaffCanvas = forwardRef(function StaffCanvas(
         return
       }
 
-      // →：navigate to next beat; if at end of segment, add a new beat
+      // →：navigate to next beat; if at end of segment, add a new beat (or new segment if full)
       if (e.key === 'ArrowRight' && hasFocus) {
         e.preventDefault()
         const { subdivIndex, beatIndex } = focus
@@ -1064,10 +1072,40 @@ const StaffCanvas = forwardRef(function StaffCanvas(
         if (beatIndex < beats.length - 1) {
           setFocus({ subdivIndex, beatIndex: beatIndex + 1 })
         } else {
-          // at end of segment — add a new beat and focus it
-          justAddedBeatRef.current = true
-          addBeatToSubdivision(subdivIndex)
-          setFocus({ subdivIndex, beatIndex: beats.length })
+          // at end of segment — check if full
+          const tsId = subdivIndex === 0
+            ? normalizeTimeSignatureId(timeSignatureId)
+            : normalizeTimeSignatureId(subdivisions[subdivIndex - 1]?.timeSignatureId || timeSignatureId)
+          const total = beats.reduce((sum, b) => sum + getBeatValueFromBeat(b, tsId), 0)
+          const isFull = total >= (BEATS_PER_MEASURE[tsId] ?? 4)
+          if (isFull) {
+            const totalSubdivs = subdivisions.length + 1
+            if (subdivIndex < totalSubdivs - 1) {
+              // next segment already exists — just move to it
+              setFocus({ subdivIndex: subdivIndex + 1, beatIndex: 0 })
+            } else {
+              // no next segment — create one and focus its first beat
+              let newSubdivIndex = 1
+              setSubdivisions((prev) => {
+                const next = [
+                  ...prev,
+                  {
+                    timeSignatureId: normalizeTimeSignatureId(timeSignatureId),
+                    beats: [{ duration: selectedDuration, dotted: selectedDivision === 'dotted', tuplet: selectedDivision === 'tuplet' }],
+                  },
+                ]
+                newSubdivIndex = next.length
+                return next
+              })
+              setFocus({ subdivIndex: newSubdivIndex, beatIndex: 0 })
+              onAddNotation?.()
+            }
+          } else {
+            // segment not full — add a new beat
+            justAddedBeatRef.current = true
+            addBeatToSubdivision(subdivIndex)
+            setFocus({ subdivIndex, beatIndex: beats.length })
+          }
         }
         return
       }
