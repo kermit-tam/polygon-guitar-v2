@@ -12,6 +12,16 @@ import { doc, setDoc, getDoc } from '@/lib/firestore-tracked'
 const AuthContext = createContext()
 
 const VIEW_AS_STORAGE_KEY = 'pg_admin_view_as' // 'admin' | 'user' | 'guest'
+const VIEW_AS_BUTTON_VISIBLE_KEY = 'pg_admin_view_as_button_visible' // '1' | '0'
+
+function getStoredViewAsButtonVisible() {
+  if (typeof window === 'undefined') return true
+  try {
+    const v = localStorage.getItem(VIEW_AS_BUTTON_VISIBLE_KEY)
+    if (v === '0' || v === 'false') return false
+  } catch (_) {}
+  return true
+}
 
 function getStoredViewAs() {
   if (typeof window === 'undefined') return 'admin'
@@ -30,6 +40,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [viewAsMode, setViewAsModeState] = useState('admin')
+  const [showAdminViewAsButton, setShowAdminViewAsButtonState] = useState(true)
 
   // Handle redirect result on mount
   useEffect(() => {
@@ -128,9 +139,19 @@ export function AuthProvider({ children }) {
     try { localStorage.setItem(VIEW_AS_STORAGE_KEY, mode) } catch (_) {}
   }
 
+  const setShowAdminViewAsButton = (show) => {
+    const on = !!show
+    setShowAdminViewAsButtonState(on)
+    try { localStorage.setItem(VIEW_AS_BUTTON_VISIBLE_KEY, on ? '1' : '0') } catch (_) {}
+  }
+
   // 登入後若為 admin，從 localStorage 還原 viewAs
   useEffect(() => {
     if (realIsAdmin && user) setViewAsModeState(getStoredViewAs())
+  }, [realIsAdmin, !!user])
+
+  useEffect(() => {
+    if (realIsAdmin && user) setShowAdminViewAsButtonState(getStoredViewAsButtonVisible())
   }, [realIsAdmin, !!user])
 
   // 獲取用戶角色（以 effective 身份計，只來自 Firestore）
@@ -148,7 +169,9 @@ export function AuthProvider({ children }) {
     realUser: user,
     realIsAdmin: !!realIsAdmin,
     viewAsMode: effectiveViewAs,
-    setViewAsMode
+    setViewAsMode,
+    showAdminViewAsButton,
+    setShowAdminViewAsButton
   }
 
   return (

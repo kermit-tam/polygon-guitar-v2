@@ -1,6 +1,7 @@
 import Link from '@/components/Link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { Shield } from 'lucide-react'
 
 // Avoid SSR warning: useLayoutEffect cannot run on server; use useEffect during SSR so initial output matches
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
@@ -10,8 +11,38 @@ import { useRouter } from 'next/router'
 const SITE_LOGO_URL = 'https://res.cloudinary.com/drld2cjpo/image/upload/v1771502138/artists/site_logo_1771502138235.png'
 const SITE_NAME = 'Polygon 結他譜'
 
+/** 頂欄選單：顯示／隱藏 Admin「View as」浮動掣（樣式參考深底黃盾牌 pill） */
+function NavbarAdminViewAsToggle({ show, onToggle, itemPadding }) {
+  return (
+    <div
+      className={`flex items-center justify-between gap-2 ${itemPadding} py-2`}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#282828] border border-[#444] pl-2 pr-2.5 py-1 shrink-0">
+        <Shield className="w-3.5 h-3.5 text-[#FFD700] shrink-0" strokeWidth={2} aria-hidden />
+        <span className="text-white text-xs font-medium">View as</span>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={show}
+        aria-label={show ? '隱藏 View as 浮動掣' : '顯示 View as 浮動掣'}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle(!show)
+        }}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-black/30 ${show ? 'bg-black/55' : 'bg-black/20'}`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${show ? 'translate-x-5' : 'translate-x-0'}`}
+        />
+      </button>
+    </div>
+  )
+}
+
 export default function Navbar() {
-  const { user, logout, isAuthenticated, isAdmin, loading: authLoading } = useAuth()
+  const { user, logout, isAuthenticated, isAdmin, loading: authLoading, realIsAdmin, showAdminViewAsButton, setShowAdminViewAsButton } = useAuth()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const router = useRouter()
   const menuRef = useRef(null)
@@ -226,6 +257,13 @@ export default function Navbar() {
                     </Link>
                   </>
                 )}
+                {realIsAdmin && (
+                  <NavbarAdminViewAsToggle
+                    show={showAdminViewAsButton}
+                    onToggle={setShowAdminViewAsButton}
+                    itemPadding="px-4"
+                  />
+                )}
                 {isAuthenticated && <div className="my-2 mx-4 border-t border-black/10" />}
                 {isAuthenticated ? (
                   <button type="button" onClick={() => { handleLogout(); setIsMenuOpen(false) }} className="flex items-center gap-2 w-full text-left text-black/70 font-medium px-4 py-2">
@@ -391,6 +429,13 @@ export default function Navbar() {
                   管理後台
                 </Link>
               </>
+            )}
+            {realIsAdmin && (
+              <NavbarAdminViewAsToggle
+                show={showAdminViewAsButton}
+                onToggle={setShowAdminViewAsButton}
+                itemPadding="px-3"
+              />
             )}
             {isAuthenticated && <div className="my-2 mx-3 border-t border-yellow-600" />}
             {isAuthenticated ? (

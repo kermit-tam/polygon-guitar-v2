@@ -6,7 +6,7 @@ import { User, UserX, Shield } from 'lucide-react'
 const NAV_BAR_TOP = 'calc(4.4rem + env(safe-area-inset-top, 0px) + 4px)'
 
 export default function AdminViewAsButton() {
-  const { realIsAdmin, viewAsMode, setViewAsMode } = useAuth()
+  const { realIsAdmin, viewAsMode, setViewAsMode, showAdminViewAsButton } = useAuth()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -19,7 +19,7 @@ export default function AdminViewAsButton() {
     return () => document.removeEventListener('click', close)
   }, [open])
 
-  if (!realIsAdmin) return null
+  if (!realIsAdmin || !showAdminViewAsButton) return null
 
   const options = [
     { value: 'admin', label: 'Admin', icon: Shield },
