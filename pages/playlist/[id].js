@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Share, Heart, Music, User, Plus, Copy, ArrowLeft, Bookmark, ListMusic, ArrowUpDown, Pencil, X, Search, Crown, ChevronUp, ChevronDown } from 'lucide-react'
 import ChaksaPasteTabLinkModal from '@/components/chaksa/ChaksaPasteTabLinkModal'
 import { getTabsByIds, getArtistSlug } from '@/lib/tabs'
+import { siteConfig, getAbsoluteOgImage } from '@/lib/seo'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { auth } from '@/lib/firebase'
 import { toggleLikeSong, checkIsLiked, getUserPlaylists, addSongToPlaylist, createPlaylist, savePlaylistToLibrary, removeSavedPlaylist, checkIsPlaylistSaved, removeSongFromPlaylist } from '@/lib/playlistApi'
@@ -914,8 +915,13 @@ export default function PlaylistDetail({
     return (
       <Layout fullWidth hideHeader>
         <Head>
+          <title>{initialPlaylist?.title ? `${initialPlaylist.title} | Polygon Guitar` : 'Polygon Guitar'}</title>
           <meta name="theme-color" content="transparent" />
           <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+          <meta property="og:title" content={initialPlaylist?.title ? `${initialPlaylist.title} | Polygon Guitar` : 'Polygon Guitar'} />
+          <meta property="og:image" content={getAbsoluteOgImage(initialPlaylist?.coverImage)} />
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:image" content={getAbsoluteOgImage(initialPlaylist?.coverImage)} />
         </Head>
         <div className="relative z-10 min-h-screen pb-24 pt-[env(safe-area-inset-top)] bg-black">
           <div className="h-64 bg-neutral-800/50 animate-pulse" />
@@ -931,11 +937,32 @@ export default function PlaylistDetail({
 
   if (!playlist) return null
 
+  const seoTitle = `${playlist.title} | Polygon Guitar`
+  const seoDescription = playlist.description || `${playlist.title} — Polygon Guitar 精選歌單`
+  const seoUrl = `${siteConfig.url}/playlist/${id}`
+  const ogImage = getAbsoluteOgImage(playlist.coverImage)
+
   return (
     <Layout fullWidth hideHeader>
       <Head>
+        <title>{seoTitle}</title>
+        <meta name="description" content={seoDescription} />
+        <link rel="canonical" href={seoUrl} />
         <meta name="theme-color" content="transparent" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta property="og:url" content={seoUrl} />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content={siteConfig.name} />
+        <meta property="og:title" content={seoTitle} />
+        <meta property="og:description" content={seoDescription} />
+        <meta property="og:image" content={ogImage} />
+        <meta property="og:image:alt" content={playlist.title} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:site" content={siteConfig.twitter} />
+        <meta name="twitter:title" content={seoTitle} />
+        <meta name="twitter:description" content={seoDescription} />
+        <meta name="twitter:image" content={ogImage} />
+        <meta name="twitter:image:alt" content={playlist.title} />
       </Head>
       <div className="relative z-10 min-h-screen pb-24 bg-black" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         {/* 返回：絕對定位；封面：置中 */}
@@ -2013,7 +2040,7 @@ export default function PlaylistDetail({
 }
 
 export async function getStaticPaths() {
-  return { paths: [], fallback: true }
+  return { paths: [], fallback: 'blocking' }
 }
 
 export async function getStaticProps({ params }) {

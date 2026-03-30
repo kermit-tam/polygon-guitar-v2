@@ -37,6 +37,7 @@ const sections = [
     items: [
       { href: '/admin/home-settings', label: '首頁設置', roles: [ROLES.SUPER_ADMIN] },
       { href: '/admin/category-images', label: '分類封面', roles: [ROLES.SUPER_ADMIN, ROLES.ART_DIRECTOR] },
+      { href: '/admin/site-logo', label: '網站 Logo', roles: [ROLES.SUPER_ADMIN, ROLES.ART_DIRECTOR] },
     ]
   },
   {

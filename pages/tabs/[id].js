@@ -1000,7 +1000,7 @@ export default function TabDetail({ initialTab, artist }) {
         <meta property="og:site_name" content={siteConfig.name} />
         <meta property="og:title" content={seoTitle} />
         <meta property="og:description" content={seoDescription} />
-        <meta property="og:image" content={getAbsoluteOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || effectiveArtistPhoto)} />
+        <meta property="og:image" content={getAbsoluteOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:image:alt" content={`${tab.title} - ${artistDisplayName} 結他譜`} />
@@ -1012,7 +1012,7 @@ export default function TabDetail({ initialTab, artist }) {
         <meta name="twitter:site" content={siteConfig.twitter} />
         <meta name="twitter:title" content={seoTitle} />
         <meta name="twitter:description" content={seoDescription} />
-        <meta name="twitter:image" content={getAbsoluteOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || effectiveArtistPhoto)} />
+        <meta name="twitter:image" content={getAbsoluteOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
         <meta name="twitter:image:alt" content={`${tab.title} - ${artistDisplayName} 結他譜`} />
         
         {/* 結構化數據 JSON-LD */}
@@ -1877,7 +1877,7 @@ export default function TabDetail({ initialTab, artist }) {
 }
 
 export async function getStaticPaths() {
-  return { paths: [], fallback: true }
+  return { paths: [], fallback: 'blocking' }
 }
 
 export async function getStaticProps({ params }) {

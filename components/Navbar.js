@@ -8,7 +8,8 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
 import { useRouter } from 'next/router'
 
 // Hardcoded so we don't hit Firebase on every page visit
-const SITE_LOGO_URL = 'https://res.cloudinary.com/drld2cjpo/image/upload/v1771502138/artists/site_logo_1771502138235.png'
+const SITE_LOGO_ICON_URL = 'https://res.cloudinary.com/drld2cjpo/image/upload/v1774852971/artists/site_logo_1774852971671.png'
+const SITE_LOGO_TEXT_URL = 'https://res.cloudinary.com/drld2cjpo/image/upload/v1774852951/artists/site_logo_1774852951511.png'
 const SITE_NAME = 'Polygon 結他譜'
 
 /** 頂欄選單：顯示／隱藏 Admin「View as」浮動掣（樣式參考深底黃盾牌 pill） */
@@ -131,20 +132,29 @@ export default function Navbar() {
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
       <div className="max-w-[1050px] mx-auto pl-4 pr-3">
-        <div className="flex justify-between relative z-10 bg-[#FFD700]" style={{ height: '4.4rem' }}>
+        <div className="flex justify-between relative z-10 bg-[#FFD700] mt-2" style={{ height: '4.4rem' }}>
           {/* Logo + 副標題 */}
-          <div className="flex flex-col justify-end">
-            <Link href="/" className="flex flex-col">
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center gap-2">
               <img
-                src={SITE_LOGO_URL}
-                alt={SITE_NAME}
+                src={SITE_LOGO_ICON_URL}
+                alt=""
                 loading="eager"
                 decoding="async"
-                style={{ height: 40, maxWidth: 160 }}
+                style={{ height: 50, width: 'auto' }}
               />
-              <span className="text-base text-black tracking-[0.25em] mt-0.5 w-full pb-2 navbar-tagline">
-                香港廣東歌結他譜網
-              </span>
+              <div className="flex flex-col justify-center">
+                <img
+                  src={SITE_LOGO_TEXT_URL}
+                  alt={SITE_NAME}
+                  loading="eager"
+                  decoding="async"
+                  style={{ maxWidth: 155, marginTop: 1, marginBottom: 3 }}
+                />
+                <span className="text-black tracking-[0.2em] navbar-tagline" style={{ fontSize: '1rem', lineHeight: '0.8rem'}}>
+                  香港廣東歌結他譜網
+                </span>
+              </div>
             </Link>
           </div>
 
