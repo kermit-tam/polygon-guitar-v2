@@ -64,71 +64,38 @@ export default async function handler(req, res) {
     
     // Check rate limit
     if (!checkRateLimit(ip, tabId)) {
-      return res.status(429).json({ 
+      return res.status(429).json({
         error: 'Rate limited',
         message: 'Too many views from this IP'
       })
     }
 
-    // Use Firestore REST API to increment view count
-    // This bypasses client-side security rules
     const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    
     if (!projectId) {
       return res.status(500).json({ error: 'Firebase project ID not configured' })
     }
 
-    // First, get current view count
-    const getUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/tabs/${tabId}?mask.fieldPaths=viewCount`
-    
-    const getResponse = await fetch(getUrl)
-    
-    if (!getResponse.ok) {
-      if (getResponse.status === 404) {
-        return res.status(404).json({ error: 'Tab not found' })
+    // Fire-and-forget — don't await so CPU is released immediately
+    ;(async () => {
+      try {
+        const getUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/tabs/${tabId}?mask.fieldPaths=viewCount`
+        const getResponse = await fetch(getUrl)
+        if (!getResponse.ok) return
+        const docData = await getResponse.json()
+        const currentViews = docData.fields?.viewCount?.integerValue || 0
+        const newViews = parseInt(currentViews) + 1
+        const patchUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/tabs/${tabId}?updateMask.fieldPaths=viewCount`
+        await fetch(patchUrl, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: { viewCount: { integerValue: newViews } } }),
+        })
+      } catch (e) {
+        console.error('increment-view background error:', e?.message)
       }
-      throw new Error(`Firestore get error: ${getResponse.status}`)
-    }
+    })()
 
-    const docData = await getResponse.json()
-    const currentViews = docData.fields?.viewCount?.integerValue || 0
-    const newViews = parseInt(currentViews) + 1
-
-    // Update view count using Firestore REST API
-    // Note: This is a public API call that works because we only need to increment a counter
-    // In production, you should use Firebase Admin SDK with proper authentication
-    const patchUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/tabs/${tabId}?updateMask.fieldPaths=viewCount`
-    
-    const patchResponse = await fetch(patchUrl, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        fields: {
-          viewCount: {
-            integerValue: newViews
-          }
-        }
-      })
-    })
-
-    if (!patchResponse.ok) {
-      // If patch fails due to permissions, we'll still return success to the client
-      // but log the error for debugging
-      console.error('Firestore patch error:', patchResponse.status)
-      return res.status(200).json({ 
-        success: true,
-        message: 'View recorded (queued)',
-        viewCount: newViews
-      })
-    }
-
-    return res.status(200).json({ 
-      success: true,
-      message: 'View recorded',
-      viewCount: newViews
-    })
+    return res.status(200).json({ success: true })
 
   } catch (error) {
     console.error('Error incrementing view:', error)

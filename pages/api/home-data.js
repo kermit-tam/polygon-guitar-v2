@@ -75,7 +75,7 @@ export default async function handler(req, res) {
       res.setHeader('Content-Type', 'application/json; charset=utf-8')
       return res.status(200).send(JSON.stringify(data, null, 2))
     }
-    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=30')
+    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=300')
     try {
       return res.status(200).json(data)
     } catch (jsonErr) {

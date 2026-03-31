@@ -8,7 +8,7 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
 import { useRouter } from 'next/router'
 
 // Hardcoded so we don't hit Firebase on every page visit
-const SITE_LOGO_ICON_URL = 'https://res.cloudinary.com/drld2cjpo/image/upload/v1774852971/artists/site_logo_1774852971671.png'
+const SITE_LOGO_ICON_URL = 'https://res.cloudinary.com/drld2cjpo/image/upload/v1774938333/artists/site_logo_1774938333444.png'
 const SITE_LOGO_TEXT_URL = 'https://res.cloudinary.com/drld2cjpo/image/upload/v1774852951/artists/site_logo_1774852951511.png'
 const SITE_NAME = 'Polygon 結他譜'
 
