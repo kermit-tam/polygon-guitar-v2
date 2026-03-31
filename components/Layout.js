@@ -155,12 +155,22 @@ export default function Layout({ children, fullWidth = false, hideHeader = false
     }
   }, [currentPath])
 
+  const FOOTER_LINKS = [
+    { label: '關於我們', href: '/about' },
+    { label: '聯絡我們', href: '/contact' },
+    { label: '合作聯繫', href: '/partnership' },
+    { label: '使用條款', href: '/terms' },
+    { label: '網站地圖', href: '/sitemap' },
+    { label: '問題回報', href: '/feedback' },
+    { label: '支持 Polygon', href: '/support' },
+  ]
+
   return (
     <div className={`${showHeader ? 'bg-black' : 'bg-transparent'} text-white min-h-screen min-h-[calc(100vh+1px)]`}>
       <div className={`${CONTENT_MAX_WIDTH_CLASS} mx-auto`}>
         <div className="pg-top-nav-wrapper">{showHeader && <Navbar />}</div>
-        <main 
-          className={fullWidth 
+        <main
+          className={fullWidth
             ? (showHeader ? 'pb-16 md:pb-0' : 'pb-16 md:pb-0')
             : (showHeader ? 'pb-24' : 'pb-24')
           }
@@ -169,6 +179,42 @@ export default function Layout({ children, fullWidth = false, hideHeader = false
           {children}
         </main>
       </div>
+
+      {showHeader && (
+        <footer className="bg-black pb-[150px] md:pb- pt-8 px-6">
+          <div className="max-w-4xl mx-auto flex flex-col items-center gap-5">
+            {/* Social icons */}
+            <div className="flex items-center gap-4">
+              <a href="https://www.instagram.com/polygon.guitars/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="text-white/50 hover:text-white transition-colors">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                  <circle cx="12" cy="12" r="4.5" />
+                  <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+                </svg>
+              </a>
+              <a href="https://www.facebook.com/polygonguitar" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-white/50 hover:text-white transition-colors">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+                </svg>
+              </a>
+            </div>
+
+            {/* Copyright */}
+            <p className="text-white/50 text-xs tracking-wider">
+              © {new Date().getFullYear()} POLYGON GUITARS
+            </p>
+
+            {/* Links */}
+            <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2">
+              {FOOTER_LINKS.map(({ label, href }) => (
+                <Link key={href} href={href} className="text-white/50 hover:text-white text-xs transition-colors">
+                  {label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </footer>
+      )}
       
       {/* 手機版底部導航 - 黃底黑字設計 */}
       {/* z-[110]：高於和弦圖 bottom sheet 遮罩 (105)，唔會被 dim */}
