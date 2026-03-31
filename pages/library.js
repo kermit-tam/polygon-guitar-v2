@@ -10,13 +10,7 @@ import { getSongThumbnail } from '../lib/getSongThumbnail';
 import Layout from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserLibrary, patchCacheAddPlaylist, isLibraryCacheStale } from '../lib/userLibraryCache';
-import { getPlaylist } from '../lib/playlistApi';
-import { getTabsByIds, getArtistSlug } from '../lib/tabs';
-
-function resolveCover(tab) {
-  if (!tab) return null;
-  return { id: tab.id, thumbnail: getSongThumbnail(tab) || null };
-}
+import { getArtistSlug } from '../lib/tabs';
 
 export default function Library() {
   const router = useRouter();
@@ -31,7 +25,6 @@ export default function Library() {
   const [sortRefreshKey, setSortRefreshKey] = useState(0) // 返回頁面時強制重讀「最近瀏覽」
   const [recentTabsCount, setRecentTabsCount] = useState(0) // 最近瀏覽結他譜數量（localStorage）
   const [recentCoverTab, setRecentCoverTab] = useState(null) // 第一份用於封面
-  const [fetchedPlaylistCovers, setFetchedPlaylistCovers] = useState({}); // playlistId -> [{ id, thumbnail }]，cache 無 cover 時 client 補拉
 
   const libraryKey = user ? `library-${user.uid}` : null;
   const { data, error, isLoading: swrLoading, isValidating, mutate } = useSWR(
@@ -115,29 +108,6 @@ export default function Library() {
       window.removeEventListener('pageshow', onPageShow);
     };
   }, [user?.uid]);
-
-  // 歌單有歌但 cache 無 cover 時，client 補拉頭 4 首做封面
-  useEffect(() => {
-    if (!user?.uid || !playlists.length) return;
-    const needCover = playlists.filter(
-      (pl) => (pl.songCount || 0) > 0 && (!pl.coverSongs?.length || pl.coverSongs.every((s) => !s?.thumbnail))
-    );
-    if (!needCover.length) return;
-    let cancelled = false;
-    needCover.forEach(async (pl) => {
-      try {
-        const full = await getPlaylist(pl.id);
-        if (cancelled || !full?.songIds?.length) return;
-        const ids = full.songIds.slice(0, 4);
-        const tabs = await getTabsByIds(ids);
-        const coverSongs = ids.map((id) => tabs.find((t) => t.id === id)).filter(Boolean).map(resolveCover);
-        if (!cancelled && coverSongs.length) {
-          setFetchedPlaylistCovers((prev) => ({ ...prev, [pl.id]: coverSongs }));
-        }
-      } catch (_) {}
-    });
-    return () => { cancelled = true; };
-  }, [user?.uid, data]);
 
   const createPlaylist = async () => {
     if (!newPlaylistName.trim() || !user) return;
@@ -410,9 +380,9 @@ export default function Library() {
                   </div>
                 );
               }
-              // userPlaylist（2x2 封面：頭四首歌；cache 無 cover 時用 client 補拉嘅 fetchedPlaylistCovers）
+              // userPlaylist（2x2：讀 cache 內預先計好 coverSongs；無則 fallback 到 coverImage）
               const playlist = tile.data;
-              const coverSongs = (fetchedPlaylistCovers[playlist.id] ?? playlist.coverSongs) || [];
+              const coverSongs = playlist.coverSongs || [];
               return (
                 <div key={`user-${playlist.id}`} className="relative group">
                   <div 
@@ -420,11 +390,7 @@ export default function Library() {
                     className="cursor-pointer"
                   >
                     <div className="aspect-square rounded-[4px] overflow-hidden mb-2 bg-[#121212] relative grid grid-cols-2 grid-rows-2">
-                      {coverSongs.length === 0 ? (
-                        <div className="col-span-2 row-span-2 w-full h-full flex items-center justify-center bg-[#282828]">
-                          <Music className="w-12 h-12 text-[#3E3E3E]" />
-                        </div>
-                      ) : (
+                      {coverSongs.length > 0 ? (
                         Array.from({ length: 4 }, (_, i) => {
                           const song = coverSongs[i];
                           if (!song) return <div key={`empty-${playlist.id}-${i}`} className="w-full h-full min-h-0 bg-[#282828]" aria-hidden />;
@@ -438,6 +404,20 @@ export default function Library() {
                             </div>
                           );
                         })
+                      ) : playlist.coverImage ? (
+                        <div className="col-span-2 row-span-2 w-full h-full">
+                          <img
+                            src={playlist.coverImage}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        </div>
+                      ) : (
+                        <div className="col-span-2 row-span-2 w-full h-full flex items-center justify-center bg-[#282828]">
+                          <Music className="w-12 h-12 text-[#3E3E3E]" />
+                        </div>
                       )}
                     </div>
                     <div className="text-white font-medium truncate" style={{ fontSize: 15, lineHeight: '20px' }}>{playlist.title}</div>
