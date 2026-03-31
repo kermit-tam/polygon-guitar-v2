@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from '@/components/Link';
 import { db } from '../../../lib/firebase';
-import { doc, getDoc, updateDoc, serverTimestamp } from '@/lib/firestore-tracked';
+import { doc, getDoc } from '@/lib/firestore-tracked';
 import { getTabsByIds } from '../../../lib/tabs';
 import { Music, Heart, Plus, ListMusic, ArrowUpDown, Pencil, X, Search, User, Copy, ArrowLeft } from 'lucide-react';
 
@@ -312,7 +312,7 @@ export default function UserPlaylistDetail() {
     reordered.splice(toIndex, 0, removed);
     const newSongIds = reordered.map((s) => s.id);
     try {
-      await updateDoc(doc(db, 'userPlaylists', id), { songIds: newSongIds, updatedAt: serverTimestamp() });
+      await updatePlaylist(id, { songIds: newSongIds });
       setPlaylist((p) => (p ? { ...p, songIds: newSongIds } : p));
       setSongs(reordered);
     } catch (e) {
