@@ -4,6 +4,7 @@ import { useRouter } from 'next/router'
 import { db } from '@/lib/firebase'
 import { doc, getDoc, collection, query, where, getDocs } from '@/lib/firestore-tracked'
 import { getUserPlaylists } from '@/lib/playlistApi'
+import { getTabsByIds } from '@/lib/tabs'
 import Layout from '@/components/Layout'
 import Link from '@/components/Link'
 import { useAuth } from '@/contexts/AuthContext'
@@ -52,6 +53,16 @@ const SocialIcon = ({ platform, url }) => {
       {PROFILE_SOCIAL_ICONS[platform] || PROFILE_SOCIAL_ICONS.website}
     </a>
   )
+}
+
+function resolveTabCoverImage(tab) {
+  if (!tab) return null
+  if (tab.coverImage) return tab.coverImage
+  if (tab.albumImage) return tab.albumImage
+  if (tab.thumbnail) return tab.thumbnail
+  const vid = tab.youtubeVideoId || tab.youtubeUrl?.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/)?.[1]
+  if (vid) return `https://img.youtube.com/vi/${vid}/mqdefault.jpg`
+  return null
 }
 
 export default function PublicProfile() {
@@ -131,7 +142,27 @@ export default function PublicProfile() {
       if (userData.showPlaylists !== false) {
         try {
           const userPlaylists = await getUserPlaylists(id)
-          setPlaylists(userPlaylists.slice(0, 5))
+          const topPlaylists = userPlaylists.slice(0, 5)
+          const ids = [...new Set(topPlaylists.flatMap((pl) => (pl.songIds || []).slice(0, 4)).filter(Boolean))]
+
+          if (ids.length > 0) {
+            const tabs = await getTabsByIds(ids)
+            const byId = new Map(tabs.map((t) => [t.id, t]))
+            const withCovers = topPlaylists.map((pl) => ({
+              ...pl,
+              coverSongs: (pl.songIds || [])
+                .slice(0, 4)
+                .map((sid) => {
+                  const tab = byId.get(sid)
+                  const thumb = resolveTabCoverImage(tab)
+                  return thumb ? { id: sid, thumbnail: thumb } : null
+                })
+                .filter(Boolean)
+            }))
+            setPlaylists(withCovers)
+          } else {
+            setPlaylists(topPlaylists)
+          }
         } catch (e) {
           console.error('Error loading playlists:', e)
         }
@@ -514,14 +545,40 @@ export default function PublicProfile() {
             <section className="-mt-1" style={{ marginBottom: 25 }}>
               <h2 className="text-white font-bold text-lg mb-2">自創歌單</h2>
               <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3">
-                {playlists.map(playlist => (
-                  <PlaylistCard
-                    key={playlist.id}
-                    playlist={playlist}
-                    href={`/library/playlist/${playlist.id}`}
-                    compact
-                    small
-                  />
+                {playlists.map((playlist) => (
+                  <Link key={playlist.id} href={`/library/playlist/${playlist.id}`} className="flex-shrink-0 flex flex-col text-left group w-[24vw] md:w-28">
+                    <div className="w-[24vw] h-[24vw] md:w-28 md:h-28 rounded-[4px] overflow-hidden bg-[#282828] mb-2 shadow-lg relative grid grid-cols-2 grid-rows-2">
+                      {(playlist.coverSongs || []).length > 0 ? (
+                        Array.from({ length: 4 }, (_, i) => {
+                          const song = playlist.coverSongs[i]
+                          if (!song) return <div key={`empty-${playlist.id}-${i}`} className="w-full h-full min-h-0 bg-[#282828]" aria-hidden />
+                          return (
+                            <div key={`${playlist.id}-${song.id}`} className="relative w-full h-full min-h-0 bg-[#282828]">
+                              {song.thumbnail ? (
+                                <img src={song.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-[#282828]"><Music className="w-5 h-5 text-neutral-500" strokeWidth={1.5} /></div>
+                              )}
+                            </div>
+                          )
+                        })
+                      ) : playlist.coverImage ? (
+                        <div className="col-span-2 row-span-2 w-full h-full">
+                          <img src={playlist.coverImage} alt={playlist.title} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                        </div>
+                      ) : (
+                        <div className="col-span-2 row-span-2 w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-800 to-neutral-900">
+                          <Music className="w-8 h-8 text-neutral-500" strokeWidth={1.5} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-white font-medium truncate text-[0.95rem] md:text-[15px] leading-[1.3] md:leading-[1.33] mb-[1px] md:mb-0">
+                      {playlist.title}
+                    </div>
+                    {typeof playlist.description === 'string' && playlist.description.trim() && (
+                      <div className="text-neutral-500 line-clamp-2 text-[0.8rem] md:text-[13px] leading-[1.3]">{playlist.description.trim()}</div>
+                    )}
+                  </Link>
                 ))}
               </div>
             </section>
