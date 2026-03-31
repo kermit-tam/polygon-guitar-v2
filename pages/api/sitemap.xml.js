@@ -1,160 +1,129 @@
-// 動態生成 Sitemap
-// 使用 Firebase Admin SDK 從 Firestore 讀取數據
-
-import { initializeApp, cert, getApps } from 'firebase-admin/app'
-import { getFirestore } from 'firebase-admin/firestore'
+/**
+ * Dynamic XML sitemap — /api/sitemap.xml
+ * Uses the search data cache (1 Firestore read) instead of querying collections directly.
+ * CDN-cached for 1 hour; new content appears automatically within ~1 hour of publishing.
+ */
 
 const SITE_URL = 'https://polygon.guitars'
 
-// 初始化 Firebase Admin
-function getAdminDb() {
-  if (getApps().length === 0) {
-    try {
-      // 嘗試使用環境變數初始化
-      const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n')
-      
-      if (privateKey && process.env.FIREBASE_ADMIN_CLIENT_EMAIL && process.env.FIREBASE_ADMIN_PROJECT_ID) {
-        initializeApp({
-          credential: cert({
-            projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-            privateKey: privateKey
-          })
-        })
-      } else {
-        // 如果沒有環境變數，使用應用默認憑證 (GCE/Cloud Run 環境)
-        initializeApp()
-      }
-    } catch (error) {
-      console.error('Firebase Admin initialization error:', error)
-      throw error
-    }
+const STATIC_PAGES = [
+  { url: '/',             changefreq: 'daily',   priority: '1.0' },
+  { url: '/artists',      changefreq: 'daily',   priority: '0.9' },
+  { url: '/search',       changefreq: 'weekly',  priority: '0.8' },
+  { url: '/tab-requests', changefreq: 'weekly',  priority: '0.6' },
+  { url: '/about',        changefreq: 'monthly', priority: '0.4' },
+  { url: '/contact',      changefreq: 'monthly', priority: '0.3' },
+  { url: '/partnership',  changefreq: 'monthly', priority: '0.3' },
+  { url: '/terms',        changefreq: 'monthly', priority: '0.3' },
+  { url: '/sitemap',      changefreq: 'monthly', priority: '0.3' },
+  { url: '/feedback',     changefreq: 'monthly', priority: '0.3' },
+  { url: '/support',      changefreq: 'monthly', priority: '0.3' },
+]
+
+function escapeXml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function toIsoDate(val) {
+  if (!val) return null
+  try {
+    const d = val instanceof Date ? val : new Date(val)
+    return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+  } catch {
+    return null
   }
-  
-  return getFirestore()
+}
+
+function urlEntry({ loc, lastmod, changefreq, priority }) {
+  return [
+    '  <url>',
+    `    <loc>${escapeXml(loc)}</loc>`,
+    lastmod    ? `    <lastmod>${lastmod}</lastmod>` : '',
+    changefreq ? `    <changefreq>${changefreq}</changefreq>` : '',
+    priority   ? `    <priority>${priority}</priority>` : '',
+    '  </url>',
+  ].filter(Boolean).join('\n')
 }
 
 export default async function handler(req, res) {
   try {
-    const db = getAdminDb()
-    
-    // 獲取所有數據
-    const [tabsSnapshot, artistsSnapshot, playlistsSnapshot] = await Promise.all([
-      db.collection('tabs').orderBy('createdAt', 'desc').get(),
-      db.collection('artists').orderBy('name').get(),
-      db.collection('playlists').where('isActive', '==', true).get().catch(() => ({ docs: [] }))
-    ])
+    const { getSearchDataCached } = await import('@/lib/searchData')
+    const { getArtistSlug } = await import('@/lib/tabs')
 
-    const tabs = tabsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    const artists = artistsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    const playlists = playlistsSnapshot.docs?.map(doc => ({ id: doc.id, ...doc.data() })) || []
+    // 1 Firestore read — all artists, tabs, and playlists are bundled in this cache doc
+    const payload = await getSearchDataCached()
+    const artists   = payload?.artists   || []
+    const tabs      = payload?.tabs      || []
+    const playlists = payload?.playlists || []
 
-    // 生成 sitemap XML
-    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- 首頁 -->
-  <url>
-    <loc>${SITE_URL}</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  
-  <!-- 歌手列表 -->
-  <url>
-    <loc>${SITE_URL}/artists</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  
-  <!-- 搜尋頁 -->
-  <url>
-    <loc>${SITE_URL}/search</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  
-  <!-- 樂譜庫 -->
-  <url>
-    <loc>${SITE_URL}/library</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  
-  <!-- 歌手頁面（用 normalizedName 做 URL，改名後唔使改 doc id） -->
-  ${artists.map(artist => {
-    const nameToSlug = (n) => !n || typeof n !== 'string' ? '' : n.trim().replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').toLowerCase()
-    const artistSlug = artist.normalizedName || nameToSlug(artist.name) || artist.slug || artist.id
-    const lastmod = artist.updatedAt?.toDate?.() || artist.updatedAt || new Date()
-    return `
-  <url>
-    <loc>${SITE_URL}/artists/${artistSlug}</loc>
-    <lastmod>${lastmod instanceof Date ? lastmod.toISOString() : new Date(lastmod).toISOString()}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  `
-  }).join('')}
-  
-  <!-- 樂譜頁面 -->
-  ${tabs.map(tab => {
-    const lastmod = tab.updatedAt?.toDate?.() || tab.updatedAt || tab.createdAt?.toDate?.() || tab.createdAt || new Date()
-    return `
-  <url>
-    <loc>${SITE_URL}/tabs/${tab.id}</loc>
-    <lastmod>${lastmod instanceof Date ? lastmod.toISOString() : new Date(lastmod).toISOString()}</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  `
-  }).join('')}
-  
-  <!-- Playlist 頁面 -->
-  ${playlists.map(playlist => {
-    const lastmod = playlist.updatedAt?.toDate?.() || playlist.updatedAt || new Date()
-    return `
-  <url>
-    <loc>${SITE_URL}/playlist/${playlist.id}</loc>
-    <lastmod>${lastmod instanceof Date ? lastmod.toISOString() : new Date(lastmod).toISOString()}</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  `
-  }).join('')}
-</urlset>`
+    const entries = [
+      // Static pages
+      ...STATIC_PAGES.map(({ url, changefreq, priority }) => ({
+        loc: `${SITE_URL}${url}`,
+        changefreq,
+        priority,
+      })),
 
-    // 設置響應頭
+      // Artist pages
+      ...artists.map((artist) => {
+        const slug = getArtistSlug(artist) || artist.id
+        return {
+          loc: `${SITE_URL}/artists/${encodeURIComponent(slug)}`,
+          lastmod: toIsoDate(artist.updatedAt),
+          changefreq: 'weekly',
+          priority: '0.8',
+        }
+      }),
+
+      // Tab pages
+      ...tabs.map((tab) => ({
+        loc: `${SITE_URL}/tabs/${tab.id}`,
+        lastmod: toIsoDate(tab.updatedAt || tab.createdAt),
+        changefreq: 'monthly',
+        priority: '0.7',
+      })),
+
+      // Playlist pages
+      ...playlists
+        .filter((p) => p.isActive !== false)
+        .map((playlist) => ({
+          loc: `${SITE_URL}/playlist/${playlist.id}`,
+          lastmod: toIsoDate(playlist.updatedAt),
+          changefreq: 'weekly',
+          priority: '0.6',
+        })),
+    ]
+
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...entries.map(urlEntry),
+      '</urlset>',
+    ].join('\n')
+
     res.setHeader('Content-Type', 'application/xml')
     res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
-    res.status(200).send(sitemap)
-  } catch (error) {
-    console.error('Sitemap generation error:', error)
-    
-    // 返回基本 sitemap (不包括動態內容)
-    const fallbackSitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${SITE_URL}</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>${SITE_URL}/artists</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>${SITE_URL}/search</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>${SITE_URL}/library</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-</urlset>`
-    
+    return res.status(200).send(xml)
+  } catch (e) {
+    console.error('[sitemap.xml]', e?.message)
+
+    // Minimal fallback — static pages only
+    const fallback = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...STATIC_PAGES.map(({ url, changefreq, priority }) =>
+        urlEntry({ loc: `${SITE_URL}${url}`, changefreq, priority })
+      ),
+      '</urlset>',
+    ].join('\n')
+
     res.setHeader('Content-Type', 'application/xml')
-    res.status(200).send(fallbackSitemap)
+    res.setHeader('Cache-Control', 'public, s-maxage=60')
+    return res.status(200).send(fallback)
   }
 }
