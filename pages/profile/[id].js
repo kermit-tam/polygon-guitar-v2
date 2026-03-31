@@ -19,7 +19,10 @@ const SocialIcon = ({ platform, url }) => {
 
   const getFullUrl = (url, type) => {
     if (!url) return null
-    if (url.startsWith('http')) return url
+    const raw = String(url).trim()
+    if (!raw) return null
+    if (/^https?:\/\//i.test(raw)) return raw
+    if (/^(javascript|data|vbscript):/i.test(raw)) return null
     
     const prefixes = {
       facebook: 'https://facebook.com/',
@@ -28,8 +31,11 @@ const SocialIcon = ({ platform, url }) => {
       whatsapp: 'https://wa.me/',
       threads: 'https://threads.net/@'
     }
-    
-    return prefixes[type] ? prefixes[type] + url : url
+
+    // 個人網站：輸入 domain（例如 polygon.guitars）時，自動補 https://
+    if (type === 'website') return `https://${raw.replace(/^\/+/, '')}`
+
+    return prefixes[type] ? prefixes[type] + raw : `https://${raw.replace(/^\/+/, '')}`
   }
 
   const fullUrl = getFullUrl(url, platform)
