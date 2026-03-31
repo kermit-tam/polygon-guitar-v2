@@ -291,12 +291,12 @@ export default function CoverGenerator({ songs = [], playlistTitle = '', onGener
           </button>
         </div>
 
-        {/* Title text color picker - under frame colors */}
+        {/* Title text color picker - under frame colors（chip 底色隨 frameColor 改變） */}
         {showTitleTextColorPicker && mode === 'single' && (
           <div className="mt-2 flex items-center gap-1.5">
             {TITLE_TEXT_COLORS.map((c) => {
               const isSelected = titleTextColor === c.value
-              const chipBg = c.value === '#000000' ? '#f2f2f2' : '#000000'
+              const chipBg = frameColor || (c.value === '#000000' ? '#f2f2f2' : '#000000')
               const chipText = c.value
               return (
                 <button
