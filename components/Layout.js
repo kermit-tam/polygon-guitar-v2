@@ -181,7 +181,7 @@ export default function Layout({ children, fullWidth = false, hideHeader = false
       </div>
 
       {showHeader && (
-        <footer className="bg-black pb-[150px] md:pb- pt-8 px-6">
+        <footer className="bg-black pb-[150px] px-6">
           <div className="max-w-4xl mx-auto flex flex-col items-center gap-5">
             {/* Social icons */}
             <div className="flex items-center gap-4">

@@ -15,7 +15,7 @@ export default function TermsPage() {
         <title>使用條款 | Polygon Guitar</title>
         <meta name="description" content="Polygon Guitar 使用條款 / Terms of Service" />
       </Head>
-      <div className="max-w-2xl mx-auto px-6 py-16">
+      <div className="max-w-2xl mx-auto px-6 pb-16 pt-6">
         <h1 className="text-3xl font-bold text-white mb-2">使用條款 / Terms of Service</h1>
         <p className="text-white/40 text-xs mb-10">Last updated: 2026</p>
 

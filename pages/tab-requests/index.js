@@ -439,7 +439,7 @@ export default function TabRequestsPage() {
   return (
     <Layout>
       <div
-        className={`px-4 ${modalOpen ? 'pointer-events-none' : ''}`}
+        className={`px-4 pt-6 ${modalOpen ? 'pointer-events-none' : ''}`}
         style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
       >
         {/* Header */}

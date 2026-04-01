@@ -8,7 +8,7 @@ export default function AboutPage() {
         <title>關於我們 | Polygon Guitar</title>
         <meta name="description" content="關於 Polygon Guitar — 香港最大結他譜庫" />
       </Head>
-      <div className="max-w-2xl mx-auto px-6 py-16">
+      <div className="max-w-2xl mx-auto px-6 pb-16 pt-6">
         <h1 className="text-3xl font-bold text-white mb-4">關於我們</h1>
         <p className="text-white/50 text-sm">內容即將推出。</p>
       </div>

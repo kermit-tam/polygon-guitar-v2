@@ -913,7 +913,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           }}
         />
       </Head>
-      <div className="min-h-screen bg-black pb-0 md:pb-[25px]">
+      <div className="min-h-screen bg-black pb-0">
         {/* 根據 sectionOrder 動態渲染（用凍結的 layout 避免 appear→disappear→reappear） */}
         <div style={{ marginTop: 25 }}>
           {(frozenLayout ? frozenLayout.sectionOrder : (homeSettings.sectionOrder || DEFAULT_SECTION_ORDER))

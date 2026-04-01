@@ -41,7 +41,7 @@ export default function SitemapPage() {
         <title>網站地圖 | Polygon Guitar</title>
         <meta name="description" content="Polygon Guitar 網站地圖" />
       </Head>
-      <div className="max-w-2xl mx-auto px-6 py-16">
+      <div className="max-w-2xl mx-auto px-6 pb-16 pt-6">
         <h1 className="text-3xl font-bold text-white mb-10">網站地圖</h1>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-10">
           {SECTIONS.map(({ title, links }) => (
