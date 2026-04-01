@@ -8,7 +8,7 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
 import { useRouter } from 'next/router'
 
 // Hardcoded so we don't hit Firebase on every page visit
-const SITE_LOGO_ICON_URL = 'https://res.cloudinary.com/drld2cjpo/image/upload/v1774938333/artists/site_logo_1774938333444.png'
+const SITE_LOGO_ICON_URL = 'https://res.cloudinary.com/drld2cjpo/image/upload/v1775023265/artists/site_logo_1775023264527.png'
 const SITE_LOGO_TEXT_URL = 'https://res.cloudinary.com/drld2cjpo/image/upload/v1774852951/artists/site_logo_1774852951511.png'
 const SITE_NAME = 'Polygon 結他譜'
 
@@ -151,7 +151,7 @@ export default function Navbar() {
                   decoding="async"
                   style={{ maxWidth: 155, marginTop: 1, marginBottom: 3 }}
                 />
-                <span className="text-black tracking-[0.2em] navbar-tagline" style={{ fontSize: '1rem', lineHeight: '0.8rem'}}>
+                <span className="text-black tracking-[0.2em] navbar-tagline" style={{ fontSize: '1rem', lineHeight: '1.2rem'}}>
                   香港廣東歌結他譜網
                 </span>
               </div>
