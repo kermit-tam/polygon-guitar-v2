@@ -1,13 +1,45 @@
-import { useState } from 'react'
-import { Send, Check } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Send, Check, Paperclip, X } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 
 const FIELD = 'border border-white/10 bg-white/5 rounded-lg px-4 py-3 text-white placeholder-white/30 text-sm focus:outline-none focus:border-white/30 w-full transition-colors'
 
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result) // data:image/...;base64,...
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function ContactForm({ subject = '' }) {
-  const [form, setForm] = useState({ name: '', email: '', subject, message: '' })
-  const [status, setStatus] = useState(null) // null | 'sending' | 'sent' | 'error'
+  const { user } = useAuth()
+  const [form, setForm] = useState({ name: '', email: '', subject, message: '', link: '' })
+  const [image, setImage] = useState(null) // { name, dataUrl }
+  const fileInputRef = useRef(null)
+
+  useEffect(() => {
+    if (user) {
+      setForm((f) => ({
+        ...f,
+        email: f.email || user.email || '',
+        name: f.name || user.displayName || '',
+      }))
+    }
+  }, [user])
+
+  const [status, setStatus] = useState(null)
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const dataUrl = await readFileAsBase64(file)
+    setImage({ name: file.name, dataUrl })
+    e.target.value = ''
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -16,7 +48,7 @@ export default function ContactForm({ subject = '' }) {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, image: image ?? null }),
       })
       if (res.ok) {
         setStatus('sent')
@@ -59,6 +91,32 @@ export default function ContactForm({ subject = '' }) {
       <div className="flex flex-col gap-1.5">
         <label className="text-white/60 text-xs">內容</label>
         <textarea className={`${FIELD} resize-none`} rows={6} placeholder="請輸入你的訊息…" value={form.message} onChange={set('message')} required />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-white/60 text-xs">相關連結（選填）</label>
+        <input className={FIELD} type="url" placeholder="https://…" value={form.link} onChange={set('link')} />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-white/60 text-xs">附上截圖（選填）</label>
+        {image ? (
+          <div className="flex items-center gap-2 border border-white/10 bg-white/5 rounded-lg px-4 py-3">
+            <Paperclip className="w-4 h-4 text-white/40 shrink-0" />
+            <span className="text-white/70 text-sm truncate flex-1">{image.name}</span>
+            <button type="button" onClick={() => setImage(null)} className="text-white/40 hover:text-white transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 border border-dashed border-white/20 hover:border-white/40 bg-white/5 rounded-lg px-4 py-3 text-white/50 hover:text-white/70 text-sm transition-colors text-left"
+          >
+            <Paperclip className="w-4 h-4 shrink-0" />
+            點擊上傳圖片
+          </button>
+        )}
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
       </div>
       {status === 'error' && (
         <p className="text-red-400 text-sm">發送失敗，請稍後再試。</p>
