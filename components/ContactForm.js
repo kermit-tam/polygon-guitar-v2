@@ -13,7 +13,7 @@ function readFileAsBase64(file) {
   })
 }
 
-export default function ContactForm({ subject = '' }) {
+export default function ContactForm({ subject = '', extras = false }) {
   const { user } = useAuth()
   const [form, setForm] = useState({ name: '', email: '', subject, message: '', link: '' })
   const [images, setImages] = useState([]) // [{ name, dataUrl }]
@@ -92,35 +92,39 @@ export default function ContactForm({ subject = '' }) {
         <label className="text-white/60 text-xs">內容</label>
         <textarea className={`${FIELD} resize-none`} rows={6} placeholder="請輸入你的訊息…" value={form.message} onChange={set('message')} required />
       </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-white/60 text-xs">相關連結（選填）</label>
-        <input className={FIELD} type="url" placeholder="https://…" value={form.link} onChange={set('link')} />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-white/60 text-xs">附上截圖（選填）</label>
-        {images.length > 0 && (
+      {extras && (
+        <>
           <div className="flex flex-col gap-1.5">
-            {images.map((img, i) => (
-              <div key={i} className="flex items-center gap-2 border border-white/10 bg-white/5 rounded-lg px-4 py-3">
-                <Paperclip className="w-4 h-4 text-white/40 shrink-0" />
-                <span className="text-white/70 text-sm truncate flex-1">{img.name}</span>
-                <button type="button" onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))} className="text-white/40 hover:text-white transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+            <label className="text-white/60 text-xs">相關連結（選填）</label>
+            <input className={FIELD} type="url" placeholder="https://…" value={form.link} onChange={set('link')} />
           </div>
-        )}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-2 border border-dashed border-white/20 hover:border-white/40 bg-white/5 rounded-lg px-4 py-3 text-white/50 hover:text-white/70 text-sm transition-colors text-left"
-        >
-          <Paperclip className="w-4 h-4 shrink-0" />
-          {images.length > 0 ? '再加圖片' : '點擊上傳圖片'}
-        </button>
-        <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageChange} />
-      </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-white/60 text-xs">附上截圖（選填）</label>
+            {images.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                {images.map((img, i) => (
+                  <div key={i} className="flex items-center gap-2 border border-white/10 bg-white/5 rounded-lg px-4 py-3">
+                    <Paperclip className="w-4 h-4 text-white/40 shrink-0" />
+                    <span className="text-white/70 text-sm truncate flex-1">{img.name}</span>
+                    <button type="button" onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))} className="text-white/40 hover:text-white transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 border border-dashed border-white/20 hover:border-white/40 bg-white/5 rounded-lg px-4 py-3 text-white/50 hover:text-white/70 text-sm transition-colors text-left"
+            >
+              <Paperclip className="w-4 h-4 shrink-0" />
+              {images.length > 0 ? '再加圖片' : '點擊上傳圖片'}
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageChange} />
+          </div>
+        </>
+      )}
       {status === 'error' && (
         <p className="text-red-400 text-sm">發送失敗，請稍後再試。</p>
       )}
