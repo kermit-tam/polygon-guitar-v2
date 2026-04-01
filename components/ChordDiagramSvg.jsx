@@ -182,18 +182,21 @@ export default function ChordDiagramSvg({
 
   let layoutBaseFret = dbBase;
   /**
-   * 舊：baseFret=1、無開放弦、最低按弦≥2 → 一律用 minPlayedFret「裁切」指板。
-   * 新：若由 dbBase=1 起格數已夠顯示最高按弦（maxPlayedFret - 1 ≤ maxFretRowIndex），維持 1，
-   *     唔為對齊最低按弦而裁到 minPlayedFret；只有超出可見 5 格時先上移。
+   * SVG 固定約 5 行品位格（index 0…maxFretRowIndex）。db 傳 baseFret=1、絕對品位全喺中高把位時：
+   * - 若維持從第 1 品畫起，手指會全部擠喺最底一兩格（圖一）。
+   * - 無開放弦、最低按弦 ≥2、且跨度 ≤ 可見行數時，頂線改對齊最低實際品位（右側「Nfr」），同一般和弦圖（圖二）。
+   * - 最高品仍超出可見範圍時：沿用舊邏輯，由 min 起裁；必要時靠 fretRowIndex clamp。
    */
   if (
     dbBase === 1 &&
     minPlayedFret != null &&
-    minPlayedFret > 1 &&
-    !hasOpenString &&
-    maxPlayedFret != null
+    maxPlayedFret != null &&
+    !hasOpenString
   ) {
-    if (maxPlayedFret - 1 > maxFretRowIndex) {
+    const span = maxPlayedFret - minPlayedFret;
+    if (minPlayedFret > 1 && span <= maxFretRowIndex) {
+      layoutBaseFret = minPlayedFret;
+    } else if (maxPlayedFret - 1 > maxFretRowIndex) {
       layoutBaseFret = minPlayedFret;
     }
   }
@@ -322,6 +325,7 @@ export default function ChordDiagramSvg({
             fontSize="9.13"
           >
             {layoutBaseFret}
+            fr
           </text>
         )}
       </svg>
