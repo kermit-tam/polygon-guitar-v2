@@ -16,7 +16,7 @@ function readFileAsBase64(file) {
 export default function ContactForm({ subject = '' }) {
   const { user } = useAuth()
   const [form, setForm] = useState({ name: '', email: '', subject, message: '', link: '' })
-  const [image, setImage] = useState(null) // { name, dataUrl }
+  const [images, setImages] = useState([]) // [{ name, dataUrl }]
   const fileInputRef = useRef(null)
 
   useEffect(() => {
@@ -34,10 +34,10 @@ export default function ContactForm({ subject = '' }) {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const handleImageChange = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const dataUrl = await readFileAsBase64(file)
-    setImage({ name: file.name, dataUrl })
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    const newImages = await Promise.all(files.map(async (file) => ({ name: file.name, dataUrl: await readFileAsBase64(file) })))
+    setImages((prev) => [...prev, ...newImages])
     e.target.value = ''
   }
 
@@ -48,7 +48,7 @@ export default function ContactForm({ subject = '' }) {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, image: image ?? null }),
+        body: JSON.stringify({ ...form, images }),
       })
       if (res.ok) {
         setStatus('sent')
@@ -98,25 +98,28 @@ export default function ContactForm({ subject = '' }) {
       </div>
       <div className="flex flex-col gap-1.5">
         <label className="text-white/60 text-xs">附上截圖（選填）</label>
-        {image ? (
-          <div className="flex items-center gap-2 border border-white/10 bg-white/5 rounded-lg px-4 py-3">
-            <Paperclip className="w-4 h-4 text-white/40 shrink-0" />
-            <span className="text-white/70 text-sm truncate flex-1">{image.name}</span>
-            <button type="button" onClick={() => setImage(null)} className="text-white/40 hover:text-white transition-colors">
-              <X className="w-4 h-4" />
-            </button>
+        {images.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {images.map((img, i) => (
+              <div key={i} className="flex items-center gap-2 border border-white/10 bg-white/5 rounded-lg px-4 py-3">
+                <Paperclip className="w-4 h-4 text-white/40 shrink-0" />
+                <span className="text-white/70 text-sm truncate flex-1">{img.name}</span>
+                <button type="button" onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))} className="text-white/40 hover:text-white transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 border border-dashed border-white/20 hover:border-white/40 bg-white/5 rounded-lg px-4 py-3 text-white/50 hover:text-white/70 text-sm transition-colors text-left"
-          >
-            <Paperclip className="w-4 h-4 shrink-0" />
-            點擊上傳圖片
-          </button>
         )}
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex items-center gap-2 border border-dashed border-white/20 hover:border-white/40 bg-white/5 rounded-lg px-4 py-3 text-white/50 hover:text-white/70 text-sm transition-colors text-left"
+        >
+          <Paperclip className="w-4 h-4 shrink-0" />
+          {images.length > 0 ? '再加圖片' : '點擊上傳圖片'}
+        </button>
+        <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageChange} />
       </div>
       {status === 'error' && (
         <p className="text-red-400 text-sm">發送失敗，請稍後再試。</p>
