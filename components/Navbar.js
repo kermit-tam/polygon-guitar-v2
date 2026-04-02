@@ -149,7 +149,7 @@ export default function Navbar() {
                   alt={SITE_NAME}
                   loading="eager"
                   decoding="async"
-                  style={{ maxWidth: 155, marginTop: 1, marginBottom: 3 }}
+                  style={{ maxWidth: 155, marginTop: 4, marginBottom: 3 }}
                 />
                 <span className="text-black tracking-[0.2em] navbar-tagline" style={{ fontSize: '1rem', lineHeight: '1.2rem'}}>
                   香港廣東歌結他譜網

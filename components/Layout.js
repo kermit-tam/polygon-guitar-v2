@@ -265,7 +265,7 @@ export default function Layout({ children, fullWidth = false, hideHeader = false
                       document.body.classList.add('pg-hide-top-nav')
                     }
                   }}
-                  className={`flex flex-col items-center px-3 py-1 ${
+                  className={`flex flex-col items-center px-3 pt-0 pb-[5px] ${
                     isActive(item.path) ? 'text-black font-bold' : 'text-black/60 hover:text-black'
                   }`}
                 >
