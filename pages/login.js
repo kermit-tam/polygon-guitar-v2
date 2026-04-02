@@ -1,13 +1,37 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from '@/components/Link'
 import { useAuth } from '@/contexts/AuthContext'
 import Layout from '@/components/Layout'
+import { signInWithCustomToken } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
 
 export default function Login() {
   const router = useRouter()
-  const { signInWithGoogle, isAuthenticated } = useAuth()
+  const { signInWithGoogle, isAuthenticated, createOrUpdateUser } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState(null)
+
+  // Handle custom token from server-side OAuth flow (in-app browser fix)
+  useEffect(() => {
+    const { customToken, returnTo, error } = router.query
+    if (error) {
+      setErrorMsg('登入失敗，請再試一次。')
+      return
+    }
+    if (!customToken) return
+    setIsLoading(true)
+    signInWithCustomToken(auth, customToken)
+      .then(async (result) => {
+        if (createOrUpdateUser) await createOrUpdateUser(result.user).catch(() => {})
+        router.replace(returnTo && returnTo.startsWith('/') ? returnTo : '/')
+      })
+      .catch((e) => {
+        console.error('customToken sign in error', e)
+        setErrorMsg('登入失敗，請再試一次。')
+        setIsLoading(false)
+      })
+  }, [router.query])
 
   // Redirect if already logged in
   if (isAuthenticated) {
@@ -17,19 +41,21 @@ export default function Login() {
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
+    setErrorMsg(null)
     try {
       await signInWithGoogle()
       router.push('/')
     } catch (error) {
       console.error('Google sign in error:', error)
       if (error.code === 'auth/in-app-browser') {
-        alert('請用 Safari 或 Chrome 開啟此頁面後再登入。\n\n（Instagram / Facebook 內置瀏覽器不支援 Google 登入）')
+        // Redirect to server-side OAuth flow which works in in-app browsers
+        window.location.href = `/api/auth/google-start?returnTo=${encodeURIComponent(router.query.returnTo || '/')}`
+        return
       } else if (error.code === 'auth/unauthorized-domain') {
-        alert(`Firebase 未授權此域名，請聯繫管理員添加：${window.location.hostname}`)
+        setErrorMsg(`Firebase 未授權此域名：${window.location.hostname}`)
       } else {
-        alert('Google 登入失敗：' + error.message)
+        setErrorMsg('Google 登入失敗：' + error.message)
       }
-    } finally {
       setIsLoading(false)
     }
   }
@@ -47,6 +73,7 @@ export default function Login() {
             </Link>
           </div>
           <div className="p-4 space-y-4">
+            {errorMsg && <p className="text-red-400 text-sm text-center">{errorMsg}</p>}
             <button
               onClick={handleGoogleSignIn}
               disabled={isLoading}

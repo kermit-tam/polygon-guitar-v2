@@ -169,6 +169,7 @@ export function AuthProvider({ children }) {
     user: effectiveUser,
     loading,
     signInWithGoogle,
+    createOrUpdateUser,
     logout,
     isAuthenticated: !!effectiveUser,
     isAdmin,
