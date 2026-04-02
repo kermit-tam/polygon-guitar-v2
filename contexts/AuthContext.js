@@ -105,13 +105,21 @@ export function AuthProvider({ children }) {
   }
 
   const signInWithGoogle = async () => {
+    // In-app browsers (Instagram, Facebook, Line) block popups and partition sessionStorage,
+    // causing both signInWithPopup and signInWithRedirect to fail.
+    // Tell the user to open in their real browser instead.
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+    const isInAppBrowser = /Instagram|FBAN|FBAV|Line\/|Musical\.ly|TikTok/i.test(ua)
+    if (isInAppBrowser) {
+      throw Object.assign(new Error('in-app-browser'), { code: 'auth/in-app-browser' })
+    }
+
     try {
-      // Try popup first, fallback to redirect on mobile
       const result = await signInWithPopup(auth, googleProvider)
       await createOrUpdateUser(result.user)
       return result.user
     } catch (error) {
-      if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+      if (error.code === 'auth/popup-blocked') {
         await signInWithRedirect(auth, googleProvider)
       } else {
         throw error

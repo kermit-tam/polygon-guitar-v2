@@ -19,7 +19,9 @@ export default function LoginPromptModal({ onClose, signInWithGoogle }) {
       onClose()
     } catch (e) {
       console.error(e)
-      if (e.code === 'auth/unauthorized-domain') {
+      if (e.code === 'auth/in-app-browser') {
+        alert('請用 Safari 或 Chrome 開啟此頁面後再登入。\n\n（Instagram / Facebook 內置瀏覽器不支援 Google 登入）')
+      } else if (e.code === 'auth/unauthorized-domain') {
         alert(`Firebase 未授權此域名，請聯繫管理員添加：${window.location.hostname}`)
       } else {
         alert('Google 登入失敗：' + (e.message || e))
