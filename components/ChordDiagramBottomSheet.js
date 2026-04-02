@@ -174,12 +174,8 @@ export default function ChordDiagramBottomSheet({
     };
   }, [isOpen, onSheetHeightChange, uniqueChords.join(','), theme, reportHeight]);
 
-  useEffect(() => {
-    if (typeof document === 'undefined' || !isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, [isOpen]);
+  // Intentionally not locking body scroll — overflow:hidden on body breaks position:sticky on the tab page top nav.
+  // overscroll-behavior:contain on the chord list container prevents scroll from escaping the sheet.
 
   /** 必須喺 `if (!isOpen) return` 之前：Rules of Hooks 要每次 render 呼叫數量一致 */
   const pickerData = pickerChord ? alternativesByChord[pickerChord] : null;
@@ -320,7 +316,7 @@ export default function ChordDiagramBottomSheet({
         <div
           ref={carouselRef}
           className="flex overflow-x-auto gap-3 px-3 pt-1 pb-1.5 scroll-smooth scrollbar-hide snap-x snap-mandatory"
-          style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}
+          style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}
         >
           {uniqueChords.map((chord, index) => {
             const alts = alternativesByChord[chord];
