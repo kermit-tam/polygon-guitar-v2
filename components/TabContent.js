@@ -1496,17 +1496,17 @@ function splitPairAtSpaceNearestMiddle(pair, result) {
 // Wrapper: after render, if chord/lyric line wraps to two lines, split at space nearest middle and re-render as two lines
 // notationContent: optional React node rendered between chord line and lyric line (簡譜)
 function ChordLyricBlockWithWrap({ pair, result, processPair, renderBlock, pairMarginBottom, notationContent }) {
-  const containerRef = useRef(null);
-  const firstLineRef = useRef(null);
+  const chordRef = useRef(null);
+  const lyricRef = useRef(null);
   const [splitPairs, setSplitPairs] = useState(null);
 
   // Use useEffect (not useLayoutEffect) so SSR and client initial render match; wrap-split runs after paint on client.
   useEffect(() => {
     if (splitPairs) return;
-    if (!containerRef.current || !firstLineRef.current) return;
-    const containerHeight = containerRef.current.offsetHeight;
-    const lineHeight = firstLineRef.current.offsetHeight;
-    if (containerHeight > lineHeight * 1.3) {
+    if (!lyricRef.current || !chordRef.current) return;
+    const lyricHeight = lyricRef.current.offsetHeight;
+    const chordHeight = chordRef.current.offsetHeight;
+    if (lyricHeight > chordHeight * 1.3) {
       const split = splitPairAtSpaceNearestMiddle(pair, result);
       if (split) setSplitPairs(split);
     }
@@ -1528,7 +1528,7 @@ function ChordLyricBlockWithWrap({ pair, result, processPair, renderBlock, pairM
       </>
     );
   }
-  return renderBlock(result, { chordLineContainerRef: containerRef, firstChordSpanRef: firstLineRef }, notationContent);
+  return renderBlock(result, { chordLineContainerRef: chordRef, firstChordSpanRef: chordRef, lyricContainerRef: lyricRef }, notationContent);
 }
 
 // ============ 主組件 ============
@@ -2733,7 +2733,7 @@ const TabContent = ({
                   </div>
                   );
                 })() : (refs ? (
-                  <div ref={r => { if (r && refs.chordLineContainerRef) refs.chordLineContainerRef.current = r; if (r && refs.firstChordSpanRef) refs.firstChordSpanRef.current = r; }}>
+                  <div ref={r => { if (r && refs?.chordLineContainerRef) refs.chordLineContainerRef.current = r; if (r && refs?.firstChordSpanRef) refs.firstChordSpanRef.current = r; }}>
                     <ChordLineWithHover
                       chordLine={res.chordLine}
                       prefix={currentPrefix}
@@ -2765,6 +2765,7 @@ const TabContent = ({
 
                 {/* 歌詞行 */}
                 <div
+                  ref={refs?.lyricContainerRef}
                   data-clean-text={res.lyricParts.map(p => p.text || '').join('').replace(/\r?\n/g, '')}
                   style={{ fontSize: `${lineFontSize}px`, whiteSpace: 'pre-wrap', lineHeight: '1.1', marginTop: '0.2em' }}
                 >
