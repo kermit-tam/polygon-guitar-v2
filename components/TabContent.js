@@ -1600,7 +1600,7 @@ const TabContent = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(content || '');
   const [internalTheme, setInternalTheme] = useState('night'); // 'night' | 'day'
-  const [internalHideNotation, setInternalHideNotation] = useState(true);
+  const [internalHideNotation, setInternalHideNotation] = useState(false);
   const [internalHideBrackets, setInternalHideBrackets] = useState(false);
   const [internalHideTabStaff, setInternalHideTabStaff] = useState(false);
   const hideNotation = externalHideNotation !== undefined ? externalHideNotation : internalHideNotation;
