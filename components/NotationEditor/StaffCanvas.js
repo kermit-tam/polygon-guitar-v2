@@ -528,7 +528,7 @@ function BeatCell({
   }
 
   const commitFret = useCallback((stringIndex, n) => {
-    if (n >= 0 && n <= 24) onAddNote(stringIndex, n)
+    if (n === 'x' || (n >= 0 && n <= 24)) onAddNote(stringIndex, n)
   }, [onAddNote])
 
   useEffect(() => {
@@ -541,11 +541,17 @@ function BeatCell({
       const active = document.activeElement
       if (active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA' || active?.isContentEditable) return
 
+      if (e.key === 'x' || e.key === 'X') {
+        e.preventDefault()
+        commitFret(selectedLine, 'x')
+        return
+      }
       if (!/^[0-9]$/.test(e.key)) return
       e.preventDefault()
       const current = notesByString[selectedLine]
       const newDigit = parseInt(e.key, 10)
-      const newValue = (current != null && current < 10) ? current * 10 + newDigit : newDigit
+      // If current is 'x' or ≥ 10, start fresh; otherwise allow two-digit entry
+      const newValue = (current != null && typeof current === 'number' && current < 10) ? current * 10 + newDigit : newDigit
       if (newValue <= 24) {
         commitFret(selectedLine, newValue)
       } else {
