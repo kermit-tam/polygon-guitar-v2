@@ -292,7 +292,7 @@ function EditChaksaPlaylist() {
             <ArrowLeft className="w-6 h-6" />
           </Link>
           <h1 className="text-xl font-bold text-white truncate flex-1 min-w-0">{playlist.title}</h1>
-          <Link href={`/playlist/${playlist.id}`} className="text-sm text-[#FFD700] hover:underline shrink-0">
+          <Link href={`/playlist/${playlist.slug ?? playlist.id}`} className="text-sm text-[#FFD700] hover:underline shrink-0">
             預覽
           </Link>
         </div>

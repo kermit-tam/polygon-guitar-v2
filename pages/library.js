@@ -357,7 +357,7 @@ export default function Library() {
                 return (
                   <div
                     key={`saved-${pl.id}`}
-                    onClick={() => router.push(`/playlist/${pl.id}`)}
+                    onClick={() => router.push(`/playlist/${pl.slug ?? pl.id}`)}
                     className="cursor-pointer group"
                   >
                     <div className="aspect-square rounded-[4px] overflow-hidden mb-2 bg-[#121212] relative">

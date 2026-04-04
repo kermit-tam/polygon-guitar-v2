@@ -217,7 +217,7 @@ export default function Search() {
 
   const handlePlaylistClick = (pl) => {
     addSearchHistoryPlaylist(pl)
-    router.push(`/playlist/${pl.id}`)
+    router.push(`/playlist/${pl.slug ?? pl.id}`)
   }
 
   const getArtistPhoto = (artist) => {

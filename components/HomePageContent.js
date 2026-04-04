@@ -568,7 +568,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
                   <PlaylistCard
                     key={playlist.id}
                     playlist={playlist}
-                    href={`/playlist/${playlist.id}`}
+                    href={`/playlist/${playlist.slug ?? playlist.id}`}
                     compact
                   />
                 ))}
@@ -638,7 +638,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
                   <PlaylistCard
                     key={playlist.id}
                     playlist={playlist}
-                    href={`/playlist/${playlist.id}`}
+                    href={`/playlist/${playlist.slug ?? playlist.id}`}
                     compact
                   />
                 ))}
@@ -739,7 +739,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
                     <PlaylistCard
                       key={playlist.id}
                       playlist={playlist}
-                      href={`/playlist/${playlist.id}`}
+                      href={`/playlist/${playlist.slug ?? playlist.id}`}
                       compact
                     />
                   ))}

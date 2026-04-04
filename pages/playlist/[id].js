@@ -600,7 +600,7 @@ export default function PlaylistDetail({
         await fetch('/api/admin/bust-playlist-cache', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ playlistId: id })
+          body: JSON.stringify({ playlistId: playlist?.id ?? id })
         })
       }
     } catch (_) {}
@@ -610,7 +610,7 @@ export default function PlaylistDetail({
     setAdminAddingSongId(songId)
     try {
       const newSongIds = [...(playlist?.songIds || []), songId]
-      await updateSitePlaylist(id, { songIds: newSongIds })
+      await updateSitePlaylist(playlist.id, { songIds: newSongIds })
       const [added] = await getTabsByIds([songId])
       if (added) setSongs((prev) => [...prev, added])
       setPlaylist((p) => p ? { ...p, songIds: newSongIds } : p)
@@ -629,7 +629,7 @@ export default function PlaylistDetail({
     setAdminRemovingSongId(songId)
     try {
       const newSongIds = (playlist?.songIds || []).filter((sid) => sid !== songId)
-      await updateSitePlaylist(id, { songIds: newSongIds })
+      await updateSitePlaylist(playlist.id, { songIds: newSongIds })
       setSongs((prev) => prev.filter((s) => s.id !== songId))
       setPlaylist((p) => p ? { ...p, songIds: newSongIds } : p)
       bustPlaylistPageCache().catch(() => {})
@@ -649,7 +649,7 @@ export default function PlaylistDetail({
     const newSongIds = reordered.map((s) => s.id)
     setAdminReordering(true)
     try {
-      await updateSitePlaylist(id, { songIds: newSongIds })
+      await updateSitePlaylist(playlist.id, { songIds: newSongIds })
       setPlaylist((p) => p ? { ...p, songIds: newSongIds } : p)
       setSongs(reordered)
       bustPlaylistPageCache().catch(() => {})
@@ -727,10 +727,11 @@ export default function PlaylistDetail({
         curatedBy: (adminEditCuratedBy || '').trim(),
         coverImage: adminEditCoverImage || ''
       }
-      await updateSitePlaylist(id, updates)
+      await updateSitePlaylist(playlist.id, updates)
       setPlaylist((p) => p ? { ...p, ...updates } : p)
       setShowAdminSettings(false)
       setAdminSettingsDragY(0)
+      bustPlaylistPageCache().catch(() => {})
     } catch (e) {
       console.error(e)
       alert('更新失敗，請重試')
@@ -2049,6 +2050,10 @@ export async function getStaticProps({ params }) {
   try {
     const cached = await getPlaylistPageCache(id)
     if (cached) {
+      // Redirect from doc ID to slug URL
+      if (cached.playlist?.slug && cached.playlist.slug !== id) {
+        return { redirect: { destination: `/playlist/${encodeURIComponent(cached.playlist.slug)}`, permanent: true } }
+      }
       const autoF = (cached.otherPlaylists?.auto || []).filter((p) => p.id !== id).slice(0, 2)
       const manualF = (cached.otherPlaylists?.manual || []).filter((p) => p.id !== id).slice(0, 6)
       return {
@@ -2062,6 +2067,10 @@ export async function getStaticProps({ params }) {
       }
     }
     const playlistData = await getPlaylist(id)
+    // Redirect from doc ID to slug URL
+    if (playlistData?.slug && playlistData.slug !== id) {
+      return { redirect: { destination: `/playlist/${encodeURIComponent(playlistData.slug)}`, permanent: true } }
+    }
     if (!playlistData) {
       return { props: { initialPlaylist: null, initialSongs: [], initialUniqueArtists: [], initialOtherPlaylists: [] }, revalidate: 60 }
     }
