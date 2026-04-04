@@ -88,14 +88,10 @@ export default function ContactForm({ subject = '', extras = false }) {
         <label className="text-white/60 text-xs">主題</label>
         <input className={FIELD} placeholder="訊息主題" value={form.subject} onChange={set('subject')} required />
       </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-white/60 text-xs">內容</label>
-        <textarea className={`${FIELD} resize-none`} rows={6} placeholder="請輸入你的訊息…" value={form.message} onChange={set('message')} required />
-      </div>
       {extras && (
         <>
           <div className="flex flex-col gap-1.5">
-            <label className="text-white/60 text-xs">相關連結（選填）</label>
+            <label className="text-white/60 text-xs">相關網址（選填）</label>
             <input className={FIELD} type="url" placeholder="https://…" value={form.link} onChange={set('link')} />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -125,6 +121,10 @@ export default function ContactForm({ subject = '', extras = false }) {
           </div>
         </>
       )}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-white/60 text-xs">{extras ? '問題回報' : '訊息內容'}</label>
+        <textarea className={`${FIELD} resize-none`} rows={6} placeholder="請輸入你的訊息…" value={form.message} onChange={set('message')} required />
+      </div>
       {status === 'error' && (
         <p className="text-red-400 text-sm">發送失敗，請稍後再試。</p>
       )}
