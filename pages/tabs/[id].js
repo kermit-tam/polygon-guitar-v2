@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { pacificTime } from '@/lib/logTime'
 import { auth } from '@/lib/firebase'
@@ -59,6 +59,8 @@ import { calculateCapo, getKeyOptions } from '@/lib/keyUtils'
 import { getTransposedUniqueChordsFromContent } from '@/lib/chordUtils'
 import ChordDiagramBottomSheet, { CHORD_SHEET_MAX_HEIGHT } from '@/components/ChordDiagramBottomSheet'
 import { tabUploaderPenNameMatchesUser } from '@/lib/tabEditPermission'
+import { tabContentHasNumericNotation } from '@/lib/tabHasNumericNotation'
+import { tabDocumentHasTabStaff } from '@/lib/tabHasTabStaff'
 
 // 主題顏色配置
 const themeColors = {
@@ -130,7 +132,7 @@ export default function TabDetail({ initialTab, artist }) {
   const [tabPageFontSize, setTabPageFontSize] = useState(16)
   const [tabPageIsAutoScroll, setTabPageIsAutoScroll] = useState(false)
   const [tabPageScrollSpeed, setTabPageScrollSpeed] = useState(2)
-  const [tabPageHideNotation, setTabPageHideNotation] = useState(true)
+  const [tabPageHideNotation, setTabPageHideNotation] = useState(false)
   const [tabPageHideTabStaff, setTabPageHideTabStaff] = useState(false)
   const [showChordDiagram, setShowChordDiagram] = useState(false)
   /** null = 本曲和弦預設順序（FAB）；非 null = 該和弦排第一 + 膠囊黃色（譜內點字） */
@@ -178,6 +180,26 @@ export default function TabDetail({ initialTab, artist }) {
     setChordSheetLeadChord(chord)
     setShowChordDiagram(true)
   }, [])
+
+  const tabHasNumericNotation = useMemo(
+    () => tabContentHasNumericNotation(tab?.content || ''),
+    [tab?.content],
+  )
+
+  const tabHasTabStaff = useMemo(
+    () =>
+      tabDocumentHasTabStaff({
+        content: tab?.content,
+        notationAlphaTex: tab?.notationAlphaTex,
+        notationBlocks: tab?.notationBlocks,
+        gpSegments: tab?.gpSegments,
+      }),
+    [tab?.content, tab?.notationAlphaTex, tab?.notationBlocks, tab?.gpSegments],
+  )
+
+  useEffect(() => {
+    if (tab && !tabHasTabStaff && tabPageHideTabStaff) setTabPageHideTabStaff(false)
+  }, [tab?.id, tabHasTabStaff, tabPageHideTabStaff])
 
   useEffect(() => {
     if (!showChordDiagram) setChordSheetHeightPx(null)
@@ -1760,10 +1782,15 @@ export default function TabDetail({ initialTab, artist }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTabPageHideTabStaff(!tabPageHideTabStaff)}
-                  className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 transition ${tabPageHideTabStaff ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600 hover:text-white' : 'bg-[#FFD700] text-black'}`}
-                  title={tabPageHideTabStaff ? '顯示六線譜' : '隱藏六線譜'}
-                  aria-label={tabPageHideTabStaff ? '顯示六線譜' : '隱藏六線譜'}
+                  disabled={!tabHasTabStaff}
+                  onClick={() => tabHasTabStaff && setTabPageHideTabStaff(!tabPageHideTabStaff)}
+                  className={
+                    !tabHasTabStaff
+                      ? 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 bg-neutral-800 text-neutral-500 opacity-50 cursor-not-allowed'
+                      : `w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 transition ${tabPageHideTabStaff ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600 hover:text-white' : 'bg-[#FFD700] text-black'}`
+                  }
+                  title={!tabHasTabStaff ? '此譜沒有六線譜' : tabPageHideTabStaff ? '顯示六線譜' : '隱藏六線譜'}
+                  aria-label={!tabHasTabStaff ? '此譜沒有六線譜' : tabPageHideTabStaff ? '顯示六線譜' : '隱藏六線譜'}
                 >
                   {tabPageHideTabStaff ? (
                     <svg className="w-5 h-5 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
@@ -1777,9 +1804,16 @@ export default function TabDetail({ initialTab, artist }) {
                   )}
                 </button>
                 <button
-                  onClick={() => setTabPageHideNotation(!tabPageHideNotation)}
-                  className={`w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 transition ${tabPageHideNotation ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600' : 'bg-[#FFD700] text-black'}`}
-                  title={tabPageHideNotation ? '顯示簡譜' : '隱藏簡譜'}
+                  type="button"
+                  disabled={!tabHasNumericNotation}
+                  onClick={() => tabHasNumericNotation && setTabPageHideNotation(!tabPageHideNotation)}
+                  className={
+                    !tabHasNumericNotation
+                      ? 'w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 bg-neutral-800 text-neutral-500 opacity-50 cursor-not-allowed'
+                      : `w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 transition ${tabPageHideNotation ? 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600' : 'bg-[#FFD700] text-black'}`
+                  }
+                  title={!tabHasNumericNotation ? '此譜沒有數字簡譜' : tabPageHideNotation ? '顯示簡譜' : '隱藏簡譜'}
+                  aria-label={!tabHasNumericNotation ? '此譜沒有數字簡譜' : tabPageHideNotation ? '顯示簡譜' : '隱藏簡譜'}
                 >
                   {tabPageHideNotation ? (
                     <svg className="w-[2.125rem] h-[2.125rem] shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
@@ -1821,6 +1855,31 @@ export default function TabDetail({ initialTab, artist }) {
                 </svg>
               )}
             </button>
+            {tabHasNumericNotation && (
+              <button
+                type="button"
+                onClick={() => setTabPageHideNotation(!tabPageHideNotation)}
+                className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition opacity-60 hover:opacity-100 focus:opacity-100 ${tabPageHideNotation ? 'bg-neutral-800 border border-neutral-600 text-neutral-400 hover:bg-neutral-700 hover:text-white' : 'bg-[#FFD700] text-black hover:bg-yellow-400'}`}
+                title={tabPageHideNotation ? '顯示簡譜' : '隱藏簡譜'}
+                aria-label={tabPageHideNotation ? '顯示簡譜' : '隱藏簡譜'}
+              >
+                {tabPageHideNotation ? (
+                  <svg className="w-11 h-11 shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                    <path fill="currentColor" d="M11.87,14.35l-.73-.73h-.58c0,.41-.07.76-.2,1.06-.14.29-.31.53-.53.73-.21.19-.46.34-.73.43-.27.1-.55.15-.84.15v1.31c.27,0,.52-.03.78-.08.25-.06.48-.14.68-.25.21-.11.38-.24.53-.41.15-.16.25-.34.31-.55v4.71h-1.34v1.18h3.98v-1.18h-1.33v-6.37Z" />
+                    <polygon fill="currentColor" points="16.62 20.72 17.45 19.93 16.58 19.06 14.91 20.67 14.91 21.9 19.42 21.9 18.24 20.72 16.62 20.72" />
+                    <path fill="currentColor" d="M17.69,14.66c.16,0,.33.02.49.07.17.04.31.11.44.21.13.1.24.23.32.39.08.15.12.34.12.56,0,.18-.03.37-.12.57l.94.94c.07-.11.13-.21.19-.32.21-.41.31-.81.31-1.19s-.07-.74-.22-1.05c-.14-.3-.34-.55-.59-.75s-.53-.35-.86-.45c-.32-.11-.66-.16-1.02-.16-.56,0-1.04.09-1.44.29l.95.95c.15-.04.31-.06.49-.06Z" />
+                    <path fill="currentColor" d="M27.15,18.92c-.07-.23-.19-.44-.34-.63-.15-.19-.34-.34-.56-.46-.22-.13-.47-.2-.76-.22.25-.02.48-.08.68-.18.21-.1.38-.23.52-.39.13-.16.24-.35.31-.55.08-.21.11-.43.11-.66,0-.37-.06-.7-.19-.98-.13-.29-.31-.54-.54-.74-.23-.2-.5-.36-.81-.47-.3-.11-.63-.16-.99-.16-.43,0-.82.06-1.17.19-.35.12-.65.31-.9.56-.25.24-.44.55-.58.92s-.21.79-.21,1.28h1.25c0-.62.14-1.07.41-1.35.28-.28.68-.42,1.2-.42.4,0,.7.11.91.32.21.22.31.5.31.84,0,.21-.05.39-.16.55-.1.15-.24.29-.42.4-.19.11-.4.19-.64.25-.25.05-.51.08-.79.08v1.18c.8,0,1.36.1,1.69.32.32.21.48.56.48,1.06,0,.36-.13.66-.38.88-.25.22-.58.33-1,.33-.49,0-.9-.16-1.21-.47-.31-.32-.49-.75-.54-1.3l-1.07.18 2.77 2.77h.05c.36,0,.7-.06,1.02-.17.32-.12.61-.28.86-.48.24-.21.44-.46.59-.75.15-.3.22-.63.22-.99,0-.25-.04-.5-.12-.74Z" />
+                    <path fill="currentColor" d="M19.18,18.26l-.87-.87-2.04-2.04-.9-.9-3.71-3.71c-.25-.25-.67-.25-.92,0s-.25.66,0,.92l4.1,4.1.71.71,1.83,1.83.86.86.81.81,1.19,1.19,3.63,3.63c.13.13.29.19.46.19s.33-.06.46-.19c.25-.26.25-.67,0-.92l-5.61-5.61Z" />
+                  </svg>
+                ) : (
+                  <svg className="w-11 h-11 shrink-0" viewBox="0 0 35.54 35.54" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                    <path fill="currentColor" d="M13.2,21.91h-3.97v-1.18h1.33v-4.71c-.06.21-.16.39-.31.55-.15.16-.32.3-.53.4-.21.11-.43.19-.69.25-.25.06-.51.09-.78.09v-1.31c.29,0,.57-.05.84-.14.27-.1.52-.24.73-.44s.39-.44.52-.73c.13-.29.2-.65.2-1.06h1.31v7.1h1.33v1.18Z" />
+                    <path fill="currentColor" d="M20.38,15.89c0,.39-.1.79-.31,1.19s-.49.79-.86,1.16l-2.59,2.49h2.43v-1.14h1.19v2.32h-5.33v-1.24l3.33-3.19c.29-.3.5-.57.62-.83.13-.26.19-.51.19-.75,0-.22-.04-.4-.12-.56s-.19-.28-.32-.38c-.13-.1-.28-.17-.44-.22-.17-.04-.33-.07-.49-.07-.52,0-.93.15-1.23.46s-.45.76-.45,1.35h-1.23c0-.94.25-1.67.75-2.2s1.22-.79,2.16-.79c.36,0,.7.05,1.02.16.33.1.61.25.86.45.25.2.44.45.59.76.15.3.22.65.22,1.04Z" />
+                    <path fill="currentColor" d="M27.27,19.66c0,.36-.07.69-.22.99-.15.29-.35.54-.59.75-.25.21-.53.37-.86.48-.32.11-.66.17-1.02.17-.4,0-.78-.05-1.12-.16s-.65-.27-.91-.49c-.26-.22-.48-.5-.64-.85s-.26-.76-.3-1.24l1.23-.2c.04.55.22.98.53,1.29.31.32.72.47,1.21.47.42,0,.75-.11,1-.33.25-.22.38-.51.38-.88,0-.5-.16-.85-.48-1.06-.32-.21-.88-.32-1.69-.32v-1.18c.28,0,.55-.03.79-.08s.46-.14.64-.25c.18-.11.33-.24.43-.4s.16-.34.16-.54c0-.35-.1-.63-.31-.84-.21-.21-.51-.32-.91-.32-.52,0-.92.14-1.2.42-.28.28-.42.73-.42,1.35h-1.25c0-.49.07-.91.21-1.28s.33-.68.58-.92c.25-.25.55-.43.9-.56.35-.12.74-.19,1.17-.19.36,0,.69.05.99.16.31.11.58.26.81.47s.41.45.54.74c.13.29.19.61.19.98,0,.23-.04.45-.11.66-.07.21-.18.39-.32.55s-.31.29-.51.39-.43.16-.68.17c.29.03.54.1.76.22.22.12.41.28.56.46s.27.4.35.63.12.48.12.74Z" />
+                  </svg>
+                )}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
