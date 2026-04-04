@@ -18,6 +18,40 @@ function shouldShowNotationBlockHeadingLabel(label) {
   return t.length > 0 && t !== 'intro'
 }
 
+/** 與 GpSegmentUploader SEGMENT_TYPES 嘅 value 一致 */
+const GP_SEGMENT_TYPES = new Set([
+  'intro', 'verse', 'chorus', 'interlude', 'solo', 'outro', 'bridge', 'prechorus',
+])
+
+/**
+ * `!outro` 等錨點對應 gpSegments[].type；之前淨係「Intro」段落標題行會撳 GP，!outro 會被無視。
+ * @returns {object|null}
+ */
+function findGpSegmentForNotationAnchor(label, gpSegments) {
+  if (!label || !Array.isArray(gpSegments) || gpSegments.length === 0) return null
+  const n = String(label).trim().toLowerCase().replace(/\s+/g, '')
+  let targetType = null
+  if (GP_SEGMENT_TYPES.has(n)) {
+    targetType = n
+  } else if (/^intro\d*$/.test(n)) {
+    targetType = 'intro'
+  } else if (/^outro\d*$/.test(n)) {
+    targetType = 'outro'
+  } else {
+    return null
+  }
+  const seg = gpSegments.find((s) => (s?.type || '').toLowerCase() === targetType)
+  if (!seg) return null
+  const u = (seg.fileUrl || seg.cloudinaryUrl || '').trim()
+  return u ? seg : null
+}
+
+function titleCaseNotationAnchorLabel(label) {
+  const s = String(label || '').trim()
+  if (!s) return ''
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 // ============ 智能字體大小計算 ============
 // 根據內容長度計算合適的字體大小
 function calculateFontSize(text, containerWidth = 800) {
@@ -1909,6 +1943,17 @@ const TabContent = ({
                   </div>
                 )
               }
+              const gpSeg = findGpSegmentForNotationAnchor(notationSlot.label, gpSegments)
+              if (gpSeg && !hideTabStaff) {
+                return (
+                  <div key={idx} className="mb-[25px]">
+                    <div style={{ fontSize: `${fontSize}px`, marginBottom: '0.3em', textDecoration: 'underline', textUnderlineOffset: '4px', color: colors.lyricInside }}>
+                      {titleCaseNotationAnchorLabel(notationSlot.label)}
+                    </div>
+                    <GpSegmentPlayer segment={gpSeg} theme={gpTheme} />
+                  </div>
+                )
+              }
               return null
             }
             // 檢查是否為 Section Marker
@@ -2076,6 +2121,31 @@ const TabContent = ({
                   theme={theme}
                   bpm={block.notationStaffSnapshot?.bpm ?? null}
                 />
+              </div>
+            )
+          }
+        } else {
+          const gpSeg = findGpSegmentForNotationAnchor(notationParsed.label, gpSegments)
+          if (gpSeg && !hideTabStaff) {
+            elements.push(
+              <div key={`${i}-gp-anchor-h`} style={{ marginTop: i > 0 ? '20px' : undefined, marginBottom: `${lineFontSize * 0.6}px` }}>
+                <span
+                  style={{
+                    color: colors.lyricInside,
+                    fontSize: `${lineFontSize}px`,
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '4px',
+                    fontFamily: "'Source Code Pro', 'Noto Sans Mono CJK TC', Consolas, 'Courier New', monospace",
+                    fontWeight: 300,
+                  }}
+                >
+                  {titleCaseNotationAnchorLabel(notationParsed.label)}
+                </span>
+              </div>
+            )
+            elements.push(
+              <div key={`${i}-gp-anchor`} className="mb-[25px]" style={{ marginBottom: `${lineFontSize * 0.6}px` }}>
+                <GpSegmentPlayer segment={gpSeg} theme={gpTheme} />
               </div>
             )
           }
