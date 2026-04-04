@@ -104,7 +104,7 @@ export default function NewTablaturePage() {
       };
       
       const newTab = await createTab(tabData, user.uid);
-      router.push(`/tabs/${newTab.id}`);
+      router.push(`/tabs/${newTab.slug ?? newTab.id}`);
       // Patch caches in background (do not await — quota can block; save must not wait)
       auth.currentUser?.getIdToken?.().then((token) => {
         if (token) {

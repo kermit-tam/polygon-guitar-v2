@@ -227,7 +227,7 @@ export default function RecentTabs() {
           <div style={{ paddingLeft: '1rem', paddingRight: '1rem' }}>
             {tabs.map((tab) => (
               <div key={tab.id} className="group flex items-center gap-3 py-2 pl-0 pr-0 rounded-[7px] md:hover:bg-white/5 md:transition">
-                <Link href={`/tabs/${tab.id}`} className="flex-1 flex items-center gap-3 min-w-0">
+                <Link href={`/tabs/${tab.slug ?? tab.id}`} className="flex-1 flex items-center gap-3 min-w-0">
                   <div className="w-[49px] h-[49px] rounded-[5px] bg-neutral-800 flex-shrink-0 overflow-hidden">
                     {getSongThumbnail(tab) ? (
                       <img

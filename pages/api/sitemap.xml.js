@@ -82,7 +82,7 @@ export default async function handler(req, res) {
 
       // Tab pages
       ...tabs.map((tab) => ({
-        loc: `${SITE_URL}/tabs/${tab.id}`,
+        loc: `${SITE_URL}/tabs/${encodeURIComponent(tab.slug ?? tab.id)}`,
         lastmod: toIsoDate(tab.updatedAt || tab.createdAt),
         changefreq: 'monthly',
         priority: '0.7',

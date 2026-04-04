@@ -53,7 +53,7 @@ const ChordLogPenIcon = ({ className = '' }) => (
 import { toggleLikeSong, checkIsLiked, getUserPlaylists, addSongToPlaylist, createPlaylist, removeSongFromPlaylist } from '@/lib/playlistApi'
 import { isSongLikedInCache, getPlaylistsFromCache } from '@/lib/userLibraryCache'
 import Head from 'next/head'
-import { generateTabTitle, generateTabDescription, generateTabSchema, generateBreadcrumbSchema, getAbsoluteOgImage, getOgImage } from '@/lib/seo'
+import { generateTabTitle, generateTabDescription, generateTabSchema, getAbsoluteOgImage, getOgImage } from '@/lib/seo'
 import { siteConfig } from '@/lib/seo'
 import { calculateCapo, getKeyOptions } from '@/lib/keyUtils'
 import { getTransposedUniqueChordsFromContent } from '@/lib/chordUtils'
@@ -225,7 +225,7 @@ export default function TabDetail({ initialTab, artist }) {
       })
       return
     }
-    if (initialTab && initialTab.id === id) {
+    if (initialTab && (initialTab.id === id || initialTab.slug === id)) {
       if (justRefetchedIdRef.current === id) {
         justRefetchedIdRef.current = null
         return
@@ -289,15 +289,16 @@ export default function TabDetail({ initialTab, artist }) {
 
   const fireSideEffects = (data) => {
     setFallbackArtistPhoto(null)
+    const tabDocId = data.id // always the Firestore doc ID, not the URL slug
     const effects = []
     if (viewCountFiredForRef.current !== id) {
       viewCountFiredForRef.current = id
-      effects.push(incrementViewCount(id))
+      effects.push(incrementViewCount(tabDocId))
     }
-    recordTabView(id, data)
+    recordTabView(tabDocId, data)
     if (user) effects.push(recordSongView(user.uid, data))
     effects.push(
-      recordPageView('tab', id, data.title, {
+      recordPageView('tab', tabDocId, data.title, {
         pageName: data.title,
         artistName: getArtistName(data) || '',
         originalKey: data.originalKey,
@@ -323,7 +324,7 @@ export default function TabDetail({ initialTab, artist }) {
           const matched = allArtists.find(a => a.id === mainArtistIdForData)
           if (matched?.photo) {
             setFallbackArtistPhoto(matched.photo)
-            recordTabView(id, { ...data, artistPhoto: matched.photo })
+            recordTabView(tabDocId, { ...data, artistPhoto: matched.photo })
           }
         })
         .catch(() => {})
@@ -976,15 +977,10 @@ export default function TabDetail({ initialTab, artist }) {
   // SEO 配置
   const seoTitle = generateTabTitle(tab.title, artistDisplayName)
   const seoDescription = generateTabDescription(tab.title, artistDisplayName, tab.originalKey || 'C')
-  const seoUrl = `${siteConfig.url}/tabs/${tab.id}`
+  const seoUrl = `${siteConfig.url}/tabs/${tab.slug ?? tab.id}`
   
   // 結構化數據
-  const tabSchema = generateTabSchema(tab, { name: artistDisplayName, photoURL: tab.thumbnail || effectiveArtistPhoto })
-  const breadcrumbSchema = generateBreadcrumbSchema([
-    { name: '首頁', url: siteConfig.url },
-    { name: artistDisplayName, url: `${siteConfig.url}/artists/${mainArtistId}` },
-    { name: tab.title, url: seoUrl }
-  ])
+  const tabSchema = generateTabSchema(tab, { id: mainArtistId, name: artistDisplayName, photoURL: tab.thumbnail || effectiveArtistPhoto })
 
   return (
     <>
@@ -1019,7 +1015,7 @@ export default function TabDetail({ initialTab, artist }) {
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify([tabSchema, breadcrumbSchema])
+            __html: JSON.stringify(tabSchema)
           }}
         />
       </Head>
@@ -1412,7 +1408,7 @@ export default function TabDetail({ initialTab, artist }) {
 
         {/* 留言區 */}
         <div className="px-4">
-          <TabComments tabId={id} />
+          <TabComments tabId={tab?.id ?? id} />
         </div>
 
         {/* 更多 Action Sheet */}
@@ -1589,7 +1585,7 @@ export default function TabDetail({ initialTab, artist }) {
                   return (
                     <li key={row.id}>
                       <Link
-                        href={`/tabs/${row.id}`}
+                        href={`/tabs/${row.slug ?? row.id}`}
                         onClick={() => setShowAlternateVersionsModal(false)}
                         className="flex items-center gap-1.5 min-w-0 w-full text-left px-3 py-2.5 rounded-xl hover:bg-[#1a1a1a] transition"
                       >
@@ -1887,6 +1883,10 @@ export async function getStaticProps({ params }) {
     const { getTabForStaticGeneration } = await import('@/lib/getTabForStaticProps')
     const data = await getTabForStaticGeneration(id)
     if (!data) return { notFound: true }
+    // Redirect legacy ID URLs to canonical slug URL
+    if (data.slug && data.slug !== id) {
+      return { redirect: { destination: `/tabs/${encodeURIComponent(data.slug)}`, permanent: true } }
+    }
     if (!data.youtubeVideoId && data.youtubeUrl) {
       const m = data.youtubeUrl.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/)
       if (m) data.youtubeVideoId = m[1]

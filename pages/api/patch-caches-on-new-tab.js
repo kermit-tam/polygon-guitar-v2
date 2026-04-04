@@ -43,7 +43,8 @@ function toSearchTabSlim(tab) {
     composer: tab.composer || '',
     lyricist: tab.lyricist || '',
     arranger: tab.arranger || '',
-    uploaderPenName: tab.uploaderPenName || ''
+    uploaderPenName: tab.uploaderPenName || '',
+    slug: tab.slug || undefined
   })
 }
 
@@ -57,7 +58,8 @@ function toHomeSlim(tab) {
     id: tab.id,
     title: tab.title,
     artistId: getTabArtistId(tab) || tab.artistId,
-    ...(coverImage ? { coverImage } : {})
+    ...(coverImage ? { coverImage } : {}),
+    slug: tab.slug || undefined
   })
 }
 

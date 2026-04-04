@@ -102,7 +102,7 @@ function SongItem({ song, index, artistPhoto }) {
   
   return (
     <Link
-      href={`/tabs/${song.id}`}
+      href={`/tabs/${song.slug ?? song.id}`}
       className="flex items-center gap-3 p-3 hover:bg-neutral-800/50 transition group"
     >
       {/* 排名數字 - 縮細版 */}

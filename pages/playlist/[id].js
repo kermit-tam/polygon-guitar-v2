@@ -133,7 +133,7 @@ function ChaksaSongRow({
           </>
         ) : (
           <Link
-            href={`/tabs/${song.id}`}
+            href={`/tabs/${song.slug ?? song.id}`}
             prefetch={false}
             className="flex min-w-0 flex-1 items-center gap-3 py-0 pl-0 pr-0 rounded-[7px] text-left bg-transparent border-0 cursor-pointer text-inherit no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFD700]/40"
           >
@@ -1381,7 +1381,7 @@ export default function PlaylistDetail({
               : sortedSongs.map((song) => (
                   <div key={`${song.id}-${song.chartYear}-${song.chartPosition}`} className="group flex items-center gap-3 py-2 pl-0 pr-0 rounded-[7px] md:hover:bg-white/5 md:transition">
                     <Link
-                      href={`/tabs/${song.id}`}
+                      href={`/tabs/${song.slug ?? song.id}`}
                       prefetch={false}
                       className="flex-1 flex items-center gap-3 py-0 pl-0 pr-0 rounded-[7px] min-w-0 text-left bg-transparent border-0 cursor-pointer text-inherit no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFD700]/40"
                     >

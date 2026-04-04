@@ -755,7 +755,7 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
           {hotTabs.map((tab, index) => (
             <Link 
               key={tab.id}
-              href={`/tabs/${tab.id}`}
+              href={`/tabs/${tab.slug ?? tab.id}`}
               className="flex items-center py-1 rounded-lg cursor-pointer group -mx-2 px-2"
             >
               <span className="text-[#B3B3B3] w-5 text-center text-sm font-medium mr-2">
@@ -859,7 +859,7 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
                     return (
                       <Link 
                         key={tab.id}
-                        href={`/tabs/${tab.id}`}
+                        href={`/tabs/${tab.slug ?? tab.id}`}
                         className="flex items-center cursor-pointer group py-3 px-2 -mx-2"
                         style={idx < arr.length - 1 ? { borderBottom: '0.5px solid #333' } : {}}
                       >
@@ -901,7 +901,7 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
                       {isExpanded && item.versions.map((tab, vIdx) => (
                         <Link
                           key={tab.id}
-                          href={`/tabs/${tab.id}`}
+                          href={`/tabs/${tab.slug ?? tab.id}`}
                           className="flex items-center cursor-pointer py-3 px-2 -mx-2 pl-6 bg-[#0a0a0a]"
                           style={(vIdx < item.versions.length - 1 || idx < arr.length - 1) ? { borderBottom: '0.5px solid #333' } : {}}
                         >
@@ -937,7 +937,7 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
                 return (
                   <Link 
                     key={tab.id}
-                    href={`/tabs/${tab.id}`}
+                    href={`/tabs/${tab.slug ?? tab.id}`}
                     className="flex items-center py-3 cursor-pointer group px-2 -mx-2"
                     style={idx < arr.length - 1 ? { borderBottom: '0.5px solid #333' } : {}}
                   >
@@ -979,7 +979,7 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
                   {isExpanded && item.versions.map((tab, vIdx) => (
                     <Link
                       key={tab.id}
-                      href={`/tabs/${tab.id}`}
+                      href={`/tabs/${tab.slug ?? tab.id}`}
                       className="flex items-center cursor-pointer py-3 px-2 -mx-2 pl-6 bg-[#0a0a0a]"
                       style={(vIdx < item.versions.length - 1 || idx < arr.length - 1) ? { borderBottom: '0.5px solid #333' } : {}}
                     >

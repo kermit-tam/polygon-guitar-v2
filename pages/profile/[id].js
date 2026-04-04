@@ -444,7 +444,7 @@ export default function PublicProfile() {
                 {popularTabs.map((tab) => {
                   const thumbnail = getSongThumbnail(tab)
                   return (
-                    <Link key={tab.id} href={`/tabs/${tab.id}`}>
+                    <Link key={tab.id} href={`/tabs/${tab.slug ?? tab.id}`}>
                       <div className="flex items-center gap-3 py-1.5 pl-0 pr-3 rounded-lg hover:bg-[#181818] transition cursor-pointer group">
                         {thumbnail ? (
                           <img
@@ -504,7 +504,7 @@ export default function PublicProfile() {
                 {(allTabsExpanded ? otherTabs : otherTabs.slice(0, ALL_TABS_INITIAL)).map((tab, index) => (
                   <Fragment key={tab.id}>
                     {index > 0 && <div className="h-px bg-neutral-800 min-w-full" aria-hidden="true" />}
-                    <Link href={`/tabs/${tab.id}`}>
+                    <Link href={`/tabs/${tab.slug ?? tab.id}`}>
                       <div className="flex items-center gap-3 py-2 pl-0 pr-3 hover:bg-[#181818] transition rounded-lg">
                       <div className="flex-1 min-w-0">
                         <h3 className="text-white text-sm font-medium truncate">{tab.title}</h3>

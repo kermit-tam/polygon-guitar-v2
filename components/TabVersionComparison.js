@@ -113,7 +113,7 @@ function VersionCard({ version, rank, isTop }) {
 
   return (
     <a
-      href={`/tabs/${version.id}`}
+      href={`/tabs/${version.slug ?? version.id}`}
       className={`block p-4 hover:bg-neutral-800/50 transition ${isTop ? 'bg-neutral-800/20' : ''}`}
     >
       <div className="flex items-start gap-4">

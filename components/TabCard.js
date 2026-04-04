@@ -27,7 +27,7 @@ export default function TabCard({ tab, compact = false, artistPhoto = null }) {
   if (compact) {
     // 簡潔模式 - 用於個人主頁列表
     return (
-      <Link href={`/tabs/${tab.id}`}>
+      <Link href={`/tabs/${tab.slug ?? tab.id}`}>
         <div className="flex items-center gap-3 p-3 bg-neutral-900 rounded-lg hover:bg-neutral-800 transition cursor-pointer">
           {/* 縮圖區域 - 骨架屏或圖片 */}
           <div className="w-14 h-10 rounded bg-[#282828] overflow-hidden flex-shrink-0">
@@ -63,7 +63,7 @@ export default function TabCard({ tab, compact = false, artistPhoto = null }) {
   return (
     <div className="bg-[#121212] rounded-lg shadow-md overflow-hidden border border-neutral-800">
       {/* 封面圖片 */}
-      <Link href={`/tabs/${tab.id}`}>
+      <Link href={`/tabs/${tab.slug ?? tab.id}`}>
         <div className="w-full aspect-square bg-[#282828] overflow-hidden cursor-pointer relative">
           {coverImage ? (
             <>
@@ -96,7 +96,7 @@ export default function TabCard({ tab, compact = false, artistPhoto = null }) {
       
       <div className="p-4">
       {/* 歌名 */}
-      <Link href={`/tabs/${tab.id}`}>
+      <Link href={`/tabs/${tab.slug ?? tab.id}`}>
         <h3 className="text-lg font-bold text-white mb-2 line-clamp-1 cursor-pointer hover:text-[#FFD700] transition">
           {tab.title}
         </h3>

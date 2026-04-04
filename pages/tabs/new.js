@@ -636,7 +636,7 @@ export default function NewTab() {
         await fetch('/api/search-data?bust=1')
       } catch (e) {}
       clearArtistMapCache()
-      router.push(`/tabs/${newTab.id}`)
+      router.push(`/tabs/${newTab.slug ?? newTab.id}`)
     } catch (error) {
       console.error('Create tab error:', error)
       alert(`上傳失敗：${error?.message || error?.code || '請重試'}`)

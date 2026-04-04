@@ -255,7 +255,7 @@ function CustomPlaylistSection({ title, songIds, onSongClick, preloadedSongs, ar
               key={song.id}
               song={{ ...song, artist: resolveHomeSongArtistLine(song, artistMap) }}
               artistPhoto={song.artistPhoto}
-              href={`/tabs/${song.id}`}
+              href={`/tabs/${song.slug ?? song.id}`}
               compact
             />
           ))
@@ -500,7 +500,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
                     key={song.id}
                     song={{ ...song, artist: resolveHomeSongArtistLine(song, artistMap) }}
                     artistPhoto={song.artistPhoto}
-                    href={`/tabs/${song.id}`}
+                    href={`/tabs/${song.slug ?? song.id}`}
                     compact
                   />
                 ))}
@@ -604,7 +604,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
                     key={song.id}
                     song={{ ...song, artist: resolveHomeSongArtistLine(song, artistMap) }}
                     artistPhoto={song.artistPhoto}
-                    href={`/tabs/${song.id}`}
+                    href={`/tabs/${song.slug ?? song.id}`}
                     compact
                   />
                 ))}

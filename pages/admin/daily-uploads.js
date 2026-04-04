@@ -171,7 +171,7 @@ export default function DailyUploads() {
                       </td>
                       <td className="px-4 py-3">
                         <a
-                          href={`/tabs/${tab.id}`}
+                          href={`/tabs/${tab.slug ?? tab.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-400 hover:text-blue-300 mr-3"

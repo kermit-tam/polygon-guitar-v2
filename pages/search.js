@@ -206,7 +206,8 @@ export default function Search() {
         uploaderPenName: song.uploaderPenName,
       })
     }
-    router.push(`/tabs/${songId}`)
+    const songSlug = (typeof song === 'object' ? song?.slug : null) ?? songId
+    router.push(`/tabs/${songSlug}`)
   }
 
   const handleArtistClick = (artist) => {
@@ -328,7 +329,7 @@ export default function Search() {
                   return (
                     <div key={`song-${entry.id}`} className="group flex items-center rounded-lg md:hover:bg-white/5 md:transition">
                       <Link
-                        href={`/tabs/${entry.id}`}
+                        href={`/tabs/${entry.slug ?? entry.id}`}
                         className="flex-1 min-w-0 flex items-center gap-3 py-2 pl-0 text-left"
                       >
                         <div className="w-[49px] h-[49px] rounded-[5px] bg-neutral-800 flex-shrink-0 overflow-hidden">
