@@ -1495,7 +1495,7 @@ function splitPairAtSpaceNearestMiddle(pair, result) {
 
 // Wrapper: after render, if chord/lyric line wraps to two lines, split at space nearest middle and re-render as two lines
 // notationContent: optional React node rendered between chord line and lyric line (簡譜)
-function ChordLyricBlockWithWrap({ pair, result, processPair, renderBlock, pairMarginBottom, notationContent }) {
+function ChordLyricBlockWithWrap({ pair, result, processPair, renderBlock, pairMarginBottom, notationContent, lineFontSize }) {
   const chordRef = useRef(null);
   const lyricRef = useRef(null);
   const [splitPairs, setSplitPairs] = useState(null);
@@ -1503,14 +1503,17 @@ function ChordLyricBlockWithWrap({ pair, result, processPair, renderBlock, pairM
   // Use useEffect (not useLayoutEffect) so SSR and client initial render match; wrap-split runs after paint on client.
   useEffect(() => {
     if (splitPairs) return;
-    if (!lyricRef.current || !chordRef.current) return;
+    if (!lyricRef.current) return;
     const lyricHeight = lyricRef.current.offsetHeight;
-    const chordHeight = chordRef.current.offsetHeight;
-    if (lyricHeight > chordHeight * 1.3) {
+    // With grid alignment the chord and lyric containers share the same width and wrap together,
+    // so comparing lyricHeight to chordHeight always gives ~1.0. Instead, compare against the
+    // expected single-line height derived from font size (lyric lineHeight is 1.1).
+    const singleLineHeight = (lineFontSize || 16) * 1.1;
+    if (lyricHeight > singleLineHeight * 1.5) {
       const split = splitPairAtSpaceNearestMiddle(pair, result);
       if (split) setSplitPairs(split);
     }
-  }, [pair, result, splitPairs]);
+  }, [pair, result, splitPairs, lineFontSize]);
 
   if (splitPairs && splitPairs.length === 2) {
     return (
@@ -2589,6 +2592,7 @@ const TabContent = ({
                   processPair={(p) => processPair(p.chordLine, p.lyricLine, transposeSemitones, hideBrackets, displayFont, preferFlats)}
                   pairMarginBottom={pairMarginBottom}
                   notationContent={notationContent}
+                  lineFontSize={lineFontSize}
                   renderBlock={(res, refs, notationContentBetween) => (
                 <>
                 {/* 和弦行 — grid alignment: overflow into remainder when space allows, expand cell when it doesn't */}
