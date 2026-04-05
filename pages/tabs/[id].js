@@ -983,7 +983,7 @@ export default function TabDetail({ initialTab, artist }) {
     ? (isFeat ? tab.collaborators.join(' feat. ') : tab.collaborators.join(' / '))
     : tabArtistIds.length > 1
       ? tabArtistIds.map(getArtistNameById).join(isFeat ? ' feat. ' : ' / ')
-      : (resolvedSingleName || resolvedArtistName || '')
+      : (resolvedSingleName || resolvedArtistName || artist?.name || '')
   const tabCoverImageUrl = (() => {
     if (tab.coverImage) return tab.coverImage
     if (tab.albumImage) return tab.albumImage
