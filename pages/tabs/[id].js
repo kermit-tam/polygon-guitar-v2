@@ -211,7 +211,12 @@ export default function TabDetail({ initialTab, artist }) {
     setPrevId(id)
     const fromUpdated = fromSaveRedirect
     const cached = getTabCached(id)
-    const fromInitial = !fromUpdated && initialTab && initialTab.id === id
+    // 必須同下面 useEffect 一致：canonical URL 用 slug 時 id 係 slug，唔係 Firestore doc id；
+    // 否則首輪 render（含 SSR）會誤判、顯示 skeleton 而唔 render <Head>，社交預覽會冇 OG。
+    const fromInitial =
+      !fromUpdated &&
+      initialTab &&
+      (initialTab.id === id || initialTab.slug === id)
     if (fromUpdated) {
       setTab(null)
       setIsLoading(true)
