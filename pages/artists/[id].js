@@ -538,9 +538,9 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
   if (router.isFallback || loading || !artist) return (
     <Layout fullWidth>
       <Head>
-        <title>{id ? `${decodeURIComponent(id)} | Polygon Guitar` : 'Polygon Guitar'}</title>
+        <title>{id ? `${decodeURIComponent(id)} 結他譜 chord | Polygon - 香港廣東歌結他譜網` : 'Polygon - 香港廣東歌結他譜網'}</title>
         <meta name="description" content={siteConfig.description} />
-        <meta property="og:title" content={`${id ? decodeURIComponent(id) : 'Polygon Guitar'} | Polygon Guitar`} />
+        <meta property="og:title" content={`Polygon - 香港廣東歌結他譜網 | ${id ? decodeURIComponent(id): ""}`} />
         <meta property="og:description" content={siteConfig.description} />
         <meta property="og:image" content={siteConfig.defaultOgImage || `${siteConfig.url}/og-image.jpg`} />
         <meta name="twitter:card" content="summary_large_image" />
@@ -576,7 +576,7 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
       <meta key="og-image" property="og:image" content={getOgImage(artist.photoURL || artist.wikiPhotoURL)} />
       <meta key="og-image-width" property="og:image:width" content="1200" />
       <meta key="og-image-height" property="og:image:height" content="630" />
-      <meta key="og-image-alt" property="og:image:alt" content={`${artist.name} 結他譜 - Polygon Guitar`} />
+      <meta key="og-image-alt" property="og:image:alt" content={`${artist.name} - Polygon Guitar`} />
       {/* Twitter Card — unique per artist */}
       <meta key="twitter-card" name="twitter:card" content="summary_large_image" />
       <meta key="twitter-site" name="twitter:site" content={siteConfig.twitter} />

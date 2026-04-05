@@ -1026,7 +1026,7 @@ export default function TabDetail({ initialTab, artist }) {
         <meta key="og-image" property="og:image" content={getOgImage(tab.coverImage || tab.albumImage || tab.thumbnail || (tab.youtubeVideoId ? `https://img.youtube.com/vi/${tab.youtubeVideoId}/hqdefault.jpg` : null) || effectiveArtistPhoto)} />
         <meta key="og-image-width" property="og:image:width" content="1200" />
         <meta key="og-image-height" property="og:image:height" content="630" />
-        <meta key="og-image-alt" property="og:image:alt" content={`${tab.title} - ${artistDisplayName} 結他譜`} />
+        <meta key="og-image-alt" property="og:image:alt" content={`${tab.title} - ${artistDisplayName}`} />
         <meta property="article:published_time" content={tab.createdAt} />
         <meta property="article:modified_time" content={tab.updatedAt} />
 

@@ -916,10 +916,10 @@ export default function PlaylistDetail({
     return (
       <Layout fullWidth hideHeader>
         <Head>
-          <title>{initialPlaylist?.title ? `${initialPlaylist.title} | Polygon Guitar` : 'Polygon Guitar'}</title>
+          <title>{initialPlaylist?.title ? `${initialPlaylist.title} | Polygon - 香港廣東歌結他譜網` : 'Polygon - 香港廣東歌結他譜網'}</title>
           <meta name="theme-color" content="transparent" />
           <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-          <meta property="og:title" content={initialPlaylist?.title ? `${initialPlaylist.title} | Polygon Guitar` : 'Polygon Guitar'} />
+          <meta property="og:title" content={initialPlaylist?.title ? `${initialPlaylist.title} | Polygon` : 'Polygon'} />
           <meta property="og:image" content={getOgImage(initialPlaylist?.coverImage)} />
           <meta name="twitter:card" content="summary_large_image" />
           <meta name="twitter:image" content={getOgImage(initialPlaylist?.coverImage)} />
@@ -938,8 +938,8 @@ export default function PlaylistDetail({
 
   if (!playlist) return null
 
-  const seoTitle = `${playlist.title} | Polygon Guitar`
-  const seoDescription = playlist.description || `${playlist.title} — Polygon Guitar 精選歌單`
+  const seoTitle = `${playlist.title} | Polygon - 香港廣東歌結他譜網`
+  const seoDescription = playlist.description || `${playlist.title} — Polygon 精選歌單`
   const seoUrl = `${siteConfig.url}/playlist/${id}`
   const ogImage = getOgImage(playlist.coverImage)
 

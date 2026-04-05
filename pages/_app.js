@@ -292,7 +292,7 @@ export default function App({ Component, pageProps }) {
       <FirestoreReadReport />
       <Head>
         {/* 預設 Meta Tags */}
-        <title>Polygon Guitar - 香港最大結他譜庫 | 3000+ 結他譜</title>
+        <title>{siteConfig.name}</title>
         <meta name="description" content={siteConfig.description} />
         <meta name="keywords" content="結他譜, guitar tabs, chords, 廣東歌結他譜, 粵語歌chords, 國語歌結他譜, 香港結他譜, hk guitar tabs, cantopop chords, 轉調, capo, 結他教學" />
         <meta name="author" content="Polygon Guitar" />
@@ -309,7 +309,7 @@ export default function App({ Component, pageProps }) {
         <meta key="og-image" property="og:image" content={`${siteConfig.url}/og-image.jpg`} />
         <meta key="og-image-width" property="og:image:width" content="1200" />
         <meta key="og-image-height" property="og:image:height" content="630" />
-        <meta key="og-image-alt" property="og:image:alt" content="Polygon Guitar - 香港最大結他譜庫" />
+        <meta key="og-image-alt" property="og:image:alt" content="Polygon Guitar - 香港最大譜庫" />
 
         {/* Twitter Card */}
         <meta key="twitter-card" name="twitter:card" content="summary_large_image" />

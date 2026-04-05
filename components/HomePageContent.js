@@ -897,7 +897,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
         <meta property="og:image" content={`${siteConfig.url}/og-image.jpg`} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
-        <meta property="og:image:alt" content="Polygon Guitar - 香港最大結他譜庫" />
+        <meta property="og:image:alt" content="Polygon Guitar - 香港最大譜庫" />
         
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />

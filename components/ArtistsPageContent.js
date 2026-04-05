@@ -249,8 +249,8 @@ export default function ArtistsPageContent({ initialArtists = [] }) {
     router.push(`/artists/${encodeURIComponent(slug || '')}`)
   }
 
-  const seoTitle = '歌手分類 - Polygon Guitar'
-  const seoDescription = '瀏覽所有歌手的結他譜，按男歌手、女歌手、組合分類。Polygon Guitar 提供超過 3000 份香港廣東歌、國語歌結他譜。'
+  const seoTitle = '歌手分類 | Polygon - 香港廣東歌結他譜網'
+  const seoDescription = '瀏覽所有歌手的結他譜，按男歌手、女歌手、組合分類。Polygon 提供超過 3000 份香港廣東歌、國語歌結他譜。'
   const seoUrl = `${siteConfig.url}/artists`
 
   const breadcrumbSchema = generateBreadcrumbSchema([
