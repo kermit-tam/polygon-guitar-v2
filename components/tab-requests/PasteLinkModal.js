@@ -10,8 +10,8 @@ export default function PasteLinkModal({ request, user, onClose, setRequests, re
   const checkAndFulfill = useCallback(async (linkOverride) => {
     if (!request) return
     const link = linkOverride !== undefined ? linkOverride : pastedLink
-    const tabId = parsePolygonTabLink(link)
-    if (!tabId) {
+    const tabPathSegment = parsePolygonTabLink(link)
+    if (!tabPathSegment) {
       setMessage('請貼上 POLYGON 結他譜連結，例如 https://polygon.guitars/tabs/...')
       setTimeout(() => setMessage(''), 3000)
       return
@@ -22,9 +22,16 @@ export default function PasteLinkModal({ request, user, onClose, setRequests, re
       const { getSongThumbnail } = await import('@/lib/getSongThumbnail')
       const { getGroupKeys, normalizeTitleForGrouping } = await import('@/lib/tabGrouping')
 
-      const tab = await getTab(tabId)
+      const tab = await getTab(tabPathSegment)
       if (!tab) {
         setMessage('出譜失敗，找不到該結他譜')
+        setTimeout(() => setMessage(''), 3000)
+        return
+      }
+
+      const resolvedTabId = String(tab.id || '').trim()
+      if (!resolvedTabId) {
+        setMessage('出譜失敗，無法驗證連結')
         setTimeout(() => setMessage(''), 3000)
         return
       }
@@ -54,14 +61,22 @@ export default function PasteLinkModal({ request, user, onClose, setRequests, re
         fulfilledBy: user?.uid || null,
         fulfilledByName,
         fulfilledAt: serverTimestamp(),
-        tabId,
+        tabId: resolvedTabId,
         ...(albumImage && { albumImage }),
       })
 
       setRequests((prev) =>
         prev.map((r) =>
           r.id === requestId
-            ? { ...r, status: 'fulfilled', fulfilledBy: user?.uid ?? null, fulfilledByName, fulfilledAt: new Date(), tabId, ...(albumImage && { albumImage }) }
+            ? {
+                ...r,
+                status: 'fulfilled',
+                fulfilledBy: user?.uid ?? null,
+                fulfilledByName,
+                fulfilledAt: new Date(),
+                tabId: resolvedTabId,
+                ...(albumImage && { albumImage }),
+              }
             : r
         )
       )
@@ -72,7 +87,7 @@ export default function PasteLinkModal({ request, user, onClose, setRequests, re
         fulfilledBy: user?.uid ?? null,
         fulfilledByName,
         fulfilledAt: Date.now(),
-        tabId,
+        tabId: resolvedTabId,
         ...(albumImage && { albumImage }),
       })
 

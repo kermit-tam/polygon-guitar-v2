@@ -12,10 +12,18 @@ import { getAdminDb } from '@/lib/admin-db'
 import { parsePolygonTabLink } from '@/lib/polygonTabLink'
 import { songIdsFromChartEntries, isChaksaPlaylist } from '@/lib/chaksaPlaylist'
 
-async function getTabAdmin(db, tabId) {
-  const snap = await db.collection('tabs').doc(tabId).get()
-  if (!snap.exists) return null
-  return { id: snap.id, ...snap.data() }
+/** 與客戶端 getTab 一致：先 doc id，再 slug（canonical URL 多為中文 slug） */
+async function getTabByIdOrSlugAdmin(db, idOrSlug) {
+  const key = String(idOrSlug || '').trim()
+  if (!key) return null
+  const byId = await db.collection('tabs').doc(key).get()
+  if (byId.exists) return { id: byId.id, ...byId.data() }
+  const slugSnap = await db.collection('tabs').where('slug', '==', key).limit(1).get()
+  if (!slugSnap.empty) {
+    const d = slugSnap.docs[0]
+    return { id: d.id, ...d.data() }
+  }
+  return null
 }
 
 export default async function handler(req, res) {
@@ -72,12 +80,12 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: '找不到該無譜項目或已綁定譜' })
   }
 
-  const tabId = parsePolygonTabLink(tabUrl)
-  if (!tabId) {
+  const tabPathSegment = parsePolygonTabLink(tabUrl)
+  if (!tabPathSegment) {
     return res.status(400).json({ error: '請貼上 POLYGON 結他譜連結，例如 https://polygon.guitars/tabs/...' })
   }
 
-  const tab = await getTabAdmin(db, tabId)
+  const tab = await getTabByIdOrSlugAdmin(db, tabPathSegment)
   if (!tab) {
     return res.status(400).json({ error: '出譜失敗，找不到該結他譜' })
   }
@@ -100,7 +108,7 @@ export default async function handler(req, res) {
     year: entry.year,
     position: entry.position,
     source: 'tab',
-    tabId: String(tabId).trim()
+    tabId: String(tab.id).trim()
   }
 
   const songIds = songIdsFromChartEntries(chartEntries)
@@ -116,5 +124,5 @@ export default async function handler(req, res) {
     await db.collection('cache').doc(`playlist_${playlistId}`).delete()
   } catch (_) {}
 
-  return res.status(200).json({ ok: true, tabId: String(tabId).trim() })
+  return res.status(200).json({ ok: true, tabId: String(tab.id).trim() })
 }
