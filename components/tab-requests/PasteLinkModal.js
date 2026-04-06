@@ -6,6 +6,7 @@ export default function PasteLinkModal({ request, user, onClose, setRequests, re
   const [message, setMessage] = useState('')
   const inputRef = useRef(null)
   const debounceRef = useRef(null)
+  const checkAndFulfillRef = useRef(null)
 
   const checkAndFulfill = useCallback(async (linkOverride) => {
     if (!request) return
@@ -100,18 +101,21 @@ export default function PasteLinkModal({ request, user, onClose, setRequests, re
     }
   }, [request, pastedLink, user, onClose, setRequests, refreshCache])
 
+  checkAndFulfillRef.current = checkAndFulfill
+
+  /** 唔好依賴 checkAndFulfill reference（parent 傳入嘅 callback 變會令 debounce 重排、甚至重試） */
   useEffect(() => {
     if (!request || !pastedLink.trim()) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!parsePolygonTabLink(pastedLink)) return
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null
-      checkAndFulfill()
+      checkAndFulfillRef.current?.()
     }, 800)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [pastedLink, request, checkAndFulfill])
+  }, [pastedLink, request?.id])
 
   const handleClose = () => {
     setPastedLink('')

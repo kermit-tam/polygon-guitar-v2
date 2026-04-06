@@ -8,32 +8,35 @@ export default function ChaksaPasteTabLinkModal({ open, onClose, playlistId, ent
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef(null)
   const debounceRef = useRef(null)
+  /** 避免 submit 依賴 submitting 導致失敗後 useEffect 重建、800ms debounce 無限重試 */
+  const submitLockRef = useRef(false)
 
   useEffect(() => {
     if (!open) return
     setPastedLink('')
     setMessage('')
     setSubmitting(false)
+    submitLockRef.current = false
     const t = setTimeout(() => inputRef.current?.focus?.(), 100)
     return () => clearTimeout(t)
   }, [open])
 
   const submit = useCallback(async () => {
     if (!playlistId || !entryId) return
-    if (submitting) return
+    if (submitLockRef.current) return
     const tabId = parsePolygonTabLink(pastedLink)
     if (!tabId) {
       setMessage('請貼上 POLYGON 結他譜連結，例如 https://polygon.guitars/tabs/...')
       setTimeout(() => setMessage(''), 4000)
       return
     }
+    submitLockRef.current = true
     setSubmitting(true)
     setMessage('檢查中…')
     try {
       const user = auth.currentUser
       if (!user) {
         setMessage('請先登入')
-        setSubmitting(false)
         setTimeout(() => setMessage(''), 3000)
         return
       }
@@ -49,21 +52,21 @@ export default function ChaksaPasteTabLinkModal({ open, onClose, playlistId, ent
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setMessage(data.error || '出譜失敗')
-        setSubmitting(false)
         setTimeout(() => setMessage(''), 4000)
         return
       }
       setPastedLink('')
-      setSubmitting(false)
       onSuccess?.()
       onClose()
     } catch (e) {
       console.error('[ChaksaPasteTabLinkModal]', e)
       setMessage('出譜失敗，請重試')
-      setSubmitting(false)
       setTimeout(() => setMessage(''), 4000)
+    } finally {
+      submitLockRef.current = false
+      setSubmitting(false)
     }
-  }, [playlistId, entryId, pastedLink, submitting, onClose, onSuccess])
+  }, [playlistId, entryId, pastedLink, onClose, onSuccess])
 
   useEffect(() => {
     if (!open || !pastedLink.trim()) return
