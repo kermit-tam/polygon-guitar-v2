@@ -730,6 +730,7 @@ function PlaylistAdmin() {
                   songs={coverGenSongs}
                   playlistTitle={coverGenPlaylist.title}
                   onGenerated={handleCoverGenerated}
+                  showTitleTextColorPicker
                 />
               )}
               </div>

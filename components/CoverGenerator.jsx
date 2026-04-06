@@ -293,7 +293,9 @@ export default function CoverGenerator({ songs = [], playlistTitle = '', onGener
 
         {/* Title text color picker - under frame colors（chip 底色隨 frameColor 改變） */}
         {showTitleTextColorPicker && mode === 'single' && (
-          <div className="mt-2 flex items-center gap-1.5">
+          <div className="mt-2">
+            <p className="text-xs text-neutral-500 mb-1">文字顏色</p>
+            <div className="flex items-center gap-1.5">
             {TITLE_TEXT_COLORS.map((c) => {
               const isSelected = titleTextColor === c.value
               const chipBg = frameColor || (c.value === '#000000' ? '#f2f2f2' : '#000000')
@@ -307,13 +309,14 @@ export default function CoverGenerator({ songs = [], playlistTitle = '', onGener
                     isSelected ? 'border-white scale-110' : 'border-neutral-600 hover:border-neutral-400'
                   }`}
                   style={{ backgroundColor: chipBg, color: chipText }}
-                  title={c.value === '#f2f2f2' ? 'f2f2f2' : '000000'}
-                  aria-label={`封面文字顏色 ${c.value}`}
+                  title={c.label}
+                  aria-label={`封面文字顏色 ${c.label}`}
                 >
                   A
                 </button>
               )
             })}
+            </div>
           </div>
         )}
       </div>
