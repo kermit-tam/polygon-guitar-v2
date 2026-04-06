@@ -1686,9 +1686,9 @@ export default function TabDetail({ initialTab, artist }) {
       <div
         className={`fixed right-4 md:right-6 flex flex-row items-end gap-2 transition-all duration-300 ease-out ${
           showChordDiagram && showFloatingControls
-            ? 'z-[107]'
+            ? 'z-[1101]'
             : showChordDiagram
-              ? 'z-[107] bottom-20 md:bottom-20'
+              ? 'z-[1101] bottom-20 md:bottom-20'
               : 'z-30 bottom-20 md:bottom-20'
         }`}
         style={{

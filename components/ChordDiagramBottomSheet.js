@@ -203,7 +203,7 @@ export default function ChordDiagramBottomSheet({
       {/* 揀 alternative：置中大和弦名 + 2 欄網格（常見 2×2）+ 黃框表示已揀 */}
       {showAltPicker && pickerData?.list?.length > 0 && (
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-black/55 pointer-events-auto"
+          className="fixed inset-0 z-[1200] flex items-center justify-center p-3 sm:p-4 bg-black/55 pointer-events-auto"
           role="dialog"
           aria-modal="true"
           aria-labelledby="chord-alt-picker-title"
@@ -278,7 +278,7 @@ export default function ChordDiagramBottomSheet({
 
       {/* 唔加全螢幕遮罩：否則 z-[105] 會擋晒後面（樂譜、FAB 等）；收合用本曲和弦 FAB */}
       <div
-        className="fixed left-0 right-0 z-[106] flex justify-center pointer-events-none"
+        className="fixed left-0 right-0 z-[1100] flex justify-center pointer-events-none"
         style={{ bottom: BOTTOM_NAV_OFFSET }}
       >
         <div
