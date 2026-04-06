@@ -26,6 +26,30 @@ async function getTabByIdOrSlugAdmin(db, idOrSlug) {
   return null
 }
 
+/** 與客戶端 getPlaylist 一致：doc id、slug、previousSlugs；URL 可能帶 % 編碼 */
+async function getPlaylistByIdOrSlugAdmin(db, idOrSlugRaw) {
+  let key = String(idOrSlugRaw || '').trim()
+  if (!key) return null
+  try {
+    key = decodeURIComponent(key)
+  } catch {
+    // keep key
+  }
+  const byId = await db.collection('playlists').doc(key).get()
+  if (byId.exists) return { id: byId.id, ...byId.data() }
+  const slugSnap = await db.collection('playlists').where('slug', '==', key).limit(1).get()
+  if (!slugSnap.empty) {
+    const d = slugSnap.docs[0]
+    return { id: d.id, ...d.data() }
+  }
+  const oldSlugSnap = await db.collection('playlists').where('previousSlugs', 'array-contains', key).limit(1).get()
+  if (!oldSlugSnap.empty) {
+    const d = oldSlugSnap.docs[0]
+    return { id: d.id, ...d.data() }
+  }
+  return null
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
@@ -61,13 +85,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: '缺少 playlistId、entryId 或 tabUrl' })
   }
 
-  const pRef = db.collection('playlists').doc(playlistId)
-  const pSnap = await pRef.get()
-  if (!pSnap.exists) {
+  const playlist = await getPlaylistByIdOrSlugAdmin(db, playlistId)
+  if (!playlist) {
     return res.status(404).json({ error: '找不到歌單' })
   }
 
-  const playlist = { id: pSnap.id, ...pSnap.data() }
+  const pRef = db.collection('playlists').doc(playlist.id)
   if (!isChaksaPlaylist(playlist)) {
     return res.status(400).json({ error: '此歌單唔係叱咤榜單' })
   }
@@ -121,7 +144,7 @@ export default async function handler(req, res) {
   })
 
   try {
-    await db.collection('cache').doc(`playlist_${playlistId}`).delete()
+    await db.collection('cache').doc(`playlist_${playlist.id}`).delete()
   } catch (_) {}
 
   return res.status(200).json({ ok: true, tabId: String(tab.id).trim() })
