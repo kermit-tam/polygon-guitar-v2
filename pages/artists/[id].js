@@ -477,14 +477,16 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
       group.forEach(tab => { if (!r.tabs.includes(tab)) r.tabs.push(tab); });
     });
     const result = [];
-    rootToGroups.forEach(({ tabs }) => {
+    rootToGroups.forEach(({ keys, tabs }, rootKey) => {
       const sorted = [...tabs].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
-      const displayKey = sorted[0].title.replace(/\s+/g, '') || sorted[0].title;
       if (tabs.length === 1) {
         result.push({ type: 'single', tab: tabs[0] });
-      } else {
-        result.push({ type: 'group', title: displayKey, representative: sorted[0], versions: sorted });
+        return;
       }
+      // 多份譜：標題用「呢組代表嘅 key」（最短）— Medley 會分兩行「念念不忘」「耿耿於怀」，唔用第一份譜嘅全名
+      const pool = [...new Set([rootKey, ...(keys || [])])].filter(Boolean);
+      const displayKey = pool.reduce((a, b) => (a.length <= b.length ? a : b));
+      result.push({ type: 'group', title: displayKey, representative: sorted[0], versions: sorted });
     });
     return result;
   };
