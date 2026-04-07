@@ -957,7 +957,7 @@ function extractNumericNotationComponents(line) {
       const beforeBracket = segment.substring(lastIndex, bracketPos).trim();
       if (beforeBracket) {
         // 檢查是否為和弦
-        const chordMatch = beforeBracket.match(/[A-G][#b]?(?:maj|mj|m|min|dim|aug|sus|add|m7|7|9|11|13)?$/);
+        const chordMatch = beforeBracket.match(/[A-G][#b]?(?:maj|mj|m|min|dim|aug|sus|add|m7|7|9|11|13)?\d*(?:sus\d*)?$/);
         if (chordMatch) {
           components.chords.push({
             chord: chordMatch[0],
@@ -1916,7 +1916,7 @@ const TabContent = ({
         if (/^\s*[A-G][#b]?\s*\(?.{0,30}capo.{0,30}\)?$/i.test(line)) {
           return false;
         }
-        const hasChordPattern = /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(\/[A-G][#b]?)?(?=\s|$|\||\b)/.test(line);
+        const hasChordPattern = /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(sus\d*)?(\/[A-G][#b]?)?(?=\s|$|\||\b)/.test(line);
         const hasChinese = /[\u4e00-\u9fff]/.test(line);
         return hasChordPattern && !hasChinese;
       };
@@ -1925,7 +1925,7 @@ const TabContent = ({
       const checkIsLyricLine = (line) => {
         if (!line) return false;
         const hasChinese = /[\u4e00-\u9fff]/.test(line);
-        const hasChordPattern = /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(\/[A-G][#b]?)?(?=\s|$|\||\b)/.test(line);
+        const hasChordPattern = /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(sus\d*)?(\/[A-G][#b]?)?(?=\s|$|\||\b)/.test(line);
         // 有英文單詞（至少2個字母）
         const hasEnglishWords = /[a-zA-Z]{2,}/.test(line);
         // 歌詞行：有中文字或純英文單詞，且沒有和弦模式
@@ -2289,7 +2289,7 @@ const TabContent = ({
       
       // 檢查是否為和弦行（支持組合後綴如 madd9, maj7, add9、以及 b5/b9/#9 等延伸）
       // 和弦格式：[根音][升降]([m/maj/min/sus/dim/aug])([add/7/9/11/13]數字)?((b|#)數字)?(斜線根音)?
-      const strictChordPattern = /\b[A-G](#|b)?(maj|mj|m|min|sus|dim|aug)?(add|m7|maj7|7|9|11|13)?\d*((b|#)\d*)?(\/[A-G][#b]?)?(?=\s|$|\||\b)/g;
+      const strictChordPattern = /\b[A-G](#|b)?(maj|mj|m|min|sus|dim|aug)?(add|m7|maj7|7|9|11|13)?\d*((b|#)\d*)?(sus\d*)?(\/[A-G][#b]?)?(?=\s|$|\||\b)/g;
       const chordMatches = line.match(strictChordPattern) || [];
       const validChordMatches = chordMatches.filter(m => /^[A-G]/.test(m.trim()));
       const hasBarLineStart = /^[\s]*[\|｜\u2502]/.test(line);
@@ -2302,11 +2302,11 @@ const TabContent = ({
         // 延續低音：/B、/G（等同 G/B 寫法嘅低音部）
         if (isSlashBassContinuationToken(part)) return true;
         // 支援 D/F#、Bm7b5、E7b9 等（含 (b|#)數字 延伸）
-        const chordWithSlash = part.match(/^[A-G][#b]?(maj|mj|m|min|sus|dim|aug)?(add|m7|maj7|7|9|11|13)?\d*((b|#)\d*)?(\/[A-G][#b]?)?$/);
+        const chordWithSlash = part.match(/^[A-G][#b]?(maj|mj|m|min|sus|dim|aug)?(add|m7|maj7|7|9|11|13)?\d*((b|#)\d*)?(sus\d*)?(\/[A-G][#b]?)?$/);
         if (chordWithSlash) return true;
         // 清理後再檢查（處理 |G|、│G 這樣的情況）
         const cleanPart = part.replace(/[\|｜\u2502\/\s]/g, '');
-        return !cleanPart || cleanPart.match(/^[A-G](#|b)?(maj|mj|m|min|sus|dim|aug)?(add|m7|maj7|7|9|11|13)?\d*((b|#)\d*)?$/);
+        return !cleanPart || cleanPart.match(/^[A-G](#|b)?(maj|mj|m|min|sus|dim|aug)?(add|m7|maj7|7|9|11|13)?\d*((b|#)\d*)?(sus\d*)?$/);
       });
       const hasSlashBassInLine = /(?:^|[\s|｜\u2502])\/[A-G][#b]?(?=[\s|｜\u2502]|$)/.test(line);
       const hasChordPattern = hasBarLineStart
@@ -2319,7 +2319,7 @@ const TabContent = ({
       // 檢查是否為歌詞行（有中文字或英文單詞，且冇和弦特徵）
       // 排除：如果英文單詞其實係和弦名（如 Fm, Em, G7 等），唔好當係歌詞
       const isEnglishWordsActuallyChords = englishWords.length > 0 && englishWords.every(word => 
-        /^[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*$/i.test(word) || NC_PATTERN.test(word)
+        /^[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*(sus\d*)?$/i.test(word) || NC_PATTERN.test(word)
       );
       const isLyric = !isChord && (chineseChars.length > 0 || (englishWords.length > 0 && !isEnglishWordsActuallyChords));
       
@@ -2340,7 +2340,7 @@ const TabContent = ({
         const lyricParts = processLyricLine(line);
         // 檢查上一行是否為和弦行
         const prevLine = lines[i - 1];
-        const prevHasChordPattern = prevLine && /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(?=\s|$|\||\b)/.test(prevLine);
+        const prevHasChordPattern = prevLine && /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(sus\d*)?(?=\s|$|\||\b)/.test(prevLine);
         const prevHasChinese = prevLine && /[\u4e00-\u9fff]/.test(prevLine);
         const prevIsChord = prevHasChordPattern && !prevHasChinese;
         const marginTop = prevIsChord ? '0em' : '0';
@@ -2385,12 +2385,12 @@ const TabContent = ({
         const notationParts = processNumericNotationLine(line);
         // 檢查上一行是否為和弦行，如果是則緊貼
         const prevLine = lines[i - 1];
-        const prevHasChordPattern = prevLine && /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(?=\s|$|\||\b)/.test(prevLine);
+        const prevHasChordPattern = prevLine && /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(sus\d*)?(?=\s|$|\||\b)/.test(prevLine);
         const prevHasChinese = prevLine && /[\u4e00-\u9fff]/.test(prevLine);
         const prevIsChord = prevHasChordPattern && !prevHasChinese;
         // 檢查下一行是否為和弦行
         const nextLine = lines[i + 1];
-        const nextHasChordPattern = nextLine && /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(?=\s|$|\||\b)/.test(nextLine);
+        const nextHasChordPattern = nextLine && /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(sus\d*)?(?=\s|$|\||\b)/.test(nextLine);
         const nextHasChinese = nextLine && /[\u4e00-\u9fff]/.test(nextLine);
         const nextIsChord = nextHasChordPattern && !nextHasChinese;
         const marginTop = prevIsChord ? '0em' : '0';
@@ -2504,7 +2504,7 @@ const TabContent = ({
         const lyricEnglish = lyricEnglishWords.length;
         // 排除：如果英文單詞其實係和弦名，唔好當係歌詞
         const lyricEnglishIsChords = lyricEnglish > 0 && lyricEnglishWords.every(word => 
-          /^[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*$/i.test(word) || NC_PATTERN.test(word)
+          /^[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*(sus\d*)?$/i.test(word) || NC_PATTERN.test(word)
         );
         const lyricHasBrackets = /[\(（]/.test(lyricLine);
         const hasLyric = !lyricIsSectionMarker && lyricLine && (lyricChinese > 0 || (lyricEnglish > 0 && !lyricEnglishIsChords) || lyricHasBrackets);
@@ -3121,7 +3121,7 @@ const TabContent = ({
           // 檢查下一行是否為歌詞行或簡譜行
           const nextLine = lines[i + 1];
           const nextHasLyric = nextLine && (/[\u4e00-\u9fff]/.test(nextLine) || /[a-zA-Z]+/.test(nextLine));
-          const nextHasChordOnly = nextLine && /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(?=\s|$|\||\b)/.test(nextLine) && !/[\u4e00-\u9fff]/.test(nextLine);
+          const nextHasChordOnly = nextLine && /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(sus\d*)?(?=\s|$|\||\b)/.test(nextLine) && !/[\u4e00-\u9fff]/.test(nextLine);
           const nextIsNotation = nextLine && isNumericNotationLine(nextLine);
           const isFollowedByLyric = (nextHasLyric && !nextHasChordOnly) || nextIsNotation;
           const chordMarginBottom = isFollowedByLyric ? '0em' : `${lineFontSize * 0.6}px`;
@@ -3193,9 +3193,9 @@ const TabContent = ({
     
     const chordStats = (() => {
       if (!content) return { total: 0, barreCount: 0 };
-      const chordPattern = /\b[A-G][#b]?(?:maj|mj|m|min|dim|aug|sus|add|m7|maj7|7|9|11|13)?(?:\/[A-G][#b]?)?(?=\s|$|\||\b)/g;
+      const chordPattern = /\b[A-G][#b]?(?:maj|mj|m|min|dim|aug|sus|add|m7|maj7|7|9|11|13)?\d*(?:sus\d*)?(?:\/[A-G][#b]?)?(?=\s|$|\||\b)/g;
       const matches = content.match(chordPattern) || [];
-      const validChordPattern = /^[A-G][#b]?(maj|mj|m|min|dim|aug|sus|add|m7|maj7|7|9|11|13)*$/;
+      const validChordPattern = /^[A-G][#b]?(maj|mj|m|min|dim|aug|sus\d*|add\d*|m7|maj7|7|9|11|13)*$/;
       const chords = matches.filter(c => validChordPattern.test(c.replace(/\/.*/, '')));
       const uniqueChords = [...new Set(chords)];
       const BARRE_CHORDS = ['B','Bm','Bb','Bbm','B7','Bm7','Bb7','C#','C#m','C#7','C#m7','Db','Dbm','F','Fm','F7','Fm7','F#','F#m','F#7','F#m7','Gb','Gbm','G#','G#m','G#7','G#m7','Ab','Abm'];
