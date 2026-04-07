@@ -157,6 +157,16 @@ function transposeChordLine(line, semitones, preserveBarSpacing = false, preferF
   return out
 }
 
+/** G#Aug、EbAug：#／b 後面嘅 A 係 aug／add 後綴一部分，唔係新根音 */
+function isAugOrAddSuffixAfterAccidental(restFromLetter) {
+  if (!restFromLetter) return false;
+  return (
+    /^aug(\d|[\s|\/\-\)\u3000]|$)/i.test(restFromLetter) ||
+    /^add[\d]/i.test(restFromLetter) ||
+    /^add([\s|\/\-\)\u3000]|$)/i.test(restFromLetter)
+  );
+}
+
 // 確保和弦之間至少有一個空格
 // preserveBarSpacing: 等寬/人手空格對位時為 true，唔在 | 後加空格，保持用戶輸入
 function normalizeChordSpacing(line, preserveBarSpacing = false) {
@@ -184,7 +194,12 @@ function normalizeChordSpacing(line, preserveBarSpacing = false) {
         // 唔好拆開 NC（No Chord）
         const isNC = prevChar === 'N' && char === 'C' && (i + 1 >= result.length || /[\s|]/.test(result[i + 1]));
         if (!isNC) {
-          output += ' ';
+          const skipSplitForQuality =
+            (prevChar === '#' || prevChar === 'b') &&
+            isAugOrAddSuffixAfterAccidental(result.slice(i));
+          if (!skipSplitForQuality) {
+            output += ' ';
+          }
         }
       }
       // 注意：如果前面係 /，代表係 slash chord，唔加空格
