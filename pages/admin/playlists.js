@@ -15,6 +15,7 @@ import {
 import { isChaksaPlaylist } from '@/lib/chaksaPlaylist'
 import { getTabsByIds } from '@/lib/tabs'
 import { uploadToCloudinary } from '@/lib/cloudinary'
+import { auth } from '@/lib/firebase'
 import { ArrowLeft, BarChart2, Sparkles } from 'lucide-react'
 
 function PlaylistAdmin() {
@@ -68,6 +69,42 @@ function PlaylistAdmin() {
     setTimeout(() => setMessage(null), 5000)
   }
 
+  // 歌單有改動時同步重建首頁快取，避免首頁「POLYGON自製歌單」仍顯示舊排序
+  const rebuildHomeCacheAfterPlaylistChange = async () => {
+    try {
+      const token = await auth.currentUser?.getIdToken?.()
+      if (!token) return
+      const res = await fetch('/api/admin/rebuild-home-cache', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        try { localStorage.removeItem('pg_home_cache_v2') } catch (_) {}
+      }
+    } catch (e) {
+      console.warn('rebuildHomeCacheAfterPlaylistChange failed:', e?.message || e)
+    }
+  }
+
+  // 清除單一歌單頁快取（cache/playlist_{id}），確保封面/標題等即時反映喺 /playlist/[id]
+  const bustPlaylistPageCache = async (playlistId) => {
+    if (!playlistId) return
+    try {
+      const token = await auth.currentUser?.getIdToken?.()
+      if (!token) return
+      await fetch('/api/admin/bust-playlist-cache', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ playlistId })
+      })
+    } catch (e) {
+      console.warn('bustPlaylistPageCache failed:', e?.message || e)
+    }
+  }
+
   // 刷新自動歌單
   const handleRefreshAuto = async () => {
     setIsRefreshing(true)
@@ -87,6 +124,8 @@ function PlaylistAdmin() {
   const togglePlaylistActive = async (playlist) => {
     try {
       await updatePlaylist(playlist.id, { isActive: !playlist.isActive })
+      await bustPlaylistPageCache(playlist.id)
+      await rebuildHomeCacheAfterPlaylistChange()
       showMessage(playlist.isActive ? '已隱藏歌單' : '已啟用歌單')
       await loadPlaylists()
     } catch (error) {
@@ -100,6 +139,8 @@ function PlaylistAdmin() {
     
     try {
       await deletePlaylist(playlist.id)
+      await bustPlaylistPageCache(playlist.id)
+      await rebuildHomeCacheAfterPlaylistChange()
       showMessage('✅ 歌單已刪除')
       await loadPlaylists()
     } catch (error) {
@@ -129,6 +170,7 @@ function PlaylistAdmin() {
     try {
       const { updatePlaylistsOrder } = await import('@/lib/playlists')
       await updatePlaylistsOrder(updates)
+      await rebuildHomeCacheAfterPlaylistChange()
       
       if (source === 'auto') setAutoPlaylists(updates)
       else setManualPlaylists(updates)
@@ -147,6 +189,7 @@ function PlaylistAdmin() {
     try {
       const { updatePlaylistsOrder } = await import('@/lib/playlists')
       await updatePlaylistsOrder(updates)
+      await rebuildHomeCacheAfterPlaylistChange()
       showMessage('✅ 排序已保存')
     } catch (error) {
       showMessage('❌ 排序保存失敗：' + error.message, 'error')
@@ -274,6 +317,8 @@ function PlaylistAdmin() {
         customCover: true,
         updatedAt: new Date().toISOString()
       })
+      await bustPlaylistPageCache(playlist.id)
+      await rebuildHomeCacheAfterPlaylistChange()
       showMessage('✅ 封面上傳成功')
       await loadPlaylists()
     } catch (error) {
@@ -298,6 +343,8 @@ function PlaylistAdmin() {
         description: editDescription,
         updatedAt: new Date().toISOString()
       })
+      await bustPlaylistPageCache(playlistId)
+      await rebuildHomeCacheAfterPlaylistChange()
       showMessage('✅ 歌單已更新')
       setEditingAuto(null)
       await loadPlaylists()
@@ -340,6 +387,8 @@ function PlaylistAdmin() {
         customCover: true,
         updatedAt: new Date().toISOString()
       })
+      await bustPlaylistPageCache(coverGenPlaylist.id)
+      await rebuildHomeCacheAfterPlaylistChange()
       showMessage('封面已生成並上傳')
       setCoverGenPlaylist(null)
       await loadPlaylists()
