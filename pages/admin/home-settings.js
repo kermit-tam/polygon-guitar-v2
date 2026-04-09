@@ -136,6 +136,7 @@ function HomeSettings() {
   
   const [message, setMessage] = useState('')
   const [activeTab, setActiveTab] = useState('layout') // default to layout so on open we only load settings (1 read)
+  const [showAdvancedCache, setShowAdvancedCache] = useState(false)
   
   // 歌單區域相關
   const [playlists, setPlaylists] = useState([])
@@ -381,8 +382,25 @@ function HomeSettings() {
       await setDoc(doc(db, 'settings', 'home'), dedupedSettings)
       setHasChanges(false)  // 保存成功後重置改動狀態
       try { localStorage.removeItem(HOME_SETTINGS_CACHE_KEY) } catch (_) {} // 下次載入會取最新資料
-      setMessage('設置已保存')
-      setTimeout(() => setMessage(''), 3000)
+      setMessage('設置已保存，重建首頁快取中...')
+      try {
+        const token = await auth.currentUser?.getIdToken?.()
+        if (token) {
+          const res = await fetch('/api/admin/rebuild-home-cache', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` }
+          })
+          if (res.ok) {
+            try { localStorage.removeItem('pg_home_cache_v2') } catch (_) {}
+            setMessage('設置已保存，首頁快取已重建')
+          } else {
+            setMessage('設置已保存（快取重建失敗，請手動重建）')
+          }
+        }
+      } catch (_) {
+        setMessage('設置已保存（快取重建失敗，請手動重建）')
+      }
+      setTimeout(() => setMessage(''), 5000)
     } catch (error) {
       console.error('Error saving:', error)
       setMessage('保存失敗')
@@ -1513,37 +1531,49 @@ function HomeSettings() {
                 disabled={rebuildingCache}
                 className="w-full px-4 py-2.5 bg-[#282828] text-white rounded-lg hover:bg-[#3E3E3E] transition disabled:opacity-50 text-left"
               >
-                <div className="font-medium">{rebuildingCache ? '重建中...' : '重建首頁快取'}</div>
-                <div className="text-xs text-neutral-500 mt-0.5">Firestore 快取永不過期，新增/修改樂譜或歌手時自動更新。手動重建可強制全量刷新</div>
+                <div className="font-medium">{rebuildingCache ? '重建中...' : '重建首頁'}</div>
+                <div className="text-xs text-neutral-500 mt-0.5">如果你改咗 homepage setting 或者有啲嘢應該喺 homepage 見到你又見唔到，就㩒下呢個制</div>
               </button>
               <button
                 onClick={rebuildHomeAndSearchCache}
                 disabled={rebuildingHomeAndSearchCache}
                 className="w-full px-4 py-2.5 bg-[#282828] text-white rounded-lg hover:bg-[#3E3E3E] transition disabled:opacity-50 text-left"
               >
-                <div className="font-medium">{rebuildingHomeAndSearchCache ? '重建中...' : '重建首頁 + 搜尋快取'}</div>
-                <div className="text-xs text-neutral-500 mt-0.5">一次讀取 Firestore 建立首頁與搜尋兩份快取，節省一次完整 DB 讀取（建議日常使用）</div>
-              </button>
-              <button
-                onClick={rebuildAllTabsCache}
-                disabled={rebuildingAllTabsCache}
-                className="w-full px-4 py-2.5 bg-[#282828] text-white rounded-lg hover:bg-[#3E3E3E] transition disabled:opacity-50 text-left"
-              >
-                <div className="font-medium">{rebuildingAllTabsCache ? '重建中...' : '重建樂譜列表快取'}</div>
-                <div className="text-xs text-neutral-500 mt-0.5">重建時會讀取全部樂譜（約 3K 次讀取），寫入單一快取文件。之後每次 getAllTabs 只需 1 次讀取</div>
-              </button>
-              <button
-                onClick={() => {
-                  try { localStorage.removeItem(HOME_SETTINGS_CACHE_KEY) } catch (_) {}
-                  setLoading(true)
-                  loadData()
-                }}
-                className="w-full px-4 py-2.5 bg-[#282828] text-white rounded-lg hover:bg-[#3E3E3E] transition text-left"
-              >
-                <div className="font-medium">重新載入首頁設置資訊</div>
-                <div className="text-xs text-neutral-500 mt-0.5">此頁會將歌手、樂譜、歌單列表存在瀏覽器 24 小時，按此可清除並重新載入最新資料</div>
+                <div className="font-medium">{rebuildingHomeAndSearchCache ? '重建中...' : '重建所有 cache'}</div>
+                <div className="text-xs text-neutral-500 mt-0.5">如果你改咗啲嘢，例如入咗新譜或者改咗歌手資料，又睇唔到，可以試下㩒呢個制</div>
               </button>
             </div>
+
+            <button
+              onClick={() => setShowAdvancedCache(v => !v)}
+              className="mt-4 text-xs text-neutral-500 hover:text-neutral-300 transition flex items-center gap-1"
+            >
+              <span>{showAdvancedCache ? '▾' : '▸'}</span>
+              <span>進階</span>
+            </button>
+            {showAdvancedCache && (
+              <div className="mt-2 space-y-2">
+                <button
+                  onClick={() => {
+                    try { localStorage.removeItem(HOME_SETTINGS_CACHE_KEY) } catch (_) {}
+                    setLoading(true)
+                    loadData()
+                  }}
+                  className="w-full px-4 py-2.5 bg-[#282828] text-white rounded-lg hover:bg-[#3E3E3E] transition text-left"
+                >
+                  <div className="font-medium">重新載入首頁設置資訊</div>
+                  <div className="text-xs text-neutral-500 mt-0.5">此頁會將歌手、樂譜、歌單列表存在瀏覽器 24 小時，按此可清除並重新載入最新資料</div>
+                </button>
+                <button
+                  onClick={rebuildAllTabsCache}
+                  disabled={rebuildingAllTabsCache}
+                  className="w-full px-4 py-2.5 bg-[#282828] text-white rounded-lg hover:bg-[#3E3E3E] transition disabled:opacity-50 text-left"
+                >
+                  <div className="font-medium">{rebuildingAllTabsCache ? '重建中...' : '重建樂譜列表快取'}</div>
+                  <div className="text-xs text-neutral-500 mt-0.5">重建時會讀取全部樂譜（約 3K 次讀取），寫入單一快取文件。之後每次 getAllTabs 只需 1 次讀取</div>
+                </button>
+              </div>
+            )}
           </div>
         )}
 

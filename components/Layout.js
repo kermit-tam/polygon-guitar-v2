@@ -180,9 +180,9 @@ export default function Layout({ children, fullWidth = false, hideHeader = false
         </main>
       </div>
 
-      {showHeader && (
-        <footer className="bg-black pb-[150px] px-6">
-          <div className="max-w-4xl mx-auto flex flex-col items-center gap-5">
+      <footer className="bg-black pb-[150px] px-6">
+          <div className="max-w-[1050px] mx-auto border-t border-neutral-800" />
+          <div className="max-w-4xl mx-auto flex flex-col items-center gap-5 pt-8">
             {/* Social icons */}
             <div className="flex items-center gap-4">
               <a href="https://www.instagram.com/polygon.guitars/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="text-white/50 hover:text-white transition-colors">
@@ -211,9 +211,8 @@ export default function Layout({ children, fullWidth = false, hideHeader = false
               ))}
             </nav>
           </div>
-        </footer>
-      )}
-      
+      </footer>
+
       {/* 手機版底部導航 - 黃底黑字設計 */}
       {/* z-[110]：高於和弦圖 bottom sheet 遮罩 (105)，唔會被 dim */}
       <nav className="fixed bottom-0 left-0 right-0 bg-[#FFD700] z-[110] md:hidden" style={{ paddingBottom: 'min(env(safe-area-inset-bottom, 0px), 30px)' }}>
