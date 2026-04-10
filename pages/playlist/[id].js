@@ -592,6 +592,11 @@ export default function PlaylistDetail({
       const penName = (tab.uploaderPenName || '').toLowerCase()
       return title.includes(q) || artistName.includes(q) || composer.includes(q) || lyricist.includes(q) || arranger.includes(q) || penName.includes(q)
     })
+    .sort((a, b) => {
+      const ta = a.createdAt?.seconds ?? a.createdAt ?? 0
+      const tb = b.createdAt?.seconds ?? b.createdAt ?? 0
+      return tb - ta
+    })
     .slice(0, adminAddSongQuery.trim() ? Infinity : 20)
 
   const bustPlaylistPageCache = async () => {
