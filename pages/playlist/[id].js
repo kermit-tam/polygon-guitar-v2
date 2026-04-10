@@ -250,6 +250,7 @@ export default function PlaylistDetail({
   const [adminEditTitle, setAdminEditTitle] = useState('')
   const [adminEditDescription, setAdminEditDescription] = useState('')
   const [adminEditCuratedBy, setAdminEditCuratedBy] = useState('')
+  const [adminEditAddNewSongsToTop, setAdminEditAddNewSongsToTop] = useState(false)
   const [adminSavingSettings, setAdminSavingSettings] = useState(false)
   const [adminEditCoverImage, setAdminEditCoverImage] = useState('')
   const [adminCoverUploading, setAdminCoverUploading] = useState(false)
@@ -616,10 +617,13 @@ export default function PlaylistDetail({
   const handleAdminAddSong = async (songId) => {
     setAdminAddingSongId(songId)
     try {
-      const newSongIds = [...(playlist?.songIds || []), songId]
+      const existing = playlist?.songIds || []
+      const newSongIds = playlist?.addNewSongsToTop
+        ? [songId, ...existing]
+        : [...existing, songId]
       await updateSitePlaylist(playlist.id, { songIds: newSongIds })
       const [added] = await getTabsByIds([songId])
-      if (added) setSongs((prev) => [...prev, added])
+      if (added) setSongs((prev) => playlist?.addNewSongsToTop ? [added, ...prev] : [...prev, added])
       setPlaylist((p) => p ? { ...p, songIds: newSongIds } : p)
       bustPlaylistPageCache().catch(() => {})
     } catch (e) {
@@ -1102,7 +1106,7 @@ export default function PlaylistDetail({
               <Link href={`/admin/playlists/chaksa/${id}`} className="inline-flex items-center justify-center gap-1 px-4 py-1.5 rounded-full bg-[#FFD700] text-black text-sm font-medium hover:opacity-90 transition">
                 <Pencil className="w-4 h-4 shrink-0" />編輯叱咤榜單
               </Link>
-              <button type="button" onClick={() => { setAdminEditTitle(playlist.title || ''); setAdminEditDescription(playlist.description || ''); setAdminEditCuratedBy(playlist.curatedBy || user?.displayName || ''); setAdminEditCoverImage(playlist.coverImage || ''); setShowAdminSettings(true) }} className="flex items-center justify-center gap-1 w-[85px] px-3 py-1.5 rounded-full bg-[#282828] text-white text-sm font-medium hover:bg-[#3E3E3E] transition">
+              <button type="button" onClick={() => { setAdminEditTitle(playlist.title || ''); setAdminEditDescription(playlist.description || ''); setAdminEditCuratedBy(playlist.curatedBy || user?.displayName || ''); setAdminEditCoverImage(playlist.coverImage || ''); setAdminEditAddNewSongsToTop(!!playlist.addNewSongsToTop); setShowAdminSettings(true) }} className="flex items-center justify-center gap-1 w-[85px] px-3 py-1.5 rounded-full bg-[#282828] text-white text-sm font-medium hover:bg-[#3E3E3E] transition">
                 <Pencil className="w-4 h-4 shrink-0" />歌單
               </button>
             </div>
@@ -1115,7 +1119,7 @@ export default function PlaylistDetail({
               <button type="button" onClick={() => setShowAdminEditSongs(true)} className="flex items-center justify-center gap-1 w-[85px] px-3 py-1.5 rounded-full bg-[#282828] text-white text-sm font-medium hover:bg-[#3E3E3E] transition">
                 <ListMusic className="w-4 h-4 shrink-0" />編輯
               </button>
-              <button type="button" onClick={() => { setAdminEditTitle(playlist.title || ''); setAdminEditDescription(playlist.description || ''); setAdminEditCuratedBy(playlist.curatedBy || user?.displayName || ''); setAdminEditCoverImage(playlist.coverImage || ''); setShowAdminSettings(true) }} className="flex items-center justify-center gap-1 w-[85px] px-3 py-1.5 rounded-full bg-[#282828] text-white text-sm font-medium hover:bg-[#3E3E3E] transition">
+              <button type="button" onClick={() => { setAdminEditTitle(playlist.title || ''); setAdminEditDescription(playlist.description || ''); setAdminEditCuratedBy(playlist.curatedBy || user?.displayName || ''); setAdminEditCoverImage(playlist.coverImage || ''); setAdminEditAddNewSongsToTop(!!playlist.addNewSongsToTop); setShowAdminSettings(true) }} className="flex items-center justify-center gap-1 w-[85px] px-3 py-1.5 rounded-full bg-[#282828] text-white text-sm font-medium hover:bg-[#3E3E3E] transition">
                 <Pencil className="w-4 h-4 shrink-0" />歌單
               </button>
             </div>
@@ -1658,7 +1662,26 @@ export default function PlaylistDetail({
                     <X className="w-6 h-6" />
                   </button>
                   <h2 className="text-white font-bold text-lg truncate flex-1 text-center pointer-events-none">加入歌曲</h2>
-                  <div className="w-10" />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const next = !playlist?.addNewSongsToTop
+                      setPlaylist((p) => p ? { ...p, addNewSongsToTop: next } : p)
+                      try { await updateSitePlaylist(playlist.id, { addNewSongsToTop: next }) } catch (_) {}
+                    }}
+                    className={`flex-shrink-0 relative h-7 rounded-full transition-colors duration-200 ${playlist?.addNewSongsToTop ? 'bg-[#FFD700]' : 'bg-neutral-700'}`}
+                    style={{ width: 64 }}
+                  >
+                    <span
+                      className="absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all duration-200"
+                      style={{ left: playlist?.addNewSongsToTop ? 'calc(100% - 24px)' : '4px' }}
+                    />
+                    <span
+                      className={`absolute inset-0 flex items-center text-[10px] font-bold transition-colors duration-200 ${playlist?.addNewSongsToTop ? 'text-black justify-start pl-2' : 'text-[#B3B3B3] justify-end pr-2'}`}
+                    >
+                      {playlist?.addNewSongsToTop ? '置頂' : '置底'}
+                    </span>
+                  </button>
                 </div>
               </div>
               <div className="px-4 pb-3 flex-shrink-0">
