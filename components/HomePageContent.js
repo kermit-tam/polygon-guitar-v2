@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useContext } from 'react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useRouter } from 'next/router'
-import { getTabsByIds, getArtistSlug } from '@/lib/tabs'
+import { getTabsByIds, getArtistSlug, getRecentTabs } from '@/lib/tabs'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from '@/components/Link'
 import Head from 'next/head'
@@ -417,6 +417,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
 
   // Freeze layout only when we have section data from the server (not the client-side default), so home-settings sections show after fetch
   const layoutFrozenRef = useRef(null)
+  const freshLatestLoadedRef = useRef(false) // 直接 Firestore 讀取完成後設 true，防止 API 覆蓋
   const hasServerSectionData = initialHomeData?.homeSettings?.sectionOrder?.length || initialHomeData?.homeSettings?.customPlaylistSections?.length
   if (layoutFrozenRef.current === null && hasServerSectionData) {
     layoutFrozenRef.current = {
@@ -817,7 +818,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
       customPlaylistSections: settings.customPlaylistSections ?? prev.customPlaylistSections
     }))
     setArtists(d.hotArtists?.all?.slice(0, 10) ?? [])
-    setLatestSongs(d.latestSongs ?? [])
+    if (!freshLatestLoadedRef.current) setLatestSongs(d.latestSongs ?? [])
     setHotTabs(d.hotTabs ?? [])
     setAllSongs(d.allSongs ?? [])
     setHotArtists(d.hotArtists ?? { male: [], female: [], group: [], all: [] })
@@ -838,6 +839,29 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
         layoutFrozenRef.current = { ...layoutFrozenRef.current, sectionOrder: s.sectionOrder }
       }
     }).catch(() => {})
+  }, [])
+
+  // 用 getRecentTabs（allTabs cache + JS sort）確保混合 createdAt 類型都能正確排序
+  useEffect(() => {
+    getRecentTabs(10).then((tabs) => {
+      if (!tabs?.length) return
+      const fresh = tabs.map((t) => {
+        const videoId = t.youtubeVideoId ?? t.youtubeUrl?.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/)?.[1]
+        const coverImage = t.coverImage || t.albumImage || (videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null) || t.thumbnail || null
+        return {
+          id: t.id,
+          title: t.title || '',
+          artistId: t.artistId || '',
+          artist: t.artist || t.artistName || '',
+          artistName: t.artistName || t.artist || '',
+          ...(coverImage ? { coverImage } : {}),
+          ...(t.slug ? { slug: t.slug } : {}),
+          ...(t.artistPhoto ? { artistPhoto: t.artistPhoto } : {}),
+        }
+      })
+      freshLatestLoadedRef.current = true
+      setLatestSongs(fresh)
+    }).catch((e) => { console.error('[latestSongs] getRecentTabs failed:', e) })
   }, [])
 
   // Phase 3: 載入需要登入的資料
