@@ -2,7 +2,7 @@ import { useState, useContext } from 'react'
 import Link from '@/components/Link'
 import Skeleton from './Skeleton'
 import { HomeSectionImageContext } from './HomeSectionImageContext'
-import { Music, Mic } from 'lucide-react'
+import { Music, Mic, Crown } from 'lucide-react'
 
 /**
  * LazyImage - 帶骨架屏的延遲載入圖片
@@ -71,7 +71,7 @@ export default function LazyImage({
  * Respects HomeSectionImageContext: when false (section not in viewport), shows placeholder only.
  * compact: use 32vw size to match 最近瀏覽 carousel.
  */
-export function SongCard({ song, artistPhoto, onClick, href, compact }) {
+export function SongCard({ song, artistPhoto, onClick, href, compact, rank }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const loadImages = useContext(HomeSectionImageContext)
 
@@ -97,8 +97,17 @@ export function SongCard({ song, artistPhoto, onClick, href, compact }) {
   return (
     <Wrapper
       {...wrapperProps}
-      className={`flex-shrink-0 flex flex-col text-left group ${compact ? 'w-[32vw] md:w-36' : 'w-36'}`}
+      className={`flex-shrink-0 flex flex-col text-left group relative ${compact ? 'w-[32vw] md:w-36' : 'w-36'}`}
     >
+      {/* 排名徽章 — 在 overflow-hidden 外層，可跨越封面邊界 */}
+      {rank != null && (
+        <div className={`absolute -top-2 -right-2 min-w-[22px] h-[22px] px-1 rounded-full flex items-center justify-center z-30 pointer-events-none shadow-md ${rank === 1 ? 'bg-[#FFD700]' : 'bg-black'}`}>
+          {rank === 1
+            ? <Crown className="text-black" strokeWidth={2.5} style={{ width: 13, height: 13, marginTop: -1.5 }} />
+            : <span className="text-white font-bold leading-none" style={{ fontSize: 13, marginTop: -1.5 }}>{rank}</span>
+          }
+        </div>
+      )}
       {/* 封面區域 */}
       <div className={`${sizeClass} ${roundedClass} overflow-hidden bg-[#282828] mb-2 shadow-lg relative transition-transform duration-200 active:scale-105 active:z-20`}>
         {showRealImage ? (

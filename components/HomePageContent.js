@@ -495,13 +495,14 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
             <section className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
               <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
-                {hotTabs.map((song) => (
+                {hotTabs.map((song, index) => (
                   <SongCard
                     key={song.id}
                     song={{ ...song, artist: resolveHomeSongArtistLine(song, artistMap) }}
                     artistPhoto={song.artistPhoto}
                     href={`/tabs/${song.slug ?? song.id}`}
                     compact
+                    rank={index + 1}
                   />
                 ))}
               </div>
