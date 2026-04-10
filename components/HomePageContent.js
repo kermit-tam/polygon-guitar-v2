@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useContext } from 'react'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { useRouter } from 'next/router'
 import { getTabsByIds, getArtistSlug } from '@/lib/tabs'
 import { useAuth } from '@/contexts/AuthContext'
@@ -824,6 +826,19 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
     if (d.categories?.length) setCategories(d.categories)
     setCustomPlaylistSongs(d.customPlaylistSongs ?? {})
   }
+
+  // 直接讀 settings/home 取最新 sectionOrder（繞過 API/CDN 快取），1 read
+  useEffect(() => {
+    getDoc(doc(db, 'settings', 'home')).then((snap) => {
+      if (!snap.exists()) return
+      const s = snap.data()
+      if (!Array.isArray(s?.sectionOrder) || s.sectionOrder.length === 0) return
+      setHomeSettings((prev) => ({ ...prev, sectionOrder: s.sectionOrder }))
+      if (layoutFrozenRef.current) {
+        layoutFrozenRef.current = { ...layoutFrozenRef.current, sectionOrder: s.sectionOrder }
+      }
+    }).catch(() => {})
+  }, [])
 
   // Phase 3: 載入需要登入的資料
   const loadUserData = async () => {
