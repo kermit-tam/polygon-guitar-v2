@@ -624,9 +624,9 @@ export default function NewTab() {
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ tab: newTab, action: 'create' })
           })
-          if (!patchRes.ok) {
-            const j = await patchRes.json().catch(() => ({}))
-            console.warn('[patch-caches] create failed:', patchRes.status, j)
+          const patchJson = await patchRes.json().catch(() => ({}))
+          if (!patchRes.ok || patchJson.ok === false) {
+            console.warn('[patch-caches] create failed:', patchRes.status, patchJson)
           }
         }
       } catch (e) {

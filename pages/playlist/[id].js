@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
-import { getPlaylist, getPlaylistSongs, getAllActivePlaylists, AUTO_PLAYLIST_TYPES, updatePlaylist as updateSitePlaylist } from '@/lib/playlists'
+import { getPlaylist, getPlaylistSongs, getAllActivePlaylists, AUTO_PLAYLIST_TYPES, updatePlaylist as updateSitePlaylist, enrichTabsWithArtists } from '@/lib/playlists'
 import { isChaksaPlaylist, resolveChaksaPlaylistItems } from '@/lib/chaksaPlaylist'
 import { groupChaksaSongsByYear } from '@/lib/chartYearRange'
 import { getPlaylistPageCache, setPlaylistPageCache } from '@/lib/playlistPageCache'
@@ -16,7 +16,7 @@ import { useArtistMap } from '@/lib/useArtistMap'
 import { useAuth } from '@/contexts/AuthContext'
 import { Share, Heart, Music, User, Plus, Copy, ArrowLeft, Bookmark, ListMusic, ArrowUpDown, Pencil, X, Search, Crown, ChevronUp, ChevronDown } from 'lucide-react'
 import ChaksaPasteTabLinkModal from '@/components/chaksa/ChaksaPasteTabLinkModal'
-import { getTabsByIds, getArtistSlug } from '@/lib/tabs'
+import { getTabsByIds, getArtistSlug, getRecentTabsFromFirestore } from '@/lib/tabs'
 import { siteConfig, getAbsoluteOgImage, getOgImage } from '@/lib/seo'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { auth } from '@/lib/firebase'
@@ -2048,25 +2048,29 @@ export async function getStaticProps({ params }) {
   const id = params?.id
   if (!id) return { notFound: true }
   try {
-    const cached = await getPlaylistPageCache(id)
-    if (cached) {
-      // Redirect from doc ID to slug URL
-      if (cached.playlist?.slug && cached.playlist.slug !== id) {
-        return { redirect: { destination: `/playlist/${encodeURIComponent(cached.playlist.slug)}`, permanent: true } }
-      }
-      const autoF = (cached.otherPlaylists?.auto || []).filter((p) => p.id !== id).slice(0, 2)
-      const manualF = (cached.otherPlaylists?.manual || []).filter((p) => p.id !== id).slice(0, 6)
-      return {
-        props: {
-          initialPlaylist: cached.playlist,
-          initialSongs: toSlimSongs(cached.songs || []),
-          initialUniqueArtists: cached.uniqueArtists || [],
-          initialOtherPlaylists: [...autoF, ...manualF]
-        },
-        revalidate: 300
+    // isAutoRecent playlist 跳過快取，直接 fetch 最新資料
+    const earlyPlaylist = await getPlaylist(id)
+    if (!earlyPlaylist?.isAutoRecent) {
+      const cached = await getPlaylistPageCache(id)
+      if (cached) {
+        // Redirect from doc ID to slug URL
+        if (cached.playlist?.slug && cached.playlist.slug !== id) {
+          return { redirect: { destination: `/playlist/${encodeURIComponent(cached.playlist.slug)}`, permanent: true } }
+        }
+        const autoF = (cached.otherPlaylists?.auto || []).filter((p) => p.id !== id).slice(0, 2)
+        const manualF = (cached.otherPlaylists?.manual || []).filter((p) => p.id !== id).slice(0, 6)
+        return {
+          props: {
+            initialPlaylist: cached.playlist,
+            initialSongs: toSlimSongs(cached.songs || []),
+            initialUniqueArtists: cached.uniqueArtists || [],
+            initialOtherPlaylists: [...autoF, ...manualF]
+          },
+          revalidate: 300
+        }
       }
     }
-    const playlistData = await getPlaylist(id)
+    const playlistData = earlyPlaylist
     // Redirect from doc ID to slug URL
     if (playlistData?.slug && playlistData.slug !== id) {
       return { redirect: { destination: `/playlist/${encodeURIComponent(playlistData.slug)}`, permanent: true } }
@@ -2076,7 +2080,14 @@ export async function getStaticProps({ params }) {
     }
     let songs = []
     let uniqueArtists = []
-    if (isChaksaPlaylist(playlistData) && Array.isArray(playlistData.chartEntries) && playlistData.chartEntries.length > 0) {
+    if (playlistData.isAutoRecent) {
+      // 動態查詢最新上架，唔用固定 songIds
+      const count = playlistData.autoRecentCount || 20
+      const recentTabs = await getRecentTabsFromFirestore(count)
+      const enriched = await enrichTabsWithArtists(recentTabs)
+      songs = enriched.songs
+      uniqueArtists = enriched.uniqueArtists
+    } else if (isChaksaPlaylist(playlistData) && Array.isArray(playlistData.chartEntries) && playlistData.chartEntries.length > 0) {
       const resolved = await resolveChaksaPlaylistItems(playlistData.chartEntries)
       songs = resolved.songs
       uniqueArtists = resolved.uniqueArtists
@@ -2097,7 +2108,10 @@ export async function getStaticProps({ params }) {
       uniqueArtists,
       otherPlaylists: { auto: otherPlaylists.auto, manual: otherPlaylists.manual }
     }
-    await setPlaylistPageCache(id, payload)
+    // isAutoRecent playlist 唔寫入長效快取，靠 ISR revalidate 保持新鮮
+    if (!playlistData.isAutoRecent) {
+      await setPlaylistPageCache(id, payload)
+    }
     const initialPlaylist = serializePlaylistData(playlistData)
     const initialSongs = serializePlaylistData(slimSongs)
     const initialUniqueArtists = serializePlaylistData(uniqueArtists)

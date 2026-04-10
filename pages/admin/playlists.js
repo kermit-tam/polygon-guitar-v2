@@ -133,6 +133,19 @@ function PlaylistAdmin() {
     }
   }
 
+  // 切換「自動最近上架」模式
+  const toggleAutoRecent = async (playlist) => {
+    const next = !playlist.isAutoRecent
+    try {
+      await updatePlaylist(playlist.id, { isAutoRecent: next })
+      await bustPlaylistPageCache(playlist.id)
+      showMessage(next ? '✅ 已啟用自動最近上架模式' : '✅ 已關閉自動模式，改回手動 songIds')
+      await loadPlaylists()
+    } catch (error) {
+      showMessage('操作失敗：' + error.message, 'error')
+    }
+  }
+
   // 刪除手動歌單
   const handleDeleteManual = async (playlist) => {
     if (!confirm(`確定要刪除歌單「${playlist.title}」嗎？此操作不可恢復。`)) return
@@ -576,10 +589,22 @@ function PlaylistAdmin() {
                             </div>
                             <p className="text-xs text-neutral-500 mt-0.5">{playlist.description?.length > 8 ? playlist.description.slice(0, 8) + '…' : playlist.description}</p>
                             <div className="flex items-center justify-between mt-1.5">
-                              <p className="text-xs text-neutral-600">
-                                {formatTimeAgo(playlist.lastUpdated)}更新
+                              <p className="text-xs flex items-center gap-1.5">
+                                {playlist.isAutoRecent
+                                  ? <span className="text-green-400 font-medium">⚡ 自動最近上架</span>
+                                  : <span className="text-neutral-600">{formatTimeAgo(playlist.lastUpdated)}更新</span>
+                                }
                               </p>
                               <div className="flex items-center gap-1">
+                                {(playlist.isAutoRecent || playlist.autoType === 'weekly') && (
+                                  <button
+                                    onClick={() => toggleAutoRecent(playlist)}
+                                    title={playlist.isAutoRecent ? '關閉自動模式（返回定期更新）' : '啟用：永遠顯示最新上架嘅歌'}
+                                    className={`p-1.5 transition ${playlist.isAutoRecent ? 'text-green-400 hover:text-red-400' : 'text-neutral-500 hover:text-green-400'}`}
+                                  >
+                                    ⚡
+                                  </button>
+                                )}
                                 <button onClick={() => openCoverGenerator(playlist)}
                                   className="p-1.5 text-neutral-500 hover:text-[#FFD700] transition" title="生成封面">
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -705,10 +730,22 @@ function PlaylistAdmin() {
                         </div>
                         <p className="text-xs text-neutral-500 mt-0.5">{(playlist.description || '無描述').length > 8 ? (playlist.description || '無描述').slice(0, 8) + '…' : (playlist.description || '無描述')}</p>
                         <div className="flex items-center justify-between mt-1.5">
-                          <p className="text-xs text-neutral-600">
-                            {(isChaksaPlaylist(playlist) ? playlist.chartEntries?.length : playlist.songIds?.length) || 0} 首 • {getTypeLabel(playlist.manualType)}
+                          <p className="text-xs text-neutral-600 flex items-center gap-1.5">
+                            {playlist.isAutoRecent
+                              ? <span className="text-green-400 font-medium">⚡ 自動最近上架</span>
+                              : <>{(isChaksaPlaylist(playlist) ? playlist.chartEntries?.length : playlist.songIds?.length) || 0} 首 • {getTypeLabel(playlist.manualType)}</>
+                            }
                           </p>
                           <div className="flex items-center gap-1">
+                            {playlist.isAutoRecent && (
+                              <button
+                                onClick={() => toggleAutoRecent(playlist)}
+                                title="關閉自動模式"
+                                className="p-1.5 transition text-green-400 hover:text-red-400"
+                              >
+                                ⚡
+                              </button>
+                            )}
                             {isChaksaPlaylist(playlist) && (
                               <Link href={`/admin/playlists/chaksa/${playlist.id}`}
                                 className="p-1.5 text-[#FFD700] hover:text-white transition" title="編輯叱咤榜單">

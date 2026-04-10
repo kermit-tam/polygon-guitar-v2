@@ -18,7 +18,9 @@ function NewPlaylist() {
     manualType: 'theme',
     curatedBy: '',
     coverImage: '',
-    viewMode: 'list'
+    viewMode: 'list',
+    isAutoRecent: false,
+    autoRecentCount: 20
   })
   const [selectedSongs, setSelectedSongs] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -146,8 +148,8 @@ function NewPlaylist() {
       return
     }
     
-    if (selectedSongs.length === 0) {
-      alert('請至少選擇一首歌曲')
+    if (!formData.isAutoRecent && selectedSongs.length === 0) {
+      alert('請至少選擇一首歌曲（或啟用「自動最近上架」模式）')
       return
     }
     
@@ -156,9 +158,9 @@ function NewPlaylist() {
       const playlistData = {
         ...formData,
         source: 'manual',
-        songIds: selectedSongs.map(s => s.id),
+        songIds: formData.isAutoRecent ? [] : selectedSongs.map(s => s.id),
         isActive: true,
-        displayOrder: 100 // 預設排到後面
+        displayOrder: 100
       }
       
       await createPlaylist(playlistData, user.uid)
@@ -307,6 +309,36 @@ function NewPlaylist() {
                   placeholder="你的名字"
                   className="w-full px-4 py-2 bg-black border border-neutral-800 rounded-lg text-white placeholder-neutral-600"
                 />
+              </div>
+
+              <div className="p-4 bg-[#1a1a1a] rounded-lg border border-neutral-800 space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, isAutoRecent: !prev.isAutoRecent }))}
+                    className={`w-10 h-5 rounded-full transition relative flex-shrink-0 ${formData.isAutoRecent ? 'bg-green-500' : 'bg-neutral-700'}`}
+                  >
+                    <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition"
+                      style={{ left: formData.isAutoRecent ? '22px' : '2px' }} />
+                  </button>
+                  <div>
+                    <p className="text-white text-sm font-medium">⚡ 自動最近上架模式</p>
+                    <p className="text-neutral-500 text-xs">啟用後會自動顯示最新上架嘅歌，唔需要手動維護歌曲列表</p>
+                  </div>
+                </label>
+                {formData.isAutoRecent && (
+                  <div>
+                    <label className="block text-xs text-neutral-400 mb-1">顯示首數（預設 20）</label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={50}
+                      value={formData.autoRecentCount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, autoRecentCount: Number(e.target.value) || 20 }))}
+                      className="w-24 px-3 py-1.5 bg-black border border-neutral-700 rounded text-white text-sm"
+                    />
+                  </div>
+                )}
               </div>
 
             </div>
