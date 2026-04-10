@@ -46,11 +46,21 @@ export default async function handler(req, res) {
     const ref = adminDb.collection('cache').doc(`${CACHE_DOC_PREFIX}${playlistId}`)
     await ref.delete()
 
-    // Also trigger Next.js ISR revalidation so the static page is rebuilt immediately,
-    // not just on the next 300s revalidation window.
+    // 額外嘗試刪 slug-based cache doc（當 playlistId 係 doc ID 時）
+    try {
+      const playlistDoc = await adminDb.collection('playlists').doc(playlistId).get()
+      if (playlistDoc.exists) {
+        const slug = playlistDoc.data()?.slug
+        if (slug && slug !== playlistId) {
+          await adminDb.collection('cache').doc(`${CACHE_DOC_PREFIX}${slug}`).delete()
+        }
+      }
+    } catch (_) {}
+
+    // Trigger Next.js ISR revalidation immediately
     let isr = false
     try {
-      await res.revalidate(`/playlist/${playlistId}`)
+      await res.revalidate(`/playlist/${encodeURIComponent(playlistId)}`)
       isr = true
     } catch (isrErr) {
       console.warn('[bust-playlist-cache] ISR revalidate failed:', isrErr?.message)

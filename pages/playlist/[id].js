@@ -597,11 +597,18 @@ export default function PlaylistDetail({
     try {
       const token = await auth.currentUser?.getIdToken?.()
       if (token) {
-        await fetch('/api/admin/bust-playlist-cache', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ playlistId: playlist?.id ?? id })
-        })
+        // 用 URL id（slug）作 cache key，與 getStaticProps 寫入時一致
+        // 同時 bust doc ID 以防萬一兩者不同
+        const urlId = id
+        const docId = playlist?.id
+        const ids = [...new Set([urlId, docId].filter(Boolean))]
+        await Promise.all(ids.map((pid) =>
+          fetch('/api/admin/bust-playlist-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ playlistId: pid })
+          })
+        ))
       }
     } catch (_) {}
   }
