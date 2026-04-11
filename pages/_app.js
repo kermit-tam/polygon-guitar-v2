@@ -202,9 +202,11 @@ function ScrollRestoration() {
   return null
 }
 
-// 全站圖片禁止右鍵另存（禁止下載）
+// 全站圖片禁止右鍵另存（只有 Admin 可以右鍵下載）
 function DisableImageContextMenu() {
+  const { isAdmin } = useAuth()
   useEffect(() => {
+    if (isAdmin) return
     const handler = (e) => {
       if (e.target?.tagName === 'IMG') {
         e.preventDefault()
@@ -212,7 +214,7 @@ function DisableImageContextMenu() {
     }
     document.addEventListener('contextmenu', handler, { capture: true })
     return () => document.removeEventListener('contextmenu', handler, { capture: true })
-  }, [])
+  }, [isAdmin])
   return null
 }
 
