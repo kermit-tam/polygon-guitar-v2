@@ -2084,20 +2084,26 @@ export async function getStaticProps({ params }) {
     if (!earlyPlaylist?.isAutoRecent) {
       const cached = await getPlaylistPageCache(id)
       if (cached) {
-        // Redirect from doc ID to slug URL
-        if (cached.playlist?.slug && cached.playlist.slug !== id) {
-          return { redirect: { destination: `/playlist/${encodeURIComponent(cached.playlist.slug)}`, permanent: true } }
-        }
-        const autoF = (cached.otherPlaylists?.auto || []).filter((p) => p.id !== id).slice(0, 2)
-        const manualF = (cached.otherPlaylists?.manual || []).filter((p) => p.id !== id).slice(0, 6)
-        return {
-          props: {
-            initialPlaylist: cached.playlist,
-            initialSongs: toSlimSongs(cached.songs || []),
-            initialUniqueArtists: cached.uniqueArtists || [],
-            initialOtherPlaylists: [...autoF, ...manualF]
-          },
-          revalidate: 300
+        // 如果 playlist 係 earlyPlaylist 讀取後更新咗（updatedAt 不同），快取已過時，跳過用新資料
+        const cachePlaylistUpdated = cached.playlist?.updatedAt
+        const actualPlaylistUpdated = earlyPlaylist?.updatedAt
+        const cacheIsStale = cachePlaylistUpdated && actualPlaylistUpdated && cachePlaylistUpdated !== actualPlaylistUpdated
+        if (!cacheIsStale) {
+          // Redirect from doc ID to slug URL
+          if (cached.playlist?.slug && cached.playlist.slug !== id) {
+            return { redirect: { destination: `/playlist/${encodeURIComponent(cached.playlist.slug)}`, permanent: true } }
+          }
+          const autoF = (cached.otherPlaylists?.auto || []).filter((p) => p.id !== id).slice(0, 2)
+          const manualF = (cached.otherPlaylists?.manual || []).filter((p) => p.id !== id).slice(0, 6)
+          return {
+            props: {
+              initialPlaylist: cached.playlist,
+              initialSongs: toSlimSongs(cached.songs || []),
+              initialUniqueArtists: cached.uniqueArtists || [],
+              initialOtherPlaylists: [...autoF, ...manualF]
+            },
+            revalidate: 300
+          }
         }
       }
     }

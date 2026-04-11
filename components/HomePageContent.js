@@ -861,7 +861,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
       })
       freshLatestLoadedRef.current = true
       setLatestSongs(fresh)
-    }).catch((e) => { console.error('[latestSongs] getRecentTabs failed:', e) })
+    }).catch(() => {})
   }, [])
 
   // Phase 3: 載入需要登入的資料

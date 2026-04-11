@@ -36,45 +36,49 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing playlistId' })
   }
 
+  // 嘗試用 Admin SDK 刪 Firestore 快取 doc（失敗不影響 ISR）
+  let deleted = false
+  let extraDeleted = false
   try {
     const { getAdminDb } = await import('@/lib/admin-db')
     const adminDb = getAdminDb()
-    if (!adminDb) {
-      return res.status(503).json({ error: 'Admin DB not available' })
-    }
+    if (adminDb) {
+      const ref = adminDb.collection('cache').doc(`${CACHE_DOC_PREFIX}${playlistId}`)
+      await ref.delete()
+      deleted = true
 
-    const ref = adminDb.collection('cache').doc(`${CACHE_DOC_PREFIX}${playlistId}`)
-    await ref.delete()
-
-    // 額外嘗試刪 slug-based cache doc（當 playlistId 係 doc ID 時）
-    try {
-      const playlistDoc = await adminDb.collection('playlists').doc(playlistId).get()
-      if (playlistDoc.exists) {
-        const slug = playlistDoc.data()?.slug
-        if (slug && slug !== playlistId) {
-          await adminDb.collection('cache').doc(`${CACHE_DOC_PREFIX}${slug}`).delete()
+      // 額外嘗試刪 slug-based cache doc（當 playlistId 係 doc ID 時）
+      try {
+        const playlistDoc = await adminDb.collection('playlists').doc(playlistId).get()
+        if (playlistDoc.exists) {
+          const slug = playlistDoc.data()?.slug
+          if (slug && slug !== playlistId) {
+            await adminDb.collection('cache').doc(`${CACHE_DOC_PREFIX}${slug}`).delete()
+            extraDeleted = true
+          }
         }
-      }
-    } catch (_) {}
-
-    // Trigger Next.js ISR revalidation immediately
-    let isr = false
-    try {
-      await res.revalidate(`/playlist/${encodeURIComponent(playlistId)}`)
-      isr = true
-    } catch (isrErr) {
-      console.warn('[bust-playlist-cache] ISR revalidate failed:', isrErr?.message)
+      } catch (_) {}
     }
-
-    return res.status(200).json({
-      ok: true,
-      playlistId,
-      deleted: true,
-      isr,
-      message: 'Playlist page cache cleared; next load will show updated songs'
-    })
   } catch (e) {
-    console.error('[bust-playlist-cache]', e?.message)
-    return res.status(500).json({ error: e?.message || 'Failed to bust cache' })
+    console.warn('[bust-playlist-cache] Admin SDK delete failed:', e?.message)
   }
+
+  // 無論 Admin SDK 是否可用，都嘗試觸發 Next.js ISR revalidation
+  // （getStaticProps 已加入 updatedAt 比對，即使快取冇刪到都會偵測過期）
+  let isr = false
+  try {
+    await res.revalidate(`/playlist/${encodeURIComponent(playlistId)}`)
+    isr = true
+  } catch (isrErr) {
+    console.warn('[bust-playlist-cache] ISR revalidate failed:', isrErr?.message)
+  }
+
+  return res.status(200).json({
+    ok: true,
+    playlistId,
+    deleted,
+    extraDeleted,
+    isr,
+    message: 'Playlist page cache cleared; next load will show updated songs'
+  })
 }
