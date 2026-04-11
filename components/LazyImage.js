@@ -104,7 +104,7 @@ export function SongCard({ song, artistPhoto, onClick, href, compact, rank }) {
         <div className={`absolute -top-2 -right-2 min-w-[22px] h-[22px] px-1 rounded-full flex items-center justify-center z-30 pointer-events-none shadow-md ${rank === 1 ? 'bg-[#FFD700]' : 'bg-black'}`}>
           {rank === 1
             ? <Crown className="text-black" strokeWidth={2.5} style={{ width: 13, height: 13, marginTop: -1.5 }} />
-            : <span className="text-white font-bold leading-none" style={{ fontSize: 13, marginTop: -1.5 }}>{rank}</span>
+            : <span className="text-white font-medium leading-none" style={{ fontSize: 13, marginTop: -1.5 }}>{rank}</span>
           }
         </div>
       )}
