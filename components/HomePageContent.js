@@ -387,7 +387,7 @@ function getInitialStateFromHomeData(initialHomeData) {
   if (!initialHomeData) return null
   return {
     hotTabs: initialHomeData.hotTabs || _initialHomeState.hotTabs,
-    latestSongs: initialHomeData.latestSongs || _initialHomeState.latestSongs,
+    latestSongs: [], // 永遠由 getRecentTabs 填入，避免 API 快取舊排序閃爍
     allSongs: initialHomeData.allSongs || _initialHomeState.allSongs,
     hotArtists: initialHomeData.hotArtists || _initialHomeState.hotArtists,
     autoPlaylists: initialHomeData.autoPlaylists?.length ? initialHomeData.autoPlaylists : _initialHomeState.autoPlaylists,
@@ -417,7 +417,6 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
 
   // Freeze layout only when we have section data from the server (not the client-side default), so home-settings sections show after fetch
   const layoutFrozenRef = useRef(null)
-  const freshLatestLoadedRef = useRef(false) // 直接 Firestore 讀取完成後設 true，防止 API 覆蓋
   const hasServerSectionData = initialHomeData?.homeSettings?.sectionOrder?.length || initialHomeData?.homeSettings?.customPlaylistSections?.length
   if (layoutFrozenRef.current === null && hasServerSectionData) {
     layoutFrozenRef.current = {
@@ -818,7 +817,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
       customPlaylistSections: settings.customPlaylistSections ?? prev.customPlaylistSections
     }))
     setArtists(d.hotArtists?.all?.slice(0, 10) ?? [])
-    if (!freshLatestLoadedRef.current) setLatestSongs(d.latestSongs ?? [])
+    // latestSongs 永遠由 getRecentTabs（client-side Firestore 直讀）負責填入，唔用 API 快取資料
     setHotTabs(d.hotTabs ?? [])
     setAllSongs(d.allSongs ?? [])
     setHotArtists(d.hotArtists ?? { male: [], female: [], group: [], all: [] })
@@ -859,7 +858,6 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           ...(t.artistPhoto ? { artistPhoto: t.artistPhoto } : {}),
         }
       })
-      freshLatestLoadedRef.current = true
       setLatestSongs(fresh)
     }).catch(() => {})
   }, [])
