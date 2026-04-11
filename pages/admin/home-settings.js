@@ -14,7 +14,7 @@ import {
   orderBy,
   limit
 } from '@/lib/firestore-tracked'
-import { getHotTabs, getTabsByIds } from '@/lib/tabs'
+import { getAllTabs, getTabsByIds } from '@/lib/tabs'
 import { getAllPlaylists } from '@/lib/playlists'
 import { useArtistMap } from '@/lib/useArtistMap'
 
@@ -265,7 +265,7 @@ function HomeSettings() {
     setLoadingTabs(true)
     try {
       const cached = getHomeSettingsFromCache()
-      let tabsData = cached?.tabs?.length ? cached.tabs : await getHotTabs(100)
+      let tabsData = cached?.tabs?.length ? cached.tabs : await getAllTabs()
       const loadedIds = new Set(tabsData.map(t => t.id))
       const missingIds = selectedTabIds.filter(id => !loadedIds.has(id))
       if (missingIds.length > 0) {
