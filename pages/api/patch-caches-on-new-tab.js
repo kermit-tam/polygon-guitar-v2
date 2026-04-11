@@ -52,6 +52,12 @@ function stripUndefined(obj) {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
 }
 
+function toAllTabsSlim(tab) {
+  // 與 lib/tabs.js slimTabForAllTabsCache 保持一致：移除 content/artist/artistName/artistSlug
+  const { content, artist, artistName, artistSlug, ...rest } = tab
+  return { id: tab.id, ...rest }
+}
+
 function toHomeSlim(tab) {
   const coverImage = resolveTabCoverImage(tab)
   return stripUndefined({
@@ -125,6 +131,79 @@ async function patchCacheDoc(adminDb, docId, patchFn) {
 function isQuotaError(e) {
   const msg = e?.message || String(e)
   return e?.code === 8 || /quota|resource exhausted|RESOURCE_EXHAUSTED/i.test(msg)
+}
+
+/**
+ * Patch cache/allTabs (multi-part allTabs_0..N or single-doc) for create/delete/update tab actions.
+ * Ensures getRecentTabs() immediately sees new/deleted/updated tabs without waiting for cache rebuild.
+ */
+async function patchAllTabsCache(adminDb, tab, action) {
+  try {
+    const { FieldValue } = await import('firebase-admin/firestore')
+    const cacheCol = adminDb.collection('cache')
+    const slim = toAllTabsSlim(tab)
+
+    // Try multi-part format first (allTabs_meta + allTabs_0, allTabs_1, ...)
+    const metaSnap = await cacheCol.doc('allTabs_meta').get()
+    if (metaSnap.exists && metaSnap.data()?.partCount > 0) {
+      const part0Snap = await cacheCol.doc('allTabs_0').get()
+      if (!part0Snap.exists) return false
+      const part0Data = part0Snap.data()?.data
+      if (!Array.isArray(part0Data)) return false
+
+      let newPart0
+      if (action === 'create') {
+        if (part0Data.some(t => t.id === tab.id)) return false
+        newPart0 = [slim, ...part0Data]
+      } else if (action === 'delete') {
+        newPart0 = part0Data.filter(t => t.id !== tab.id)
+        if (newPart0.length === part0Data.length) return false
+      } else if (action === 'update') {
+        const idx = part0Data.findIndex(t => t.id === tab.id)
+        if (idx === -1) return false
+        newPart0 = [...part0Data]
+        newPart0[idx] = { ...newPart0[idx], ...slim }
+      } else {
+        return false
+      }
+
+      const size = Buffer.byteLength(JSON.stringify(newPart0), 'utf8')
+      if (size > MAX_CACHE_BYTES) {
+        console.warn('[patch-caches] allTabs_0 patch skipped: would exceed size limit')
+        return false
+      }
+      await cacheCol.doc('allTabs_0').set({ data: newPart0, updatedAt: FieldValue.serverTimestamp() })
+      await cacheCol.doc('allTabs_meta').update({ updatedAt: FieldValue.serverTimestamp() })
+      console.log(`[patch-caches] allTabs_0 patched (${action}) tab ${tab.id}`)
+      return true
+    }
+
+    // Fall back to single-doc allTabs
+    return await patchCacheDoc(adminDb, 'allTabs', (payload) => {
+      if (!Array.isArray(payload)) return null
+      if (action === 'create') {
+        if (payload.some(t => t.id === tab.id)) return null
+        return [slim, ...payload]
+      } else if (action === 'delete') {
+        const filtered = payload.filter(t => t.id !== tab.id)
+        return filtered.length === payload.length ? null : filtered
+      } else if (action === 'update') {
+        const idx = payload.findIndex(t => t.id === tab.id)
+        if (idx === -1) return null
+        const updated = [...payload]
+        updated[idx] = { ...updated[idx], ...slim }
+        return updated
+      }
+      return null
+    })
+  } catch (e) {
+    if (isQuotaError(e)) {
+      console.warn('[patch-caches] allTabs patch skipped (quota exceeded)')
+    } else {
+      console.error('[patch-caches] allTabs patch failed:', e?.message)
+    }
+    return false
+  }
 }
 
 async function deleteArtistPageCache(adminDb, artistId) {
@@ -304,6 +383,9 @@ async function handleTabAction(adminDb, tab, action) {
     if (deleted) anyArtistPageDeleted = true
   }
   results.artistPageDeleted = anyArtistPageDeleted
+
+  // Patch cache/allTabs so getRecentTabs() immediately sees new/deleted/updated tabs
+  results.allTabs = await patchAllTabsCache(adminDb, tab, action)
 
   return results
 }
