@@ -1360,7 +1360,7 @@ export default function TabDetail({ initialTab, artist }) {
                   <span className="flex items-center gap-0.5 text-neutral-500 text-sm">
                     <Heart className="w-4 h-4 text-neutral-500 fill-neutral-500 flex-shrink-0" />
                     <Bookmark className="w-4 h-4 text-neutral-500 fill-neutral-500 flex-shrink-0" />
-                    {(likesCount || 0) + (tab.playlistCount || 0)}
+                    {Math.max(0, (likesCount ?? 0) + (tab.playlistCount ?? 0))}
                   </span>
                 </div>
               </div>
