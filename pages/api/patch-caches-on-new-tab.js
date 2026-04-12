@@ -169,7 +169,16 @@ async function patchAllTabsCache(adminDb, tab, action) {
 
       const size = Buffer.byteLength(JSON.stringify(newPart0), 'utf8')
       if (size > MAX_CACHE_BYTES) {
-        console.warn('[patch-caches] allTabs_0 patch skipped: would exceed size limit')
+        if (action === 'create') {
+          // allTabs_0 is full — add the new tab as a new trailing part so it still appears
+          // in getAllTabs(). The next full rebuild will consolidate all parts.
+          const currentPartCount = metaSnap.data().partCount
+          await cacheCol.doc(`allTabs_${currentPartCount}`).set({ data: [slim], updatedAt: FieldValue.serverTimestamp() })
+          await cacheCol.doc('allTabs_meta').set({ partCount: currentPartCount + 1, updatedAt: FieldValue.serverTimestamp() })
+          console.log(`[patch-caches] allTabs_0 full (~${Math.round(size / 1024)}KB), added allTabs_${currentPartCount} for tab ${tab.id}`)
+          return true
+        }
+        console.warn(`[patch-caches] allTabs_0 patch skipped (${action}): would exceed size limit`)
         return false
       }
       await cacheCol.doc('allTabs_0').set({ data: newPart0, updatedAt: FieldValue.serverTimestamp() })
@@ -275,6 +284,26 @@ async function handleTabAction(adminDb, tab, action) {
       hotTabs: patchArray(payload.hotTabs)
     }
     return changed ? patched : null
+  })
+
+  // Dedicated latestSongs cache — small doc, fast client read (no need to load full allTabs)
+  results.latestSongs = await patchCacheDoc(adminDb, 'latestSongs', (payload) => {
+    const list = Array.isArray(payload) ? payload : []
+    if (action === 'delete') {
+      const filtered = list.filter(t => t.id !== tab.id)
+      return filtered.length === list.length ? null : filtered
+    }
+    const slim = toHomeSlim(tab)
+    if (action === 'create') {
+      if (list.some(t => t.id === tab.id)) return null
+      return [slim, ...list].slice(0, 20)
+    }
+    // update
+    const idx = list.findIndex(t => t.id === tab.id)
+    if (idx === -1) return null
+    const updated = [...list]
+    updated[idx] = { ...updated[idx], ...slim }
+    return updated
   })
 
   // When creating or updating a tab, ensure all associated artists exist in the search cache's artists array
