@@ -29,7 +29,7 @@ export default async function handler(req, res) {
   try {
     const cached = await getPlaylistPageCache(id)
     if (cached) {
-      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+      res.setHeader('Cache-Control', 'no-store')
       return res.json({ ...cached, songs: toSlimSongs(cached.songs || []) })
     }
 
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
     }
     await setPlaylistPageCache(id, payload)
 
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+    res.setHeader('Cache-Control', 'no-store')
     return res.json(serializePayload(payload))
   } catch (err) {
     console.error('[playlist-page API]', err?.message)
