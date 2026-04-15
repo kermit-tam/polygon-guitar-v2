@@ -1420,11 +1420,18 @@ E|----------------------------------------------------------------|
               >
                 移除所有空行
               </button>
-              {isAdmin && (
-                <button type="button" onClick={insertTemplate} className="text-xs text-[#FFD700] hover:text-yellow-300">
-                  插入空白模板
-                </button>
-              )}
+              <button type="button"
+                onClick={() => {
+                  if (!formData.content) return
+                  const lines = formData.content.split('\n')
+                  const result = lines.map(line => line + '\n').join('\n')
+                  setFormData(prev => ({ ...prev, content: result }))
+                }}
+                disabled={!formData.content}
+                className="text-xs text-[#FFD700] hover:text-yellow-300 disabled:opacity-50"
+              >
+                每行加入空行
+              </button>
             </div>
           </div>
 
