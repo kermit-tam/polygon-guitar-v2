@@ -123,6 +123,7 @@ function isDashLikeToken(tokenName) {
 function lineHasChordMarker(line) {
   if (!line) return false
   if (/[\|｜\u2502][\s]*[A-G]/.test(line)) return true
+  if (/[\|｜\u2502][\s]*X(?=\s|$|\|)/.test(line)) return true
   return /(?:^|[\s|｜\u2502])\/[A-G][#b]?(?=[\s|｜\u2502]|$)/.test(line)
 }
 
@@ -1204,7 +1205,7 @@ function processPair(chordLine, lyricLine, transposeSemitones = 0, hideBrackets 
     if (tokenName) {
       let displayName = tokenName;
       const isSlashBassOnly = isSlashBassContinuationToken(tokenName)
-      let isChord = /^[A-G]/.test(tokenName) || isSlashBassOnly;
+      let isChord = /^[A-G]/.test(tokenName) || isSlashBassOnly || /^X$/i.test(tokenName);
       let isDash = isDashLikeToken(tokenName) || /^\d+\/\d+$/.test(tokenName) || /^N\.?C\.?$/i.test(tokenName);
       
       // 如果是和弦，處理轉調
@@ -1916,7 +1917,7 @@ const TabContent = ({
         if (/^\s*[A-G][#b]?\s*\(?.{0,30}capo.{0,30}\)?$/i.test(line)) {
           return false;
         }
-        const hasChordPattern = /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(?:-\d+)*(sus\d*)?(\/[A-G][#b]?)?(?=\s|$|\||\b)/.test(line);
+        const hasChordPattern = /\b[A-G][#b]?(maj|mj|m|min|sus|dim|aug|add|m7|7|9|11|13)?\d*((b|#)\d*)?(?:-\d+)*(sus\d*)?(\/[A-G][#b]?)?(?=\s|$|\||\b)/.test(line) || /[\|｜\u2502]\s*X(?=\s|$|\|)/.test(line);
         const hasChinese = /[\u4e00-\u9fff]/.test(line);
         return hasChordPattern && !hasChinese;
       };
@@ -2299,6 +2300,8 @@ const TabContent = ({
         if (!part || part === '|' || part === '｜' || part === '\u2502') return true;
         // NC = No Chord（常見音樂標記）
         if (NC_PATTERN.test(part)) return true;
+        // X = Mute（悶音/消音標記）
+        if (/^X$/i.test(part)) return true;
         // 延續低音：/B、/G（等同 G/B 寫法嘅低音部）
         if (isSlashBassContinuationToken(part)) return true;
         // 支援 D/F#、Bm7b5、E7b9 等（含 (b|#)數字 延伸）
@@ -2309,8 +2312,9 @@ const TabContent = ({
         return !cleanPart || cleanPart.match(/^[A-G](#|b)?(maj|mj|m|min|sus|dim|aug)?(add|m7|maj7|7|9|11|13)?\d*((b|#)\d*)?(?:-\d+)*(sus\d*)?$/);
       });
       const hasSlashBassInLine = /(?:^|[\s|｜\u2502])\/[A-G][#b]?(?=[\s|｜\u2502]|$)/.test(line);
+      const hasXMuteInLine = /[\|｜\u2502]\s*X(?=\s|$|\|)/i.test(line);
       const hasChordPattern = hasBarLineStart
-        ? (validChordMatches.length >= 1 || hasSlashBassInLine)
+        ? (validChordMatches.length >= 1 || hasSlashBassInLine || hasXMuteInLine)
         : (validChordMatches.length >= 2 || isChordOnlyLine);
       // 排除元數據行：包含 Key/Capo/制譜/編譜/原調/調性 關鍵詞的行
       const isMetadataLine = /\b(Key|Capo|制譜|編譜|原調|調性|調)\b/i.test(line);
