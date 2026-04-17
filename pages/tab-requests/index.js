@@ -126,26 +126,39 @@ export default function TabRequestsPage() {
 
   // --- Data loading ---
 
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+  const filterExpiredFulfilled = (list) => {
+    const now = Date.now()
+    return list.filter(r => {
+      if (r.status !== 'fulfilled') return true
+      const fulfilledTime = r.fulfilledAt instanceof Date ? r.fulfilledAt.getTime() : (r.fulfilledAt ?? 0)
+      return now - fulfilledTime < ONE_WEEK_MS
+    })
+  }
+
   const loadRequests = async () => {
     try {
       const res = await fetch('/api/tab-requests')
       if (!res.ok) throw new Error('Failed to load requests')
       const { tabRequests: raw } = await res.json()
       const list = Array.isArray(raw) ? raw : []
-      const data = list.map((r) => ({
+      const data = filterExpiredFulfilled(list.map((r) => ({
         ...r,
         createdAt: r.createdAt != null ? new Date(r.createdAt) : new Date(),
-      }))
+        fulfilledAt: r.fulfilledAt != null ? new Date(r.fulfilledAt) : null,
+      })))
       data.sort((a, b) => compareTabRequests(a, b, user?.uid))
       setRequests(data)
       if (data.length === 0) {
         const q = query(collection(db, 'tabRequests'), orderBy('voteCount', 'desc'))
         const snapshot = await getDocs(q)
-        const fallback = snapshot.docs.map((docSnap) => ({
+        const fallback = filterExpiredFulfilled(snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
           ...docSnap.data(),
           createdAt: docSnap.data().createdAt?.toDate?.() || new Date(),
-        }))
+          fulfilledAt: docSnap.data().fulfilledAt?.toDate?.() || null,
+        })))
         fallback.sort((a, b) => compareTabRequests(a, b, user?.uid))
         if (fallback.length > 0) setRequests(fallback)
       }
@@ -168,9 +181,19 @@ export default function TabRequestsPage() {
 
   // --- Submit new request ---
 
+  const REQUEST_LIMIT = 10
+
   const handleSearchSubmit = async ({ searchResults, searchSource }) => {
     if (!user) { alert('請先登入'); return }
     if (!searchResults) return
+
+    // 每人最多 REQUEST_LIMIT 份新求譜（投票唔計；已出譜嘅唔佔配額）
+    const myRequestCount = requests.filter(r => r.requestedBy === user.uid && r.status !== 'fulfilled').length
+    if (myRequestCount >= REQUEST_LIMIT) {
+      alert(`唔好意思，每位用戶最多只可以求 ${REQUEST_LIMIT} 份譜`)
+      return
+    }
+
     setSubmitting(true)
     try {
       const existingQuery = query(
