@@ -1201,6 +1201,7 @@ export async function getStaticProps({ params }) {
     };
   } catch (e) {
     console.error('[artists/[id]] getStaticProps:', e?.message);
-    return { notFound: true };
+    // 暫時性 Firestore 錯誤：唔返回 notFound，讓頁面用 client-side fetch 兜底，30秒後重試
+    return { props: { initialArtist: null, initialHotTabs: [], initialAllTabs: [] }, revalidate: 30 };
   }
 }
