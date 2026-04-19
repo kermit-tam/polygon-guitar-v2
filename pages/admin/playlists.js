@@ -122,13 +122,21 @@ function PlaylistAdmin() {
 
   // 切換歌單啟用狀態
   const togglePlaylistActive = async (playlist) => {
+    const newValue = !playlist.isActive
+    // Optimistic update：即時更新畫面，唔等 Firestore
+    const applyUpdate = (list) => list.map(p => p.id === playlist.id ? { ...p, isActive: newValue } : p)
+    setAutoPlaylists(prev => applyUpdate(prev))
+    setManualPlaylists(prev => applyUpdate(prev))
+    showMessage(newValue ? '已啟用歌單' : '已隱藏歌單')
     try {
-      await updatePlaylist(playlist.id, { isActive: !playlist.isActive })
+      await updatePlaylist(playlist.id, { isActive: newValue })
       await bustPlaylistPageCache(playlist.id)
       await rebuildHomeCacheAfterPlaylistChange()
-      showMessage(playlist.isActive ? '已隱藏歌單' : '已啟用歌單')
-      await loadPlaylists()
     } catch (error) {
+      // 失敗時 rollback
+      const rollback = (list) => list.map(p => p.id === playlist.id ? { ...p, isActive: playlist.isActive } : p)
+      setAutoPlaylists(prev => rollback(prev))
+      setManualPlaylists(prev => rollback(prev))
       showMessage('操作失敗：' + error.message, 'error')
     }
   }
