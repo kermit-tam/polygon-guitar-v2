@@ -70,9 +70,9 @@ function isMatch(track, targetTitle, targetArtist) {
   // 檢查歌手相似度（需要 >= 70% 相似度）
   const artistSim = artistNames.some(name => similarity(name, targetArtist) >= 0.7)
   
-  // 嚴格匹配：歌名相似度 >= 80% 且歌手相似度 >= 70%
-  // 或者歌名幾乎完全匹配（>= 95%）
-  return (titleSim >= 0.8 && artistSim) || titleSim >= 0.95
+  // 歌名相似度 >= 70% 且歌手相似度 >= 70%
+  // 或者歌名幾乎完全匹配（>= 90%）
+  return (titleSim >= 0.7 && artistSim) || titleSim >= 0.9
 }
 
 export default async function handler(req, res) {
@@ -139,7 +139,8 @@ export default async function handler(req, res) {
     const searchUrl = new URL('https://api.spotify.com/v1/search')
     searchUrl.searchParams.append('q', searchQuery)
     searchUrl.searchParams.append('type', 'track')
-    searchUrl.searchParams.append('limit', '10')
+    searchUrl.searchParams.append('limit', '20')
+    searchUrl.searchParams.append('market', 'HK')
     
     console.log('Full search URL:', searchUrl.toString())
     
@@ -179,7 +180,8 @@ export default async function handler(req, res) {
       const looseSearchUrl = new URL('https://api.spotify.com/v1/search')
       looseSearchUrl.searchParams.append('q', q)
       looseSearchUrl.searchParams.append('type', 'track')
-      looseSearchUrl.searchParams.append('limit', '10')
+      looseSearchUrl.searchParams.append('limit', '20')
+      looseSearchUrl.searchParams.append('market', 'HK')
       
       const looseSearchResponse = await fetch(looseSearchUrl.toString(), {
         headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
