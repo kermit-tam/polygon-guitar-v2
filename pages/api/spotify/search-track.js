@@ -140,7 +140,6 @@ export default async function handler(req, res) {
     searchUrl.searchParams.append('q', searchQuery)
     searchUrl.searchParams.append('type', 'track')
     searchUrl.searchParams.append('limit', '20')
-    searchUrl.searchParams.append('market', 'HK')
     
     console.log('Full search URL:', searchUrl.toString())
     
@@ -181,7 +180,6 @@ export default async function handler(req, res) {
       looseSearchUrl.searchParams.append('q', q)
       looseSearchUrl.searchParams.append('type', 'track')
       looseSearchUrl.searchParams.append('limit', '20')
-      looseSearchUrl.searchParams.append('market', 'HK')
       
       const looseSearchResponse = await fetch(looseSearchUrl.toString(), {
         headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
