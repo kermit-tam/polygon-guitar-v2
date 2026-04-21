@@ -149,48 +149,44 @@ export default async function handler(req, res) {
     
     const searchData = await searchResponse.json()
     
-    // 記錄 Spotify 錯誤但唔即刻 fail，繼續嘗試 loose search
     if (searchData.error) {
       console.error('Spotify search error (first pass):', JSON.stringify(searchData.error))
+      return res.status(404).json({ error: 'Track not found', detail: searchData.error })
     }
     
-    let tracks = searchData.error ? [] : (searchData.tracks?.items || [])
+    let tracks = searchData.tracks?.items || []
     
     // 過濾結果：只保留匹配的
     if (tracks.length > 0 && title) {
       const filteredTracks = tracks.filter(track => isMatch(track, title, artist))
-      tracks = filteredTracks.length > 0 ? filteredTracks : []
+      // 過濾後有結果，用過濾後的；否則保留全部原始結果（讓用戶自己揀）
+      if (filteredTracks.length > 0) {
+        tracks = filteredTracks
+      }
+      // 注意：唔清空 tracks，確保搜尋到任何結果都返回
     }
     
-    // 如果冇結果，嘗試更寬鬆嘅搜尋（用 title only）
-    if (tracks.length === 0) {
-      const fallbackQuery = title || q
-      if (fallbackQuery) {
-        console.log('Trying fallback search:', fallbackQuery)
-        
-        const looseSearchUrl = new URL('https://api.spotify.com/v1/search')
-        looseSearchUrl.searchParams.append('q', fallbackQuery)
-        looseSearchUrl.searchParams.append('type', 'track')
-        looseSearchUrl.searchParams.append('limit', '20')
-        
-        const looseSearchResponse = await fetch(looseSearchUrl.toString(), {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
-        })
-        
-        const looseData = await looseSearchResponse.json()
-        
-        if (looseData.error) {
-          console.error('Spotify search error (fallback):', JSON.stringify(looseData.error))
-        }
-        
-        const looseTracks = looseData.error ? [] : (looseData.tracks?.items || [])
-        
-        if (looseTracks.length > 0 && title) {
-          const filteredLoose = looseTracks.filter(track => isMatch(track, title, artist))
-          tracks = filteredLoose.length > 0 ? filteredLoose : looseTracks.slice(0, 5)
-        } else {
-          tracks = looseTracks
-        }
+    // 如果精確搜尋沒有結果，嘗試更寬鬆的搜尋
+    if (tracks.length === 0 && q) {
+      console.log('Trying loose search:', q)
+      
+      const looseSearchUrl = new URL('https://api.spotify.com/v1/search')
+      looseSearchUrl.searchParams.append('q', q)
+      looseSearchUrl.searchParams.append('type', 'track')
+      looseSearchUrl.searchParams.append('limit', '20')
+      
+      const looseSearchResponse = await fetch(looseSearchUrl.toString(), {
+        headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
+      })
+      
+      const looseData = await looseSearchResponse.json()
+      const looseTracks = looseData.tracks?.items || []
+      
+      if (looseTracks.length > 0 && title) {
+        const filteredLoose = looseTracks.filter(track => isMatch(track, title, artist))
+        tracks = filteredLoose.length > 0 ? filteredLoose : looseTracks
+      } else {
+        tracks = looseTracks
       }
     }
     
