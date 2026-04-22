@@ -128,68 +128,54 @@ export default async function handler(req, res) {
       })
     }
     
-    // 使用簡單搜尋語法（引號可能導致 400 錯誤）
-    const searchQuery = title && artist 
-      ? `${title} ${artist}`
-      : q
+    // 搜尋策略：3 層 fallback
+    // 1. field filter: track:{title} artist:{artist} （最精準）
+    // 2. title only field filter: track:{title} （唔限歌手）
+    // 3. 原始 query fallback
     
-    console.log('Spotify search query:', searchQuery)
-    
-    // Build search URL
-    const searchUrl = new URL('https://api.spotify.com/v1/search')
-    searchUrl.searchParams.append('q', searchQuery)
-    searchUrl.searchParams.append('type', 'track')
-    searchUrl.searchParams.append('limit', '20')
-    
-    console.log('Full search URL:', searchUrl.toString())
-    
-    const searchResponse = await fetch(searchUrl.toString(), {
-      headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
-    })
-    
-    const searchData = await searchResponse.json()
-    
-    if (searchData.error) {
-      console.error('Spotify search error (first pass):', JSON.stringify(searchData.error))
-      return res.status(404).json({ error: 'Track not found', detail: searchData.error })
+    const doSearch = async (queryStr) => {
+      console.log('Spotify search query:', queryStr)
+      const url = new URL('https://api.spotify.com/v1/search')
+      url.searchParams.append('q', queryStr)
+      url.searchParams.append('type', 'track')
+      url.searchParams.append('limit', '10')
+      const res = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } })
+      const data = await res.json()
+      if (data.error) console.error('Spotify error:', JSON.stringify(data.error))
+      return data.error ? [] : (data.tracks?.items || [])
     }
-    
-    let tracks = searchData.tracks?.items || []
-    
-    // 過濾結果：只保留匹配的
-    if (tracks.length > 0 && title) {
-      const filteredTracks = tracks.filter(track => isMatch(track, title, artist))
-      // 過濾後有結果，用過濾後的；否則保留全部原始結果（讓用戶自己揀）
-      if (filteredTracks.length > 0) {
-        tracks = filteredTracks
-      }
-      // 注意：唔清空 tracks，確保搜尋到任何結果都返回
+
+    const applyFilter = (tracks, mustMatch) => {
+      if (!title || tracks.length === 0) return tracks
+      const filtered = tracks.filter(t => isMatch(t, title, artist))
+      // 有過濾結果就用，否則 mustMatch=true 返空，mustMatch=false 返原始
+      return filtered.length > 0 ? filtered : (mustMatch ? [] : tracks)
     }
-    
-    // 如果精確搜尋沒有結果，嘗試更寬鬆的搜尋
-    if (tracks.length === 0 && q) {
-      console.log('Trying loose search:', q)
-      
-      const looseSearchUrl = new URL('https://api.spotify.com/v1/search')
-      looseSearchUrl.searchParams.append('q', q)
-      looseSearchUrl.searchParams.append('type', 'track')
-      looseSearchUrl.searchParams.append('limit', '20')
-      
-      const looseSearchResponse = await fetch(looseSearchUrl.toString(), {
-        headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
-      })
-      
-      const looseData = await looseSearchResponse.json()
-      const looseTracks = looseData.tracks?.items || []
-      
-      if (looseTracks.length > 0 && title) {
-        const filteredLoose = looseTracks.filter(track => isMatch(track, title, artist))
-        tracks = filteredLoose.length > 0 ? filteredLoose : looseTracks
-      } else {
-        tracks = looseTracks
+
+    // 第 1 層：field filter（歌名 + 歌手）
+    let tracks = []
+    if (title && artist) {
+      // 只用英文部分 artist（Spotify 對中文 artist filter 支援較差）
+      const artistForFilter = artist.replace(/[\u4e00-\u9fff]/g, '').trim() || artist
+      const pass1 = await doSearch(`track:${title} artist:${artistForFilter}`)
+      tracks = applyFilter(pass1, false)
+    }
+
+    // 第 2 層：track field filter（只限歌名）
+    if (tracks.length === 0 && title) {
+      const pass2 = await doSearch(`track:${title}`)
+      tracks = applyFilter(pass2, false)
+    }
+
+    // 第 3 層：原始 query（最寬鬆）
+    if (tracks.length === 0) {
+      const fallbackQ = (title && artist) ? `${title} ${artist}` : (q || title || artist)
+      if (fallbackQ) {
+        const pass3 = await doSearch(fallbackQ)
+        tracks = applyFilter(pass3, false)
       }
     }
-    
+
     if (tracks.length === 0) {
       return res.status(404).json({ error: 'Track not found' })
     }
