@@ -1981,7 +1981,6 @@ export async function getStaticProps({ params }) {
     return { props: { initialTab: serializeTab(data), artist }, revalidate: 300 }
   } catch (e) {
     console.error('[tabs/[id]] getStaticProps:', e?.message)
-    // 暫時性錯誤：唔返回 notFound，讓頁面用 client-side fetch 兜底，30秒後重試
-    return { props: { initialTab: null, artist: null }, revalidate: 30 }
+    return { notFound: true }
   }
 }
