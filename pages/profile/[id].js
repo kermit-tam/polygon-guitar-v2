@@ -544,7 +544,7 @@ export default function PublicProfile() {
           {profile.showPlaylists !== false && playlists.length > 0 && (
             <section className="-mt-1" style={{ marginBottom: 25 }}>
               <h2 className="text-white font-bold text-lg mb-2">自創歌單</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3">
+              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3" data-drag-scroll>
                 {playlists.map((playlist) => (
                   <Link key={playlist.id} href={`/library/playlist/${playlist.id}`} className="flex-shrink-0 flex flex-col text-left group w-[24vw] md:w-28">
                     <div className="w-[24vw] h-[24vw] md:w-28 md:h-28 rounded-[4px] overflow-hidden bg-[#282828] mb-2 shadow-lg relative grid grid-cols-2 grid-rows-2">

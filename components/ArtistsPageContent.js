@@ -125,7 +125,7 @@ function HorizontalScrollSection({ title, color, artists, onArtistClick }) {
         <h2 className="text-xl font-bold text-white">{title}</h2>
       </div>
 
-      <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
+      <div className="overflow-x-auto scrollbar-hide -mx-4 px-4" data-drag-scroll>
         <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
           {columns.map((column, colIndex) => (
             <div key={colIndex} className="flex flex-col gap-4">

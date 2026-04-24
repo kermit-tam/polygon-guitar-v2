@@ -242,7 +242,7 @@ function CustomPlaylistSection({ title, songIds, onSongClick, preloadedSongs, ar
   return (
     <section className="mb-[23px] md:mb-[25px]">
       <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{title}</h2>
-      <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+      <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
         {showSkeleton ? (
           [...Array(Math.min(count, 12))].map((_, i) => (
             <div key={i} className="flex-shrink-0 w-[32vw] md:w-36">
@@ -448,7 +448,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
         if (!hasSectionData) {
           return (
             <section key={section.id} className="pt-2 mb-[23px] md:mb-[25px]">
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="flex-shrink-0 flex flex-col w-[32vw] md:w-36">
                     <div className="w-[32vw] md:w-36 h-[32vw] md:h-36 rounded-[4px] overflow-hidden bg-neutral-800 animate-pulse" />
@@ -462,7 +462,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
         return (
           <SectionViewportLoader key={section.id}>
             <section className="pt-2 mb-[23px] md:mb-[25px]">
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {categories.map((category) => (
                   <HomeCategoryCard key={category.id} category={category} hotArtists={hotArtists} />
                 ))}
@@ -480,7 +480,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           return (
             <section key={section.id} className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="flex-shrink-0 w-[32vw] md:w-36">
                     <div className="w-[32vw] md:w-36 h-[32vw] md:h-36 bg-neutral-800 rounded-[4px] animate-pulse mb-2" />
@@ -496,7 +496,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           <SectionViewportLoader key={section.id}>
             <section className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {hotTabs.map((song, index) => (
                   <SongCard
                     key={song.id}
@@ -517,7 +517,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           return (
             <section key={section.id} className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="flex-shrink-0 w-[32vw] md:w-36">
                     <div className="w-[32vw] md:w-36 h-[32vw] md:h-36 bg-neutral-800 rounded-full animate-pulse mb-2" />
@@ -532,7 +532,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           <SectionViewportLoader key={section.id}>
             <section className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {hotArtists.all.map((artist) => (
                   <ArtistAvatar
                     key={artist.id}
@@ -551,7 +551,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           return (
             <section key={section.id} className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {[...Array(4)].map((_, i) => (
                   <div key={i} className="flex-shrink-0 w-[32vw] md:w-36">
                     <div className="w-[32vw] md:w-36 h-[32vw] md:h-36 bg-neutral-800 rounded-[4px] animate-pulse mb-2" />
@@ -566,7 +566,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           <SectionViewportLoader key={section.id}>
             <section className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {autoPlaylists.map((playlist) => (
                   <PlaylistCard
                     key={playlist.id}
@@ -585,7 +585,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           return (
             <section key={section.id} className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="flex-shrink-0 w-[32vw] md:w-36">
                     <div className="w-[32vw] md:w-36 h-[32vw] md:h-36 bg-neutral-800 rounded-[4px] animate-pulse mb-2" />
@@ -601,7 +601,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           <SectionViewportLoader key={section.id}>
             <section className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {latestSongs.map((song) => (
                   <SongCard
                     key={song.id}
@@ -621,7 +621,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           return (
             <section key={section.id} className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {[...Array(4)].map((_, i) => (
                   <div key={i} className="flex-shrink-0 w-[32vw] md:w-36">
                     <div className="w-[32vw] md:w-36 h-[32vw] md:h-36 bg-neutral-800 rounded-[4px] animate-pulse mb-2" />
@@ -636,7 +636,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           <SectionViewportLoader key={section.id}>
             <section className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{getSectionLabel(section)}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {manualPlaylists.map((playlist) => (
                   <PlaylistCard
                     key={playlist.id}
@@ -660,7 +660,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
           return (
             <section key={section.id} className="mb-[23px] md:mb-[25px]">
               <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{sectionTitle || '載入中...'}</h2>
-              <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+              <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                 {[...Array(4)].map((_, i) => (
                   <div key={i} className="flex-shrink-0 w-[32vw] md:w-36">
                     <div className="w-[32vw] md:w-36 h-[32vw] md:h-36 bg-neutral-800 rounded-[4px] animate-pulse mb-2" />
@@ -685,7 +685,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
             return (
               <section key={section.id} className="mb-[23px] md:mb-[25px]">
                 <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{sectionTitle}</h2>
-                <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+                <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                   {[...Array(4)].map((_, i) => (
                     <div key={i} className="flex-shrink-0 w-[32vw] md:w-36">
                       <div className="w-[32vw] md:w-36 h-[32vw] md:h-36 bg-neutral-800 rounded-[4px] animate-pulse mb-2" />
@@ -721,7 +721,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
             return (
               <section key={section.id} className="mb-[23px] md:mb-[25px]">
                 <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{sectionTitle}</h2>
-                <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+                <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                   {[...Array(4)].map((_, i) => (
                     <div key={i} className="flex-shrink-0 w-[32vw] md:w-36">
                       <div className="w-[32vw] md:w-36 h-[32vw] md:h-36 bg-neutral-800 rounded-[4px] animate-pulse mb-2" />
@@ -737,7 +737,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
             <SectionViewportLoader key={section.id}>
               <section className="mb-[23px] md:mb-[25px]">
                 <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">{sectionTitle}</h2>
-                <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+                <div data-drag-scroll className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
                   {playlists.map((playlist) => (
                     <PlaylistCard
                       key={playlist.id}
@@ -861,6 +861,7 @@ export default function HomePageContent({ initialHomeSettings = {}, initialHomeD
       setLatestSongs(fresh)
     }).catch(() => {})
   }, [])
+
 
   // Phase 3: 載入需要登入的資料
   const loadUserData = async () => {

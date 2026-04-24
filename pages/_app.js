@@ -203,6 +203,68 @@ function ScrollRestoration() {
 }
 
 // 全站圖片禁止右鍵另存（只有 Admin 可以右鍵下載）
+function GlobalDragScroll() {
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.matchMedia('(pointer: coarse)').matches) return // 手機/觸控唔需要
+
+    const cleanups = []
+
+    const applyDragScroll = () => {
+      document.querySelectorAll('[data-drag-scroll]').forEach(el => {
+        if (el._dragScrollBound) return
+        el._dragScrollBound = true
+
+        let isDown = false, startX = 0, scrollLeft = 0, hasDragged = false
+
+        const onMouseDown = (e) => {
+          isDown = true; hasDragged = false
+          startX = e.pageX - el.offsetLeft
+          scrollLeft = el.scrollLeft
+          el.style.cursor = 'grabbing'
+          el.style.userSelect = 'none'
+        }
+        const onMouseUp = () => { isDown = false; el.style.cursor = 'grab'; el.style.userSelect = '' }
+        const onMouseLeave = () => { if (!isDown) return; isDown = false; el.style.cursor = 'grab'; el.style.userSelect = '' }
+        const onMouseMove = (e) => {
+          if (!isDown) return
+          e.preventDefault()
+          const walk = (e.pageX - el.offsetLeft - startX) * 1.5
+          if (Math.abs(walk) > 3) hasDragged = true
+          el.scrollLeft = scrollLeft - walk
+        }
+        const onClickCapture = (e) => { if (hasDragged) e.stopPropagation() }
+        const onDragStart = (e) => e.preventDefault()
+
+        el.style.cursor = 'grab'
+        el.addEventListener('mousedown', onMouseDown)
+        el.addEventListener('mouseup', onMouseUp)
+        el.addEventListener('mouseleave', onMouseLeave)
+        el.addEventListener('mousemove', onMouseMove)
+        el.addEventListener('click', onClickCapture, true)
+        el.addEventListener('dragstart', onDragStart)
+
+        cleanups.push(() => {
+          el.removeEventListener('mousedown', onMouseDown)
+          el.removeEventListener('mouseup', onMouseUp)
+          el.removeEventListener('mouseleave', onMouseLeave)
+          el.removeEventListener('mousemove', onMouseMove)
+          el.removeEventListener('click', onClickCapture, true)
+          el.removeEventListener('dragstart', onDragStart)
+          el._dragScrollBound = false
+        })
+      })
+    }
+
+    applyDragScroll()
+    const observer = new MutationObserver(applyDragScroll)
+    observer.observe(document.body, { childList: true, subtree: true })
+    cleanups.push(() => observer.disconnect())
+    return () => cleanups.forEach(c => c())
+  }, [])
+  return null
+}
+
 function DisableImageContextMenu() {
   const { isAdmin } = useAuth()
   useEffect(() => {
@@ -286,6 +348,7 @@ export default function App({ Component, pageProps }) {
   return (
     <AuthProvider>
       <AdminViewAsButton />
+      <GlobalDragScroll />
       <DisableImageContextMenu />
       <PrefetchNavRoutes />
       <RouteChangeIndicator />

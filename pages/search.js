@@ -419,7 +419,7 @@ export default function Search() {
               <section>
                 <h2 className="font-bold text-white mb-2 text-[1.3rem]">歌單</h2>
                 <div className="-mx-4">
-                  <div className="flex overflow-x-auto scrollbar-hide gap-3 px-4">
+                  <div className="flex overflow-x-auto scrollbar-hide gap-3 px-4" data-drag-scroll>
                     {filteredPlaylists.map((pl) => (
                       <button
                         key={pl.id}
@@ -446,7 +446,7 @@ export default function Search() {
               <section>
                 <h2 className="font-bold text-white mb-2 text-[1.3rem]">歌手</h2>
                 <div className="-mx-4">
-                  <div className="flex overflow-x-auto scrollbar-hide gap-3 px-4">
+                  <div className="flex overflow-x-auto scrollbar-hide gap-3 px-4" data-drag-scroll>
                   {filteredArtists.map((artist) => (
                     <button
                       key={artist.id}
@@ -479,7 +479,7 @@ export default function Search() {
               <section>
                 <h2 className="font-bold text-white mb-2 text-[1.3rem]">用戶</h2>
                 <div className="-mx-4">
-                  <div className="flex overflow-x-auto scrollbar-hide gap-3 px-4">
+                  <div className="flex overflow-x-auto scrollbar-hide gap-3 px-4" data-drag-scroll>
                     {filteredUsers.map((u) => (
                       <Link
                         key={u.id}

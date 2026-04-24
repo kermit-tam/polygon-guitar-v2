@@ -1458,7 +1458,7 @@ export default function PlaylistDetail({
         {recommendedItems.length > 0 && (
           <section className="pt-8 pb-6 mb-[23px] md:mb-[25px]">
             <h2 className="font-bold text-white pr-6 pb-2 pt-0 pl-4 text-[1.3rem] md:text-[1.375rem]">推薦歌單</h2>
-            <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }}>
+            <div className="flex overflow-x-auto scrollbar-hide pr-6 py-2 -my-2 gap-3 md:gap-4" style={{ paddingLeft: '1rem' }} data-drag-scroll>
               {recommendedItems.map((item) =>
                 item.type === 'artist' ? (
                   <Link
