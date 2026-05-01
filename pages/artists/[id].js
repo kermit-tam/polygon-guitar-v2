@@ -483,9 +483,12 @@ export default function ArtistPage({ initialArtist, initialHotTabs = [], initial
         result.push({ type: 'single', tab: tabs[0] });
         return;
       }
-      // 多份譜：標題用「呢組代表嘅 key」（最短）— Medley 會分兩行「念念不忘」「耿耿於怀」，唔用第一份譜嘅全名
+      // 多份譜：標題用「可讀性最高嘅 key」：優先有空格嘅版本（英文歌名），其次最短 key
       const pool = [...new Set([rootKey, ...(keys || [])])].filter(Boolean);
-      const displayKey = pool.reduce((a, b) => (a.length <= b.length ? a : b));
+      const readable = pool.filter(k => /\s/.test(k));
+      const displayKey = readable.length > 0
+        ? readable.reduce((a, b) => (a.length <= b.length ? a : b))
+        : pool.reduce((a, b) => (a.length <= b.length ? a : b));
       result.push({ type: 'group', title: displayKey, representative: sorted[0], versions: sorted });
     });
     return result;
