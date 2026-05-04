@@ -50,17 +50,19 @@ export default async function handler(req, res) {
       return res.status(404).json({ video: null })
     }
 
-    // 返回第一個結果
-    const video = data.items[0]
-    
-    return res.status(200).json({
-      video: {
-        id: video.id.videoId,
-        title: video.snippet.title,
-        thumbnail: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url,
-        channelTitle: video.snippet.channelTitle,
-      }
-    })
+    const videos = data.items.map(video => ({
+      id: video.id.videoId,
+      title: video.snippet.title,
+      thumbnail: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url,
+      channelTitle: video.snippet.channelTitle,
+    }))
+
+    // all=true 時返回全部結果，否則只返回第一個（向下兼容）
+    if (req.query.all === 'true') {
+      return res.status(200).json({ videos })
+    }
+
+    return res.status(200).json({ video: videos[0] })
     
   } catch (error) {
     console.error('YouTube search error:', error)

@@ -47,6 +47,12 @@ const sections = [
     ]
   },
   {
+    title: '遊戲',
+    items: [
+      { href: '/admin/game-settings', label: '1秒前奏估歌仔設置', roles: [ROLES.SUPER_ADMIN, ROLES.SCORE_CHECKER] },
+    ]
+  },
+  {
     title: '數據',
     items: [
       { href: '/admin/daily-uploads', label: '每日上傳', roles: [ROLES.SUPER_ADMIN] },

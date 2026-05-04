@@ -195,6 +195,12 @@ service cloud.firestore {
       allow write: if isAuthenticated() && isOwner(userId);
     }
 
+    // ==================== Game Songs (1秒前奏估歌仔) ====================
+    match /gameSongs/{songId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
     // ==================== Cache (homePage, searchData, allTabs, playlist_*, artistPage_*, tabRequestsList) ====================
     // Read: anyone. Write: Admin SDK only. Delete: super admin only (manual "clear artist page cache" from client).
     match /cache/{docId} {
