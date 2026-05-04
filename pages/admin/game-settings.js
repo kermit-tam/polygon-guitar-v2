@@ -80,8 +80,10 @@ export default function GameSettingsPage() {
   const [allTabs, setAllTabs] = useState([])
   const [tabSearch, setTabSearch] = useState('')
 
-  // 每首歌的起始秒 & 預覽狀態
+  // 每首歌的起始秒、標題 & 預覽狀態
   const [startSeconds, setStartSeconds] = useState({})
+  const [songTitles, setSongTitles] = useState({})
+  const [editingTitleId, setEditingTitleId] = useState(null)
   const [previewId, setPreviewId] = useState(null)
   const [saving, setSaving] = useState({})
   const [savedMsg, setSavedMsg] = useState({})
@@ -117,8 +119,13 @@ export default function GameSettingsPage() {
       setGameSongs(gs)
 
       const init = {}
-      gs.forEach(s => { init[s.id] = s.gameStartSecond ?? 0 })
+      const initTitles = {}
+      gs.forEach(s => {
+        init[s.id] = s.gameStartSecond ?? 0
+        initTitles[s.id] = s.title || ''
+      })
       setStartSeconds(init)
+      setSongTitles(initTitles)
 
       // 載入現有 tabs（陳奕迅）
       const artistsSnap = await getDocs(collection(db, 'artists'))
@@ -183,13 +190,14 @@ export default function GameSettingsPage() {
     setGameSongs(p => p.filter(s => s.id !== gsId))
   }
 
-  // 更新起始秒
+  // 更新起始秒 + 標題
   const handleSaveSecond = async (gsId) => {
     const sec = Number(startSeconds[gsId] ?? 0)
+    const title = songTitles[gsId] ?? ''
     setSaving(p => ({ ...p, [gsId]: true }))
     try {
-      await setDoc(doc(db, 'gameSongs', gsId), { gameStartSecond: sec }, { merge: true })
-      setGameSongs(p => p.map(s => s.id === gsId ? { ...s, gameStartSecond: sec } : s))
+      await setDoc(doc(db, 'gameSongs', gsId), { gameStartSecond: sec, title }, { merge: true })
+      setGameSongs(p => p.map(s => s.id === gsId ? { ...s, gameStartSecond: sec, title } : s))
       flashSaved(gsId)
     } finally {
       setSaving(p => ({ ...p, [gsId]: false }))
@@ -300,7 +308,25 @@ export default function GameSettingsPage() {
                         className="w-9 h-9 rounded object-cover flex-shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium truncate">{song.title}</p>
+                        {editingTitleId === song.id ? (
+                          <input
+                            autoFocus
+                            type="text"
+                            value={songTitles[song.id] ?? song.title ?? ''}
+                            onChange={e => setSongTitles(p => ({ ...p, [song.id]: e.target.value }))}
+                            onBlur={() => { setEditingTitleId(null); handleSaveSecond(song.id) }}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { setEditingTitleId(null); handleSaveSecond(song.id) } }}
+                            className="w-full px-2 py-0.5 rounded-lg bg-[#1a1a1a] text-white text-sm font-medium border border-[#FFD700] focus:outline-none"
+                          />
+                        ) : (
+                          <p
+                            className="text-white text-sm font-medium truncate cursor-pointer hover:text-[#FFD700] transition-colors"
+                            onClick={() => setEditingTitleId(song.id)}
+                            title="點擊編輯歌名"
+                          >
+                            {songTitles[song.id] ?? song.title}
+                          </p>
+                        )}
                         <p className="text-[#B3B3B3] text-xs">
                           起始 <span className="text-[#FFD700] font-mono">{curSec}s</span>
                           {song.source === 'youtube' && <span className="ml-1.5 text-xs text-blue-400">YT</span>}
@@ -481,7 +507,8 @@ export default function GameSettingsPage() {
                             type="text"
                             value={ytTitles[video.id] ?? video.title}
                             onChange={e => setYtTitles(p => ({ ...p, [video.id]: e.target.value }))}
-                            className="w-full bg-transparent text-white text-sm font-medium focus:outline-none border-b border-transparent focus:border-[#FFD700] pb-0.5 truncate"
+                            className="w-full px-2 py-1 rounded-lg bg-[#1a1a1a] text-white text-sm font-medium border border-[#3a3a3a] focus:outline-none focus:border-[#FFD700]"
+                            placeholder="歌名"
                           />
                           <p className="text-[#B3B3B3] text-xs mt-0.5 truncate">{video.channelTitle}</p>
                           <div className="flex items-center gap-2 mt-1">

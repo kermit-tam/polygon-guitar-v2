@@ -49,6 +49,7 @@ export default function GamePage() {
   const [correct, setCorrect] = useState(null)      // true/false
   const [selectedId, setSelectedId] = useState(null)// 用戶揀嘅歌 id
   const [isPlaying, setIsPlaying] = useState(false) // 播放中
+  const [isBuffering, setIsBuffering] = useState(false) // 載入中（已按但未開始播）
 
   const playerRef = useRef(null)     // YouTube IFrame Player
   const containerRef = useRef(null)  // iframe 容器
@@ -160,6 +161,7 @@ export default function GamePage() {
           e.target.seekTo(startSecond, true)
           e.target.setVolume(100)
           e.target.playVideo()
+          setIsBuffering(false)
           setIsPlaying(true)
           clearTimeout(stopTimerRef.current)
           stopTimerRef.current = setTimeout(() => {
@@ -167,27 +169,32 @@ export default function GamePage() {
             setIsPlaying(false)
           }, secondsToPlay * 1000)
         },
-        onError: () => setIsPlaying(false),
+        onError: () => { setIsBuffering(false); setIsPlaying(false) },
       }
     })
   }, [])
 
   // 5. 播放按鈕
   const handlePlay = useCallback(() => {
-    if (!answer || isPlaying) return
+    if (!answer || isPlaying || isBuffering) return
     const videoId = extractYouTubeId(answer.youtubeUrl)
     if (!videoId) return
 
+    setIsBuffering(true) // 即時顯示 loading
     const startSecond = answer.gameStartSecond || 0
+    let attempts = 0
     const tryCreate = () => {
       if (window.YT && window.YT.Player) {
         createPlayer(videoId, secondsRevealed, startSecond)
-      } else {
+      } else if (attempts < 20) {
+        attempts++
         setTimeout(tryCreate, 300)
+      } else {
+        setIsBuffering(false) // timeout，放棄
       }
     }
     tryCreate()
-  }, [answer, isPlaying, secondsRevealed, createPlayer])
+  }, [answer, isPlaying, isBuffering, secondsRevealed, createPlayer])
 
   // 6. 用戶猜歌
   const handleGuess = (song) => {
@@ -302,10 +309,10 @@ export default function GamePage() {
             <div className="flex flex-col items-center gap-3">
               <button
                 onClick={handlePlay}
-                disabled={isPlaying}
+                disabled={isPlaying || isBuffering}
                 className="flex items-center gap-2 px-6 py-3 rounded-full font-bold text-black transition-all"
                 style={{
-                  background: isPlaying ? '#B3B3B3' : '#FFD700',
+                  background: (isPlaying || isBuffering) ? '#B3B3B3' : '#FFD700',
                   minWidth: 160,
                   justifyContent: 'center',
                 }}
@@ -314,6 +321,11 @@ export default function GamePage() {
                   <>
                     <span className="inline-block w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
                     播放中...
+                  </>
+                ) : isBuffering ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    載入中...
                   </>
                 ) : (
                   <>
