@@ -493,10 +493,10 @@ export default function GamePage() {
                 />
               ) : (
                 <div className="w-full h-full rounded-full overflow-hidden">
-                  {answer?.artistPhoto ? (
+                  {artist?.photo ? (
                     <img
-                      src={answer.artistPhoto}
-                      alt={answer.artistName}
+                      src={artist.photo}
+                      alt={artist.name}
                       className="w-full h-full object-cover"
                     />
                   ) : (
