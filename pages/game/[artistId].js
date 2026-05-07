@@ -137,8 +137,12 @@ export default function GamePage() {
             const { songs: cachedSongs, ts } = JSON.parse(sc)
             if (Date.now() - ts < CACHE_TTL && cachedSongs?.length > 0) {
               setSongs(cachedSongs)
-              // 如果仍未有歌手資料，從快取補充
-              setArtist(a => a || { name: cachedSongs[0]?.artistName || '', photo: sc ? (JSON.parse(sc).artistPhoto || '') : '' })
+              // 從快取補充歌手名同相片
+              const cacheParsed = JSON.parse(sc)
+              setArtist(a => ({
+                name: a?.name || cacheParsed.artistName || cachedSongs[0]?.artistName || '',
+                photo: a?.photo || cacheParsed.artistPhoto || '',
+              }))
               setLoading(false)
               return
             }
@@ -164,21 +168,31 @@ export default function GamePage() {
 
         setSongs(all)
 
-        // 用網站本身嘅 helper 取歌手相片
-        getArtistByIdOrSlug(artistId)
-          .then(data => {
-            if (data?.photo) {
-              setArtist(a => ({ name: a?.name || data.name, photo: data.photo }))
-              try {
-                const sc = sessionStorage.getItem(SONG_CACHE_KEY)
-                if (sc) {
-                  const parsed = JSON.parse(sc)
-                  sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({ ...parsed, artistPhoto: data.photo }))
-                }
-              } catch {}
+        // 並行背景查 gameArtists（取全名，例如「陳奕迅 Eason Chan」）+ artists（取相片）
+        Promise.all([
+          getDocs(query(collection(db, 'gameArtists'), where('artistId', '==', artistId))).catch(() => null),
+          getArtistByIdOrSlug(artistId).catch(() => null),
+        ]).then(([gaSnap, artistData]) => {
+          const gameArtistDoc = gaSnap?.docs?.[0]?.data()
+          const fullName = gameArtistDoc?.name // 「陳奕迅 Eason Chan」
+          const photo = gameArtistDoc?.photo || artistData?.photo || ''
+          setArtist(a => ({
+            name: fullName || a?.name || '',
+            photo: photo || a?.photo || '',
+          }))
+          // 存埋落 sessionStorage 快取
+          try {
+            const sc = sessionStorage.getItem(SONG_CACHE_KEY)
+            if (sc) {
+              const parsed = JSON.parse(sc)
+              sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({
+                ...parsed,
+                artistName: fullName || parsed.artistName,
+                artistPhoto: photo || parsed.artistPhoto,
+              }))
             }
-          })
-          .catch(() => {})
+          } catch {}
+        }).catch(() => {})
       } catch (e) {
         console.error(e)
         setError('載入失敗，請重試')
