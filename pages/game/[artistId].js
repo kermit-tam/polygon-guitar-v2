@@ -468,23 +468,13 @@ export default function GamePage() {
                     : `😅 答案係《${answer.title}》`}
                 </div>
                 {/* 下一題 */}
-                <div className="flex gap-2">
-                  <a
-                    href={answer.youtubeUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-3 rounded-xl text-sm border border-[#282828] text-[#B3B3B3] text-center"
-                  >
-                    ▶ YouTube
-                  </a>
-                  <button
-                    onClick={newRound}
-                    className="flex-1 py-3 rounded-xl text-sm font-bold text-black"
-                    style={{ background: '#FFD700' }}
-                  >
-                    下一題 →
-                  </button>
-                </div>
+                <button
+                  onClick={newRound}
+                  className="w-full py-3 rounded-xl text-sm font-bold text-black"
+                  style={{ background: '#FFD700' }}
+                >
+                  下一題 →
+                </button>
               </div>
             )}
 
