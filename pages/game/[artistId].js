@@ -591,7 +591,7 @@ export default function GamePage() {
               <div className="flex flex-col gap-3 mt-1">
                 {/* 結果 */}
                 <div
-                  className="w-full px-4 py-3 rounded-xl border text-sm font-medium"
+                  className="w-full px-4 py-3 rounded-xl border text-sm font-medium text-center"
                   style={{
                     background: correct ? '#14532d' : '#450a0a',
                     borderColor: correct ? '#22c55e' : '#ef4444',
