@@ -54,6 +54,7 @@ export default function GamePage() {
   const [userInput, setUserInput] = useState('')
   const [isPlaying, setIsPlaying] = useState(false)
   const [isBuffering, setIsBuffering] = useState(false)
+  const [hintUsed, setHintUsed] = useState(false)
 
   const inputRef = useRef(null)
 
@@ -222,6 +223,7 @@ export default function GamePage() {
     setUserInput('')
     setIsPlaying(false)
     setIsBuffering(false)
+    setHintUsed(false)
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [songs])
 
@@ -397,21 +399,35 @@ export default function GamePage() {
                     載入中...
                   </>
                 ) : (
-                  <>
-                    ▶ 播放 {secondsRevealed} 秒
-                  </>
+                  <>▶ 播放</>
                 )}
               </button>
 
-              {/* 再聽多1秒 */}
-              {!guessed && remainingChances > 0 && (
-                <button
-                  onClick={handleMoreSeconds}
-                  disabled={isPlaying || isBuffering}
-                  className="text-[#B3B3B3] text-sm underline underline-offset-2 disabled:opacity-40"
-                >
-                  + 再聽多1秒（剩餘 {remainingChances} 次機會）
-                </button>
+              {/* 聽多1秒 + 字數提示（並排） */}
+              {!guessed && (
+                <div className="flex items-center gap-3">
+                  {remainingChances > 0 && (
+                    <button
+                      onClick={handleMoreSeconds}
+                      disabled={isPlaying || isBuffering}
+                      className="text-[#B3B3B3] text-sm underline underline-offset-2 disabled:opacity-40"
+                    >
+                      聽多1秒
+                    </button>
+                  )}
+                  {!hintUsed ? (
+                    <button
+                      onClick={() => setHintUsed(true)}
+                      className="text-[#B3B3B3] text-sm underline underline-offset-2"
+                    >
+                      字數提示
+                    </button>
+                  ) : (
+                    <span className="text-[#FFD700] text-sm font-medium">
+                      {answer.title.length} 個字
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
