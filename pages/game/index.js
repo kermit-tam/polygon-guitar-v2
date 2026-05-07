@@ -40,6 +40,31 @@ export default function GameHomePage() {
           .map(d => ({ id: d.id, ...d.data() }))
           .sort((a, b) => (a.displayOrder ?? 99) - (b.displayOrder ?? 99))
         setArtists(list)
+
+        // 預先 warm up：靜靜 prefetch 每個歌手嘅 gameSongs，存入 sessionStorage
+        // 趁用戶睇歌手頁面時，背景載入，揀歌手時即時顯示
+        list.forEach(artist => {
+          const CACHE_KEY = `gameSongs_${artist.artistId}`
+          const CACHE_TTL = 10 * 60 * 1000
+          try {
+            const sc = sessionStorage.getItem(CACHE_KEY)
+            if (sc) {
+              const { ts } = JSON.parse(sc)
+              if (Date.now() - ts < CACHE_TTL) return // 快取仍有效，跳過
+            }
+          } catch {}
+          // 背景預載（唔 await，唔阻塞 UI）
+          getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', artist.artistId)))
+            .then(s => {
+              const songs = s.docs
+                .map(d => ({ id: d.id, ...d.data() }))
+                .filter(s => s.enabled !== false && s.youtubeUrl)
+              try {
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify({ songs, ts: Date.now() }))
+              } catch {}
+            })
+            .catch(() => {})
+        })
       } finally {
         setLoading(false)
       }

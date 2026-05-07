@@ -107,11 +107,11 @@ export default function GamePage() {
   const pendingPlayRef = useRef(null)   // 等待 player ready 嘅播放請求
   const currentDurRef = useRef(1)       // 呢次要播幾秒
 
-  // 1. 從 gameSongs + gameArtists 載入資料（並行查詢）
+  // 1. 載入資料（sessionStorage 快取 + 只查 gameSongs 一個 collection）
   useEffect(() => {
     if (!artistId) return
 
-    // 先嘗試用 sessionStorage 快取即時顯示歌手資料（從首頁導航過來有）
+    // 讀取歌手快取（從首頁導航過來有）
     try {
       const cached = sessionStorage.getItem('gameArtistCache')
       if (cached) {
@@ -127,19 +127,36 @@ export default function GamePage() {
       try {
         setLoading(true)
 
-        // 並行執行兩個查詢，節省等待時間
-        const [artistSnap, songsSnap] = await Promise.all([
-          getDocs(query(collection(db, 'gameArtists'), where('artistId', '==', artistId))),
-          getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', artistId))),
-        ])
+        // 嘗試讀 gameSongs 快取（10分鐘有效）
+        const SONG_CACHE_KEY = `gameSongs_${artistId}`
+        const CACHE_TTL = 10 * 60 * 1000
+        try {
+          const sc = sessionStorage.getItem(SONG_CACHE_KEY)
+          if (sc) {
+            const { songs: cachedSongs, ts } = JSON.parse(sc)
+            if (Date.now() - ts < CACHE_TTL && cachedSongs?.length > 0) {
+              setSongs(cachedSongs)
+              // 如果仍未有歌手資料，從歌曲補充
+              setArtist(a => a || { name: cachedSongs[0]?.artistName || '', photo: cachedSongs[0]?.artistPhoto || '' })
+              setLoading(false)
+              return
+            }
+          }
+        } catch {}
 
-        const artistData = artistSnap.docs[0]?.data() || null
-        setArtist(a => a || artistData) // 若已有 sessionStorage 快取則唔覆蓋
-
+        // 只查 gameSongs（唔再查 gameArtists，省一半時間）
+        const songsSnap = await getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', artistId)))
         const all = songsSnap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(s => s.enabled !== false && s.youtubeUrl && extractYouTubeId(s.youtubeUrl))
-          .map(s => ({ ...s, artistPhoto: s.artistPhoto || artistData?.photo || null }))
+
+        // 補充歌手資料（如 sessionStorage 未有）
+        setArtist(a => a || { name: all[0]?.artistName || '', photo: all[0]?.artistPhoto || '' })
+
+        // 寫入 sessionStorage 快取
+        try {
+          sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({ songs: all, ts: Date.now() }))
+        } catch {}
 
         setSongs(all)
       } catch (e) {
