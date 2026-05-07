@@ -325,17 +325,16 @@ export default function GamePage() {
 
     setIsBuffering(true)
     clearTimeout(stopTimerRef.current)
-    currentDurRef.current = secondsRevealed
-    const startSecond = answer.gameStartSecond || 0
+    // 答題後播全首（300秒），答題前只播 secondsRevealed 秒
+    currentDurRef.current = guessed ? 300 : secondsRevealed
+    const startSecond = guessed ? 0 : (answer.gameStartSecond || 0)
 
     if (playerReadyRef.current && playerRef.current) {
-      // Player 已 ready：直接喺呢個 gesture 裡播，iOS 有聲
       _doPlay(videoId, startSecond)
     } else {
-      // Player 未 ready（少見）：存起來等 onReady 再播
       pendingPlayRef.current = { videoId, startSecond }
     }
-  }, [answer, isPlaying, isBuffering, secondsRevealed]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [answer, isPlaying, isBuffering, secondsRevealed, guessed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 正規化字串（比較用）：移除空格、標點、轉小寫
   const normalize = (str) =>
@@ -526,7 +525,7 @@ export default function GamePage() {
                     載入中...
                   </>
                 ) : (
-                  <>▶ 播放</>
+                  <>{guessed ? '▶ 播全首' : '▶ 播放'}</>
                 )}
               </button>
 
