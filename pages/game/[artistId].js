@@ -3,7 +3,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, getDocs, query, where, or } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
 // 提取 YouTube Video ID
@@ -74,8 +74,9 @@ export default function GamePage() {
         const artistData = artistSnap.docs[0]?.data() || null
         setArtist(artistData)
 
-        // 載入該歌手嘅 gameSongs
-        const snap = await getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', artistId)))
+        // 載入該歌手嘅 gameSongs（兼容舊資料：artistId 可能係名字或 Firestore ID）
+        const snap = await getDocs(query(collection(db, 'gameSongs'),
+          or(where('artistId', '==', artistId), where('artistName', '==', artistData?.name || ''))))
         const all = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(s => s.enabled !== false && s.youtubeUrl && extractYouTubeId(s.youtubeUrl))
