@@ -36,6 +36,31 @@ function shuffle(arr) {
 }
 
 const MAX_EXTRA = 3
+const TOTAL_QUESTIONS = 20
+
+const GRADES = [
+  { min: 20, max: 20, label: (name) => `${name}耳裏條蟲` },
+  { min: 16, max: 19, label: () => '只差一點點' },
+  { min: 11, max: 15, label: () => '繼續努力' },
+  { min: 6,  max: 10, label: () => '要睇醫生' },
+  { min: 0,  max: 5,  label: (_, score) => `我 ${score} 分都沒有` },
+]
+
+function getGrade(score, artistName) {
+  const g = GRADES.find(g => score >= g.min && score <= g.max)
+  return g ? g.label(artistName, score) : ''
+}
+
+// 建立 N 題隊列（歌曲不夠就循環）
+function buildQueue(songs, n) {
+  if (songs.length === 0) return []
+  const q = []
+  const shuffled = shuffle([...songs])
+  while (q.length < n) {
+    q.push(...shuffle([...songs]))
+  }
+  return q.slice(0, n)
+}
 
 export default function GamePage() {
   const router = useRouter()
@@ -46,7 +71,13 @@ export default function GamePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // 遊戲狀態
+  // 題目隊列
+  const [songQueue, setSongQueue] = useState([])
+  const [currentQIdx, setCurrentQIdx] = useState(0)
+  const [score, setScore] = useState(0)
+  const [gameOver, setGameOver] = useState(false)
+
+  // 單題狀態
   const [answer, setAnswer] = useState(null)
   const [secondsRevealed, setSecondsRevealed] = useState(1)
   const [guessed, setGuessed] = useState(false)
@@ -210,13 +241,18 @@ export default function GamePage() {
     playerRef.current.setVolume(100)
   }
 
-  // 3. 出題：隨機選一首（唔再 destroy player，保留 player 實例）
-  const newRound = useCallback(() => {
-    if (songs.length < 1) return
+  // 3. 開始遊戲 / 重新開始
+  const startGame = useCallback((songList) => {
+    const list = songList || songs
+    if (list.length < 1) return
     clearTimeout(stopTimerRef.current)
     try { playerRef.current?.pauseVideo() } catch {}
-    const [picked] = sampleN(songs, 1)
-    setAnswer(picked)
+    const q = buildQueue(list, TOTAL_QUESTIONS)
+    setSongQueue(q)
+    setCurrentQIdx(0)
+    setScore(0)
+    setGameOver(false)
+    setAnswer(q[0])
     setSecondsRevealed(1)
     setGuessed(false)
     setCorrect(null)
@@ -227,8 +263,31 @@ export default function GamePage() {
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [songs])
 
+  // 下一題
+  const nextRound = useCallback(() => {
+    const nextIdx = currentQIdx + 1
+    if (nextIdx >= TOTAL_QUESTIONS) {
+      setGameOver(true)
+      clearTimeout(stopTimerRef.current)
+      try { playerRef.current?.pauseVideo() } catch {}
+      return
+    }
+    clearTimeout(stopTimerRef.current)
+    try { playerRef.current?.pauseVideo() } catch {}
+    setCurrentQIdx(nextIdx)
+    setAnswer(songQueue[nextIdx])
+    setSecondsRevealed(1)
+    setGuessed(false)
+    setCorrect(null)
+    setUserInput('')
+    setIsPlaying(false)
+    setIsBuffering(false)
+    setHintUsed(false)
+    setTimeout(() => inputRef.current?.focus(), 100)
+  }, [currentQIdx, songQueue])
+
   useEffect(() => {
-    if (songs.length >= 1) newRound()
+    if (songs.length >= 1) startGame(songs)
   }, [songs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 4. 播放按鈕（直接喺 user gesture 裡面叫 loadVideoById，iOS 有聲）
@@ -260,6 +319,7 @@ export default function GamePage() {
     e?.preventDefault()
     if (guessed || !userInput.trim()) return
     const isCorrect = normalize(userInput) === normalize(answer.title)
+    if (isCorrect) setScore(s => s + 1)
     setCorrect(isCorrect)
     setGuessed(true)
     clearTimeout(stopTimerRef.current)
@@ -267,7 +327,7 @@ export default function GamePage() {
     setIsPlaying(false)
   }
 
-  // 放棄（顯示答案）
+  // 放棄（顯示答案，唔計分）
   const handleGiveUp = () => {
     if (guessed) return
     setCorrect(false)
@@ -321,7 +381,9 @@ export default function GamePage() {
         <div className="w-full max-w-md mb-2">
           <div className="flex items-center justify-between mb-1">
             <Link href="/game" className="text-[#B3B3B3] text-sm px-1">← 返回</Link>
-            <div className="flex-1" />
+            {!gameOver && !loading && answer && (
+              <span className="text-[#B3B3B3] text-sm pr-1">{currentQIdx + 1} / {TOTAL_QUESTIONS}</span>
+            )}
           </div>
           <img src="/game-logo.svg" alt="1秒前奏估歌仔" style={{ height: 80 }} className="mb-2 mx-auto" />
           <h1 className="text-white text-base font-medium text-center">{artist?.name || ''}</h1>
@@ -334,7 +396,45 @@ export default function GamePage() {
           <div className="text-red-400 text-center mt-20">{error}</div>
         )}
 
-        {!loading && !error && answer && (
+        {/* 成績頁面 */}
+        {!loading && !error && gameOver && (
+          <div className="w-full max-w-md flex flex-col items-center gap-6 mt-4">
+            {/* 分數圓圈 */}
+            <div className="flex flex-col items-center gap-2">
+              <div
+                className="flex flex-col items-center justify-center rounded-full border-4"
+                style={{ width: 140, height: 140, borderColor: '#FFD700' }}
+              >
+                <span className="text-[#FFD700] font-bold" style={{ fontSize: '2.5rem', lineHeight: 1 }}>{score}</span>
+                <span className="text-[#B3B3B3] text-sm">/ {TOTAL_QUESTIONS}</span>
+              </div>
+            </div>
+
+            {/* 級別 */}
+            <div className="text-center">
+              <p className="text-white font-bold text-xl">{getGrade(score, artist?.name || '佢')}</p>
+            </div>
+
+            {/* 按鈕 */}
+            <div className="flex flex-col gap-3 w-full">
+              <button
+                onClick={() => startGame()}
+                className="w-full py-3 rounded-xl font-bold text-black"
+                style={{ background: '#FFD700' }}
+              >
+                再玩一次
+              </button>
+              <Link
+                href="/game"
+                className="w-full py-3 rounded-xl text-sm text-center border border-[#282828] text-[#B3B3B3] block"
+              >
+                換歌手
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {!loading && !error && !gameOver && answer && (
           <div className="w-full max-w-md flex flex-col gap-5">
 
             {/* 猜中前：問號；猜中後：顯示封面 */}
@@ -476,13 +576,13 @@ export default function GamePage() {
                     ? `🎉 答啱喇！《${answer.title}》`
                     : `😅 答案係《${answer.title}》`}
                 </div>
-                {/* 下一題 */}
+                {/* 下一題 / 睇成績 */}
                 <button
-                  onClick={newRound}
+                  onClick={nextRound}
                   className="w-full py-3 rounded-xl text-sm font-bold text-black"
                   style={{ background: '#FFD700' }}
                 >
-                  下一題 →
+                  {currentQIdx + 1 >= TOTAL_QUESTIONS ? '睇成績 →' : '下一題 →'}
                 </button>
               </div>
             )}
