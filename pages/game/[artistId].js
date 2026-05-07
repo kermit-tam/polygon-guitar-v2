@@ -136,22 +136,25 @@ export default function GamePage() {
             const { songs: cachedSongs, ts } = JSON.parse(sc)
             if (Date.now() - ts < CACHE_TTL && cachedSongs?.length > 0) {
               setSongs(cachedSongs)
-              // 如果仍未有歌手資料，從歌曲補充
-              setArtist(a => a || { name: cachedSongs[0]?.artistName || '', photo: cachedSongs[0]?.artistPhoto || '' })
+              // 如果仍未有歌手資料，從快取補充
+              setArtist(a => a || { name: cachedSongs[0]?.artistName || '', photo: sc ? (JSON.parse(sc).artistPhoto || '') : '' })
               setLoading(false)
               return
             }
           }
         } catch {}
 
-        // 只查 gameSongs（唔再查 gameArtists，省一半時間）
+        // 只查 gameSongs（主要查詢）
         const songsSnap = await getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', artistId)))
         const all = songsSnap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(s => s.enabled !== false && s.youtubeUrl && extractYouTubeId(s.youtubeUrl))
 
-        // 補充歌手資料（如 sessionStorage 未有）
-        setArtist(a => a || { name: all[0]?.artistName || '', photo: all[0]?.artistPhoto || '' })
+        // 補充歌手名（如 sessionStorage 未有）
+        setArtist(a => {
+          if (a?.photo) return a // 已有相片，唔覆蓋
+          return { name: a?.name || all[0]?.artistName || '', photo: a?.photo || '' }
+        })
 
         // 寫入 sessionStorage 快取
         try {
@@ -159,6 +162,24 @@ export default function GamePage() {
         } catch {}
 
         setSongs(all)
+
+        // 背景補查 gameArtists 取相片（唔阻塞歌曲載入）
+        getDocs(query(collection(db, 'gameArtists'), where('artistId', '==', artistId)))
+          .then(snap => {
+            const data = snap.docs[0]?.data()
+            if (data?.photo) {
+              setArtist(a => ({ ...a, photo: data.photo }))
+              // 更新 sessionStorage 快取加入相片
+              try {
+                const sc = sessionStorage.getItem(SONG_CACHE_KEY)
+                if (sc) {
+                  const parsed = JSON.parse(sc)
+                  sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({ ...parsed, artistPhoto: data.photo }))
+                }
+              } catch {}
+            }
+          })
+          .catch(() => {})
       } catch (e) {
         console.error(e)
         setError('載入失敗，請重試')
