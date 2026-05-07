@@ -445,19 +445,19 @@ export default function GamePage() {
                 />
                 <div className="flex gap-2">
                   <button
-                    type="button"
-                    onClick={handleGiveUp}
-                    className="px-4 py-3 rounded-xl text-sm border border-[#282828] text-[#B3B3B3]"
-                  >
-                    棄權
-                  </button>
-                  <button
                     type="submit"
                     disabled={!userInput.trim()}
                     className="flex-1 py-3 rounded-xl font-bold text-black text-sm disabled:opacity-40"
                     style={{ background: '#FFD700' }}
                   >
                     確認
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGiveUp}
+                    className="px-4 py-3 rounded-xl text-sm border border-[#282828] text-[#B3B3B3]"
+                  >
+                    棄權
                   </button>
                 </div>
               </form>
