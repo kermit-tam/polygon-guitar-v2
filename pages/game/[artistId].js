@@ -3,7 +3,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
 // 提取 YouTube Video ID
@@ -163,18 +163,20 @@ export default function GamePage() {
 
         setSongs(all)
 
-        // 背景補查 gameArtists 取相片（唔阻塞歌曲載入）
-        getDocs(query(collection(db, 'gameArtists'), where('artistId', '==', artistId)))
+        // 背景從 artists collection 補取相片（該 collection 公開可讀，唔受 gameArtists rules 影響）
+        getDoc(doc(db, 'artists', artistId))
           .then(snap => {
-            const data = snap.docs[0]?.data()
-            if (data?.photo) {
-              setArtist(a => ({ ...a, photo: data.photo }))
+            const data = snap.data()
+            const photo = data?.photoURL || data?.wikiPhotoURL || ''
+            const name = data?.name || all[0]?.artistName || ''
+            if (photo || name) {
+              setArtist(a => ({ name: a?.name || name, photo: a?.photo || photo }))
               // 更新 sessionStorage 快取加入相片
               try {
                 const sc = sessionStorage.getItem(SONG_CACHE_KEY)
                 if (sc) {
                   const parsed = JSON.parse(sc)
-                  sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({ ...parsed, artistPhoto: data.photo }))
+                  sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({ ...parsed, artistPhoto: photo }))
                 }
               } catch {}
             }
