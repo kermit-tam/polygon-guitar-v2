@@ -152,10 +152,11 @@ export default function Navbar() {
                     decoding="async"
                     style={{ maxWidth: 155, marginTop: 4, marginBottom: 3 }}
                   />
-                  {/* 隱藏連結：「G」上面的透明按鈕 */}
-                  <Link
-                    href="/game"
+                  {/* 隱藏按鈕：「G」上面（用 div 避免 <a> 嵌套 <a> 的 HTML 錯誤） */}
+                  <div
+                    role="button"
                     aria-label="估歌遊戲"
+                    onClick={e => { e.preventDefault(); e.stopPropagation(); router.push('/game') }}
                     style={{
                       position: 'absolute',
                       top: 4,
@@ -163,8 +164,8 @@ export default function Navbar() {
                       width: '13%',
                       bottom: 3,
                       background: 'transparent',
+                      cursor: 'pointer',
                     }}
-                    onClick={e => e.stopPropagation()}
                   />
                 </div>
                 <span className="text-black tracking-[0.2em] navbar-tagline" style={{ fontSize: '1rem', lineHeight: '1.2rem'}}>
