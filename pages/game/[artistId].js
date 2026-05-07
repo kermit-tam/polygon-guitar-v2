@@ -38,17 +38,27 @@ function shuffle(arr) {
 const MAX_EXTRA = 3
 const TOTAL_QUESTIONS = 20
 
-const GRADES = [
-  { min: 20, max: 20, label: (name) => `${name}耳裏條蟲` },
-  { min: 16, max: 19, label: () => '只差一點點' },
+const GRADES_EASON = [
+  { min: 20, max: 20, label: () => '陳奕迅耳裏條蟲' },
+  { min: 16, max: 19, label: () => '只差一點點...' },
   { min: 11, max: 15, label: () => '繼續努力' },
-  { min: 6,  max: 10, label: () => '要睇醫生' },
-  { min: 0,  max: 5,  label: (_, score) => `我 ${score} 分都沒有` },
+  { min: 6,  max: 10, label: () => '要睇返多啲醫生' },
+  { min: 0,  max: 5,  label: () => '我甚麼都沒有' },
+]
+
+const GRADES_GENERIC = [
+  { min: 20, max: 20, label: () => '達人級樂迷' },
+  { min: 16, max: 19, label: () => '專業級樂迷' },
+  { min: 11, max: 15, label: () => '普通樂迷' },
+  { min: 6,  max: 10, label: () => '普通人' },
+  { min: 0,  max: 5,  label: () => '狠人' },
 ]
 
 function getGrade(score, artistName) {
-  const g = GRADES.find(g => score >= g.min && score <= g.max)
-  return g ? g.label(artistName, score) : ''
+  const isEason = (artistName || '').includes('陳奕迅')
+  const grades = isEason ? GRADES_EASON : GRADES_GENERIC
+  const g = grades.find(g => score >= g.min && score <= g.max)
+  return g ? g.label() : ''
 }
 
 // 建立 N 題隊列（歌曲不夠就循環）
