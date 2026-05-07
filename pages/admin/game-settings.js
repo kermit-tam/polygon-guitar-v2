@@ -180,9 +180,7 @@ export default function GameSettingsPage() {
     setLoading(true)
     try {
       // gameSongs
-      // 兼容舊資料：artistId 可能係名字（'陳奕迅'）或 Firestore ID
-      const gsSnap = await getDocs(query(collection(db, 'gameSongs'),
-        or(where('artistId', '==', ga.artistId), where('artistName', '==', ga.name))))
+      const gsSnap = await getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', ga.artistId)))
       const gs = gsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-Hant'))
       setGameSongs(gs)
