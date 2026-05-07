@@ -5,6 +5,7 @@ import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { getArtistByIdOrSlug } from '@/lib/tabs'
 
 // 提取 YouTube Video ID
 function extractYouTubeId(url) {
@@ -163,26 +164,21 @@ export default function GamePage() {
 
         setSongs(all)
 
-        // 背景用 artistName 查 artists collection 補取相片
-        const artistNameFromSongs = all[0]?.artistName
-        if (artistNameFromSongs) {
-          getDocs(query(collection(db, 'artists'), where('name', '==', artistNameFromSongs)))
-            .then(snap => {
-              const data = snap.docs[0]?.data()
-              const photo = data?.photoURL || data?.wikiPhotoURL || ''
-              if (photo) {
-                setArtist(a => ({ ...a, photo: a?.photo || photo }))
-                try {
-                  const sc = sessionStorage.getItem(SONG_CACHE_KEY)
-                  if (sc) {
-                    const parsed = JSON.parse(sc)
-                    sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({ ...parsed, artistPhoto: photo }))
-                  }
-                } catch {}
-              }
-            })
-            .catch(() => {})
-        }
+        // 用網站本身嘅 helper 取歌手相片
+        getArtistByIdOrSlug(artistId)
+          .then(data => {
+            if (data?.photo) {
+              setArtist(a => ({ name: a?.name || data.name, photo: data.photo }))
+              try {
+                const sc = sessionStorage.getItem(SONG_CACHE_KEY)
+                if (sc) {
+                  const parsed = JSON.parse(sc)
+                  sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({ ...parsed, artistPhoto: data.photo }))
+                }
+              } catch {}
+            }
+          })
+          .catch(() => {})
       } catch (e) {
         console.error(e)
         setError('載入失敗，請重試')
