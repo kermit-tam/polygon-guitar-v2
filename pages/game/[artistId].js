@@ -57,10 +57,13 @@ export default function GamePage() {
 
   const inputRef = useRef(null)
 
-  const playerRef = useRef(null)     // YouTube IFrame Player
-  const containerRef = useRef(null)  // iframe 容器
-  const stopTimerRef = useRef(null)  // 停播定時器
-  const ytReadyRef = useRef(false)   // YT API 是否已載入
+  const playerRef = useRef(null)        // YouTube IFrame Player（只建立一次）
+  const containerRef = useRef(null)     // iframe 容器
+  const stopTimerRef = useRef(null)     // 停播定時器
+  const ytReadyRef = useRef(false)      // YT API 是否已載入
+  const playerReadyRef = useRef(false)  // Player 本身是否已 ready
+  const pendingPlayRef = useRef(null)   // 等待 player ready 嘅播放請求
+  const currentDurRef = useRef(1)       // 呢次要播幾秒
 
   // 1. 從 gameSongs + gameArtists 載入資料
   useEffect(() => {
@@ -114,28 +117,88 @@ export default function GamePage() {
     }
   }, [])
 
-  // 2. 載入 YouTube IFrame API
+  // 2. 載入 YouTube IFrame API，並預先建立 Player（只建立一次）
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (window.YT) {
-      ytReadyRef.current = true
-      return
-    }
-    const tag = document.createElement('script')
-    tag.src = 'https://www.youtube.com/iframe_api'
-    document.head.appendChild(tag)
-    window.onYouTubeIframeAPIReady = () => {
-      ytReadyRef.current = true
-    }
-  }, [])
 
-  // 3. 出題：隨機選一首
+    const initPlayer = () => {
+      if (playerRef.current || !containerRef.current) return
+      containerRef.current.innerHTML = ''
+      const div = document.createElement('div')
+      div.id = 'yt-game-player'
+      containerRef.current.appendChild(div)
+
+      playerRef.current = new window.YT.Player('yt-game-player', {
+        height: '1',
+        width: '1',
+        playerVars: {
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          iv_load_policy: 3,
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1, // iOS Safari inline 播放（唔彈全螢幕）
+          origin: window.location.origin,
+        },
+        events: {
+          onReady: () => {
+            playerReadyRef.current = true
+            ytReadyRef.current = true
+            // 如果用戶已撳播放但 player 未 ready，依家補播
+            if (pendingPlayRef.current) {
+              const { videoId, startSecond } = pendingPlayRef.current
+              pendingPlayRef.current = null
+              _doPlay(videoId, startSecond)
+            }
+          },
+          onStateChange: (e) => {
+            if (e.data === window.YT.PlayerState.PLAYING) {
+              setIsBuffering(false)
+              setIsPlaying(true)
+              // 喺真正開始播先設定 stop timer，確保計時準確
+              clearTimeout(stopTimerRef.current)
+              stopTimerRef.current = setTimeout(() => {
+                try { playerRef.current?.pauseVideo() } catch {}
+                setIsPlaying(false)
+              }, currentDurRef.current * 1000)
+            } else if (e.data === window.YT.PlayerState.PAUSED || e.data === window.YT.PlayerState.ENDED) {
+              setIsPlaying(false)
+            }
+          },
+          onError: () => {
+            setIsBuffering(false)
+            setIsPlaying(false)
+          },
+        },
+      })
+    }
+
+    if (window.YT?.Player) {
+      initPlayer()
+    } else {
+      window.onYouTubeIframeAPIReady = initPlayer
+      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+        const tag = document.createElement('script')
+        tag.src = 'https://www.youtube.com/iframe_api'
+        document.head.appendChild(tag)
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // _doPlay：直接叫 player 播（需要在 user gesture 或 player ready callback 裡調用）
+  const _doPlay = (videoId, startSecond) => {
+    if (!playerRef.current) return
+    // loadVideoById = 喺同一個 user gesture 裡面播，iOS 認可有聲
+    playerRef.current.loadVideoById({ videoId, startSeconds: startSecond, suggestedQuality: 'small' })
+    playerRef.current.setVolume(100)
+  }
+
+  // 3. 出題：隨機選一首（唔再 destroy player，保留 player 實例）
   const newRound = useCallback(() => {
     if (songs.length < 1) return
-    if (playerRef.current) {
-      try { playerRef.current.destroy() } catch {}
-      playerRef.current = null
-    }
+    clearTimeout(stopTimerRef.current)
+    try { playerRef.current?.pauseVideo() } catch {}
     const [picked] = sampleN(songs, 1)
     setAnswer(picked)
     setSecondsRevealed(1)
@@ -151,70 +214,25 @@ export default function GamePage() {
     if (songs.length >= 1) newRound()
   }, [songs]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 4. 建立 / 更新 YouTube Player
-  const createPlayer = useCallback((videoId, secondsToPlay, startSecond = 0) => {
-    if (!window.YT || !window.YT.Player) return
-    if (!containerRef.current) return
-
-    // 清空容器
-    containerRef.current.innerHTML = ''
-    const div = document.createElement('div')
-    div.id = 'yt-player-inner'
-    containerRef.current.appendChild(div)
-
-    playerRef.current = new window.YT.Player('yt-player-inner', {
-      height: '1',
-      width: '1',
-      videoId,
-      playerVars: {
-        autoplay: 1,
-        controls: 0,
-        disablekb: 1,
-        fs: 0,
-        iv_load_policy: 3,
-        modestbranding: 1,
-        rel: 0,
-        start: startSecond,
-      },
-      events: {
-        onReady: (e) => {
-          e.target.seekTo(startSecond, true)
-          e.target.setVolume(100)
-          e.target.playVideo()
-          setIsBuffering(false)
-          setIsPlaying(true)
-          clearTimeout(stopTimerRef.current)
-          stopTimerRef.current = setTimeout(() => {
-            try { e.target.pauseVideo() } catch {}
-            setIsPlaying(false)
-          }, secondsToPlay * 1000)
-        },
-        onError: () => { setIsBuffering(false); setIsPlaying(false) },
-      }
-    })
-  }, [])
-
-  // 5. 播放按鈕
+  // 4. 播放按鈕（直接喺 user gesture 裡面叫 loadVideoById，iOS 有聲）
   const handlePlay = useCallback(() => {
     if (!answer || isPlaying || isBuffering) return
     const videoId = extractYouTubeId(answer.youtubeUrl)
     if (!videoId) return
 
-    setIsBuffering(true) // 即時顯示 loading
+    setIsBuffering(true)
+    clearTimeout(stopTimerRef.current)
+    currentDurRef.current = secondsRevealed
     const startSecond = answer.gameStartSecond || 0
-    let attempts = 0
-    const tryCreate = () => {
-      if (window.YT && window.YT.Player) {
-        createPlayer(videoId, secondsRevealed, startSecond)
-      } else if (attempts < 20) {
-        attempts++
-        setTimeout(tryCreate, 300)
-      } else {
-        setIsBuffering(false) // timeout，放棄
-      }
+
+    if (playerReadyRef.current && playerRef.current) {
+      // Player 已 ready：直接喺呢個 gesture 裡播，iOS 有聲
+      _doPlay(videoId, startSecond)
+    } else {
+      // Player 未 ready（少見）：存起來等 onReady 再播
+      pendingPlayRef.current = { videoId, startSecond }
     }
-    tryCreate()
-  }, [answer, isPlaying, isBuffering, secondsRevealed, createPlayer])
+  }, [answer, isPlaying, isBuffering, secondsRevealed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 正規化字串（比較用）：移除空格、標點、轉小寫
   const normalize = (str) =>
@@ -242,17 +260,17 @@ export default function GamePage() {
     setIsPlaying(false)
   }
 
-  // 7. 再聽多 1 秒
+  // 7. 再聽多 1 秒（同樣直接喺 gesture 裡播）
   const handleMoreSeconds = () => {
     if (secondsRevealed > MAX_EXTRA || guessed) return
     const next = secondsRevealed + 1
     setSecondsRevealed(next)
-    // 重播
     const videoId = extractYouTubeId(answer.youtubeUrl)
-    if (!videoId) return
+    if (!videoId || !playerRef.current) return
+    clearTimeout(stopTimerRef.current)
+    currentDurRef.current = next
     const startSecond = answer.gameStartSecond || 0
-    createPlayer(videoId, next, startSecond)
-    setIsPlaying(true)
+    _doPlay(videoId, startSecond)
   }
 
   // 封面圖
