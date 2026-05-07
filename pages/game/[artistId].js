@@ -3,7 +3,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
-import { collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
 // 提取 YouTube Video ID
@@ -150,11 +150,11 @@ export default function GamePage() {
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(s => s.enabled !== false && s.youtubeUrl && extractYouTubeId(s.youtubeUrl))
 
-        // 補充歌手名（如 sessionStorage 未有）
-        setArtist(a => {
-          if (a?.photo) return a // 已有相片，唔覆蓋
-          return { name: a?.name || all[0]?.artistName || '', photo: a?.photo || '' }
-        })
+        // 補充歌手名（sessionStorage 快取嘅名優先保留，唔覆蓋）
+        setArtist(a => ({
+          name: a?.name || all[0]?.artistName || '',
+          photo: a?.photo || '',
+        }))
 
         // 寫入 sessionStorage 快取
         try {
@@ -163,25 +163,26 @@ export default function GamePage() {
 
         setSongs(all)
 
-        // 背景從 artists collection 補取相片（該 collection 公開可讀，唔受 gameArtists rules 影響）
-        getDoc(doc(db, 'artists', artistId))
-          .then(snap => {
-            const data = snap.data()
-            const photo = data?.photoURL || data?.wikiPhotoURL || ''
-            const name = data?.name || all[0]?.artistName || ''
-            if (photo || name) {
-              setArtist(a => ({ name: a?.name || name, photo: a?.photo || photo }))
-              // 更新 sessionStorage 快取加入相片
-              try {
-                const sc = sessionStorage.getItem(SONG_CACHE_KEY)
-                if (sc) {
-                  const parsed = JSON.parse(sc)
-                  sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({ ...parsed, artistPhoto: photo }))
-                }
-              } catch {}
-            }
-          })
-          .catch(() => {})
+        // 背景用 artistName 查 artists collection 補取相片
+        const artistNameFromSongs = all[0]?.artistName
+        if (artistNameFromSongs) {
+          getDocs(query(collection(db, 'artists'), where('name', '==', artistNameFromSongs)))
+            .then(snap => {
+              const data = snap.docs[0]?.data()
+              const photo = data?.photoURL || data?.wikiPhotoURL || ''
+              if (photo) {
+                setArtist(a => ({ ...a, photo: a?.photo || photo }))
+                try {
+                  const sc = sessionStorage.getItem(SONG_CACHE_KEY)
+                  if (sc) {
+                    const parsed = JSON.parse(sc)
+                    sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({ ...parsed, artistPhoto: photo }))
+                  }
+                } catch {}
+              }
+            })
+            .catch(() => {})
+        }
       } catch (e) {
         console.error(e)
         setError('載入失敗，請重試')
