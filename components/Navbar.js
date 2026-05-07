@@ -144,13 +144,29 @@ export default function Navbar() {
                 style={{ height: 50, width: 'auto' }}
               />
               <div className="flex flex-col justify-center">
-                <img
-                  src={SITE_LOGO_TEXT_URL}
-                  alt={SITE_NAME}
-                  loading="eager"
-                  decoding="async"
-                  style={{ maxWidth: 155, marginTop: 4, marginBottom: 3 }}
-                />
+                <div className="relative" style={{ maxWidth: 155 }}>
+                  <img
+                    src={SITE_LOGO_TEXT_URL}
+                    alt={SITE_NAME}
+                    loading="eager"
+                    decoding="async"
+                    style={{ maxWidth: 155, marginTop: 4, marginBottom: 3 }}
+                  />
+                  {/* 隱藏連結：第二個「O」上面的透明按鈕 */}
+                  <Link
+                    href="/game"
+                    aria-label="估歌遊戲"
+                    style={{
+                      position: 'absolute',
+                      top: 4,
+                      left: '72%',
+                      width: '13%',
+                      bottom: 3,
+                      background: 'transparent',
+                    }}
+                    onClick={e => e.stopPropagation()}
+                  />
+                </div>
                 <span className="text-black tracking-[0.2em] navbar-tagline" style={{ fontSize: '1rem', lineHeight: '1.2rem'}}>
                   香港廣東歌結他譜網
                 </span>
