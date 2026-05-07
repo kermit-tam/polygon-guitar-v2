@@ -65,21 +65,36 @@ export default function GamePage() {
   const pendingPlayRef = useRef(null)   // 等待 player ready 嘅播放請求
   const currentDurRef = useRef(1)       // 呢次要播幾秒
 
-  // 1. 從 gameSongs + gameArtists 載入資料
+  // 1. 從 gameSongs + gameArtists 載入資料（並行查詢）
   useEffect(() => {
     if (!artistId) return
+
+    // 先嘗試用 sessionStorage 快取即時顯示歌手資料（從首頁導航過來有）
+    try {
+      const cached = sessionStorage.getItem('gameArtistCache')
+      if (cached) {
+        const a = JSON.parse(cached)
+        if (a.artistId === artistId) {
+          setArtist(a)
+          sessionStorage.removeItem('gameArtistCache')
+        }
+      }
+    } catch {}
+
     async function loadSongs() {
       try {
         setLoading(true)
 
-        // 載入歌手資料
-        const artistSnap = await getDocs(query(collection(db, 'gameArtists'), where('artistId', '==', artistId)))
-        const artistData = artistSnap.docs[0]?.data() || null
-        setArtist(artistData)
+        // 並行執行兩個查詢，節省等待時間
+        const [artistSnap, songsSnap] = await Promise.all([
+          getDocs(query(collection(db, 'gameArtists'), where('artistId', '==', artistId))),
+          getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', artistId))),
+        ])
 
-        // 載入該歌手嘅 gameSongs
-        const snap = await getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', artistId)))
-        const all = snap.docs
+        const artistData = artistSnap.docs[0]?.data() || null
+        setArtist(a => a || artistData) // 若已有 sessionStorage 快取則唔覆蓋
+
+        const all = songsSnap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(s => s.enabled !== false && s.youtubeUrl && extractYouTubeId(s.youtubeUrl))
           .map(s => ({ ...s, artistPhoto: s.artistPhoto || artistData?.photo || null }))

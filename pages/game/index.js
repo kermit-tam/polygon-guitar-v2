@@ -76,7 +76,11 @@ export default function GameHomePage() {
           {artists.map(artist => (
             <button
               key={artist.id}
-              onClick={() => router.push(`/game/${artist.artistId}`)}
+              onClick={() => {
+                // 暫存歌手資料，避免遊戲頁再查 Firestore
+                try { sessionStorage.setItem('gameArtistCache', JSON.stringify(artist)) } catch {}
+                router.push(`/game/${artist.artistId}`)
+              }}
               className="flex flex-col items-center gap-2 group"
             >
               <div
