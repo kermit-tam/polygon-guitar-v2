@@ -152,14 +152,14 @@ export default function Navbar() {
                     decoding="async"
                     style={{ maxWidth: 155, marginTop: 4, marginBottom: 3 }}
                   />
-                  {/* 隱藏連結：第二個「O」上面的透明按鈕 */}
+                  {/* 隱藏連結：「G」上面的透明按鈕 */}
                   <Link
                     href="/game"
                     aria-label="估歌遊戲"
                     style={{
                       position: 'absolute',
                       top: 4,
-                      left: '72%',
+                      left: '57%',
                       width: '13%',
                       bottom: 3,
                       background: 'transparent',
