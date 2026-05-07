@@ -6,7 +6,7 @@ import Navbar from './Navbar'
 import { navIcons } from '@/lib/navIcons'
 import { CONTENT_MAX_WIDTH_CLASS } from '@/lib/layoutConstants'
 
-export default function Layout({ children, fullWidth = false, hideHeader = false }) {
+export default function Layout({ children, fullWidth = false, hideHeader = false, hideBottomNav = false, hideFooter = false }) {
   const router = useRouter()
   const { isAdmin } = useAuth()
   const currentPath = router.pathname
@@ -180,7 +180,7 @@ export default function Layout({ children, fullWidth = false, hideHeader = false
         </main>
       </div>
 
-      <footer className="bg-black pb-[150px] px-6">
+      {!hideFooter && <footer className="bg-black pb-[150px] px-6">
           <div className="max-w-[1050px] mx-auto border-t border-neutral-800" />
           <div className="max-w-4xl mx-auto flex flex-col items-center gap-5 pt-8">
             {/* Social icons */}
@@ -211,11 +211,11 @@ export default function Layout({ children, fullWidth = false, hideHeader = false
               ))}
             </nav>
           </div>
-      </footer>
+      </footer>}
 
       {/* 手機版底部導航 - 黃底黑字設計 */}
       {/* z-[110]：高於和弦圖 bottom sheet 遮罩 (105)，唔會被 dim */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-[#FFD700] z-[110] md:hidden" style={{ paddingBottom: 'min(env(safe-area-inset-bottom, 0px), 30px)' }}>
+      <nav className={`fixed bottom-0 left-0 right-0 bg-[#FFD700] z-[110] md:hidden${hideBottomNav ? ' hidden' : ''}`} style={{ paddingBottom: 'min(env(safe-area-inset-bottom, 0px), 30px)' }}>
         <div className="flex justify-around items-center h-16 max-w-md mx-auto px-2">
           {mobileNavItems.map((item) => (
             <Link 
@@ -248,7 +248,7 @@ export default function Layout({ children, fullWidth = false, hideHeader = false
       </nav>
 
       {/* 桌面版底部導航 - 黃底黑字設計 */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-[#FFD700] z-[110] hidden md:block">
+      <nav className={`fixed bottom-0 left-0 right-0 bg-[#FFD700] z-[110]${hideBottomNav ? ' hidden' : ' hidden md:block'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
             {desktopNavItems.map((item) => (

@@ -7,16 +7,13 @@ import {
   query, where, or, serverTimestamp
 } from '@/lib/firestore-tracked'
 
-const ARTIST_NAME_QUERY = '陳奕迅'
-const ARTIST_ID_DEFAULT = '陳奕迅'
-
 function extractYouTubeId(url) {
   if (!url) return null
   const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/)
   return match ? match[1] : null
 }
 
-// 迷你 YouTube 預覽播放器（後台用）
+// 迷你 YouTube 預覽播放器
 function MiniPlayer({ videoId, startSecond, onUseTime }) {
   const containerRef = useRef(null)
   const playerRef = useRef(null)
@@ -57,11 +54,7 @@ function MiniPlayer({ videoId, startSecond, onUseTime }) {
       <div className="flex items-center gap-2 text-sm">
         <span className="text-[#B3B3B3]">目前：<span className="text-[#FFD700] font-mono">{currentTime}s</span></span>
         {ready && (
-          <button
-            onClick={() => onUseTime(currentTime)}
-            className="ml-auto px-3 py-1 rounded-lg text-xs font-bold text-black"
-            style={{ background: '#FFD700' }}
-          >
+          <button onClick={() => onUseTime(currentTime)} className="ml-auto px-3 py-1 rounded-lg text-xs font-bold text-black" style={{ background: '#FFD700' }}>
             用 {currentTime}s 做起點
           </button>
         )}
@@ -71,16 +64,22 @@ function MiniPlayer({ videoId, startSecond, onUseTime }) {
 }
 
 export default function GameSettingsPage() {
-  const [tab, setTab] = useState('songs') // 'songs' | 'youtube'
-  const [loading, setLoading] = useState(true)
+  // ── 歌手管理 ──
+  const [gameArtists, setGameArtists] = useState([])   // gameArtists collection
+  const [allArtists, setAllArtists] = useState([])     // artists collection（搜尋用）
+  const [artistSearch, setArtistSearch] = useState('')
+  const [artistSearchResults, setArtistSearchResults] = useState([])
+  const [addingArtist, setAddingArtist] = useState(null)
 
-  // 遊戲歌單（gameSongs collection）
+  // ── 選中歌手（管理歌單）──
+  const [selectedArtist, setSelectedArtist] = useState(null)
+
+  // ── 歌單管理 ──
+  const [tab, setTab] = useState('songs')
+  const [loading, setLoading] = useState(true)
   const [gameSongs, setGameSongs] = useState([])
-  // 現有樂譜（tabs collection）
   const [allTabs, setAllTabs] = useState([])
   const [tabSearch, setTabSearch] = useState('')
-
-  // 每首歌的起始秒、標題 & 預覽狀態
   const [startSeconds, setStartSeconds] = useState({})
   const [songTitles, setSongTitles] = useState({})
   const [editingTitleId, setEditingTitleId] = useState(null)
@@ -88,7 +87,7 @@ export default function GameSettingsPage() {
   const [saving, setSaving] = useState({})
   const [savedMsg, setSavedMsg] = useState({})
 
-  // YouTube 搜尋
+  // ── YouTube 搜尋 ──
   const [ytQuery, setYtQuery] = useState('')
   const [ytResults, setYtResults] = useState([])
   const [ytSearching, setYtSearching] = useState(false)
@@ -96,60 +95,109 @@ export default function GameSettingsPage() {
   const [ytAddingId, setYtAddingId] = useState(null)
   const [ytPreviewId, setYtPreviewId] = useState(null)
   const [ytStartSeconds, setYtStartSeconds] = useState({})
-  const [ytTitles, setYtTitles] = useState({}) // 可自訂歌名
+  const [ytTitles, setYtTitles] = useState({})
 
   useEffect(() => {
-    // 載入 YouTube IFrame API
     if (typeof window !== 'undefined' && !window.YT) {
       const tag = document.createElement('script')
       tag.src = 'https://www.youtube.com/iframe_api'
       document.head.appendChild(tag)
     }
-    loadData()
+    loadInitial()
   }, [])
 
-  async function loadData() {
+  async function loadInitial() {
     setLoading(true)
     try {
-      // 載入 gameSongs
-      const gsSnap = await getDocs(collection(db, 'gameSongs'))
+      // 載入 gameArtists
+      const gaSnap = await getDocs(collection(db, 'gameArtists'))
+      const ga = gaSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.displayOrder ?? 99) - (b.displayOrder ?? 99))
+      setGameArtists(ga)
+
+      // 載入 artists collection（供搜尋）
+      const aSnap = await getDocs(collection(db, 'artists'))
+      setAllArtists(aSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 搜尋歌手
+  const handleArtistSearch = (q) => {
+    setArtistSearch(q)
+    if (!q.trim()) { setArtistSearchResults([]); return }
+    const gaIds = new Set(gameArtists.map(a => a.artistId))
+    const results = allArtists
+      .filter(a => a.name?.toLowerCase().includes(q.toLowerCase()) && !gaIds.has(a.id))
+      .slice(0, 5)
+    setArtistSearchResults(results)
+  }
+
+  // 加入遊戲歌手
+  const handleAddArtist = async (artist) => {
+    const id = `ga_${artist.id}`
+    setAddingArtist(artist.id)
+    try {
+      const data = {
+        artistId: artist.id,
+        name: artist.name,
+        photo: artist.photoURL || artist.wikiPhotoURL || '',
+        enabled: true,
+        displayOrder: gameArtists.length,
+        addedAt: serverTimestamp(),
+      }
+      await setDoc(doc(db, 'gameArtists', id), data)
+      const newArtist = { id, ...data }
+      setGameArtists(p => [...p, newArtist])
+      setArtistSearch('')
+      setArtistSearchResults([])
+    } finally {
+      setAddingArtist(null)
+    }
+  }
+
+  // 移除遊戲歌手
+  const handleRemoveArtist = async (gaId) => {
+    if (!confirm('確定移除？')) return
+    await deleteDoc(doc(db, 'gameArtists', gaId))
+    setGameArtists(p => p.filter(a => a.id !== gaId))
+    if (selectedArtist?.id === gaId) setSelectedArtist(null)
+  }
+
+  // 切換啟用狀態
+  const handleToggleArtist = async (ga) => {
+    await setDoc(doc(db, 'gameArtists', ga.id), { enabled: !ga.enabled }, { merge: true })
+    setGameArtists(p => p.map(a => a.id === ga.id ? { ...a, enabled: !a.enabled } : a))
+  }
+
+  // 選擇歌手查看歌單
+  const handleSelectArtist = async (ga) => {
+    setSelectedArtist(ga)
+    setGameSongs([])
+    setAllTabs([])
+    setTab('songs')
+    setLoading(true)
+    try {
+      // gameSongs
+      const gsSnap = await getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', ga.artistId)))
       const gs = gsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-        .filter(s => s.artistId === ARTIST_ID_DEFAULT || s.artistName?.includes(ARTIST_NAME_QUERY))
         .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-Hant'))
       setGameSongs(gs)
+      const init = {}; const initT = {}
+      gs.forEach(s => { init[s.id] = s.gameStartSecond ?? 0; initT[s.id] = s.title || '' })
+      setStartSeconds(init); setSongTitles(initT)
 
-      const init = {}
-      const initTitles = {}
-      gs.forEach(s => {
-        init[s.id] = s.gameStartSecond ?? 0
-        initTitles[s.id] = s.title || ''
-      })
-      setStartSeconds(init)
-      setSongTitles(initTitles)
-
-      // 載入現有 tabs（陳奕迅）
-      const artistsSnap = await getDocs(collection(db, 'artists'))
-      const matchedIds = []
-      artistsSnap.docs.forEach(d => {
-        if (d.data().name?.includes(ARTIST_NAME_QUERY)) matchedIds.push(d.id)
-      })
-      if (matchedIds.length === 0) matchedIds.push(ARTIST_ID_DEFAULT)
-
-      const conditions = matchedIds.flatMap(id => [
-        where('artistId', '==', id),
-        where('artistIds', 'array-contains', id),
-      ])
+      // tabs
+      const aSnap = await getDocs(collection(db, 'artists'))
+      const matchedIds = aSnap.docs.filter(d => d.id === ga.artistId || d.data().name?.includes(ga.name)).map(d => d.id)
+      if (matchedIds.length === 0) matchedIds.push(ga.artistId)
+      const conditions = matchedIds.flatMap(id => [where('artistId', '==', id), where('artistIds', 'array-contains', id)])
       const tabsSnap = await getDocs(query(collection(db, 'tabs'), or(...conditions)))
-      const tabs = tabsSnap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(s => s.youtubeUrl && extractYouTubeId(s.youtubeUrl))
+      const tabs = tabsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.youtubeUrl && extractYouTubeId(s.youtubeUrl))
       const seen = new Set()
-      const unique = tabs.filter(s => {
-        const k = s.title?.trim().toLowerCase()
-        if (seen.has(k)) return false
-        seen.add(k); return true
-      }).sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-Hant'))
-      setAllTabs(unique)
+      setAllTabs(tabs.filter(s => { const k = s.title?.trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+        .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-Hant')))
     } finally {
       setLoading(false)
     }
@@ -158,39 +206,24 @@ export default function GameSettingsPage() {
   const gameSongIds = new Set(gameSongs.map(s => s.tabId).filter(Boolean))
   const gameSongYtIds = new Set(gameSongs.map(s => extractYouTubeId(s.youtubeUrl)).filter(Boolean))
 
-  // 從現有樂譜加入遊戲
   const handleAddTab = async (song) => {
     const id = `tab_${song.id}`
     setSaving(p => ({ ...p, [id]: true }))
     try {
-      const gsDoc = {
-        title: song.title || '',
-        artistName: song.artistName || ARTIST_NAME_QUERY,
-        artistId: song.artistId || ARTIST_ID_DEFAULT,
-        youtubeUrl: song.youtubeUrl,
-        gameStartSecond: song.gameStartSecond ?? 0,
-        source: 'tab',
-        tabId: song.id,
-        enabled: true,
-        addedAt: serverTimestamp(),
-      }
+      const gsDoc = { title: song.title || '', artistName: selectedArtist.name, artistId: selectedArtist.artistId, youtubeUrl: song.youtubeUrl, gameStartSecond: 0, source: 'tab', tabId: song.id, enabled: true, addedAt: serverTimestamp() }
       await setDoc(doc(db, 'gameSongs', id), gsDoc)
       setGameSongs(p => [...p, { id, ...gsDoc }].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-Hant')))
-      setStartSeconds(p => ({ ...p, [id]: 0 }))
+      setStartSeconds(p => ({ ...p, [id]: 0 })); setSongTitles(p => ({ ...p, [id]: song.title || '' }))
       flashSaved(id)
-    } finally {
-      setSaving(p => ({ ...p, [id]: false }))
-    }
+    } finally { setSaving(p => ({ ...p, [id]: false })) }
   }
 
-  // 從遊戲移除
-  const handleRemove = async (gsId) => {
+  const handleRemoveSong = async (gsId) => {
     if (!confirm('確定移除？')) return
     await deleteDoc(doc(db, 'gameSongs', gsId))
     setGameSongs(p => p.filter(s => s.id !== gsId))
   }
 
-  // 更新起始秒 + 標題
   const handleSaveSecond = async (gsId) => {
     const sec = Number(startSeconds[gsId] ?? 0)
     const title = songTitles[gsId] ?? ''
@@ -199,9 +232,7 @@ export default function GameSettingsPage() {
       await setDoc(doc(db, 'gameSongs', gsId), { gameStartSecond: sec, title }, { merge: true })
       setGameSongs(p => p.map(s => s.id === gsId ? { ...s, gameStartSecond: sec, title } : s))
       flashSaved(gsId)
-    } finally {
-      setSaving(p => ({ ...p, [gsId]: false }))
-    }
+    } finally { setSaving(p => ({ ...p, [gsId]: false })) }
   }
 
   const flashSaved = (id) => {
@@ -209,62 +240,36 @@ export default function GameSettingsPage() {
     setTimeout(() => setSavedMsg(p => ({ ...p, [id]: false })), 2000)
   }
 
-  // YouTube 搜尋
   const handleYtSearch = async (e) => {
     e.preventDefault()
     if (!ytQuery.trim()) return
-    setYtSearching(true)
-    setYtError(null)
-    setYtResults([])
+    setYtSearching(true); setYtError(null); setYtResults([])
     try {
       const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(ytQuery)}&all=true`)
       const data = await res.json()
       if (data.videos?.length) {
         setYtResults(data.videos)
-        const initTitles = {}
-        const initSecs = {}
-        data.videos.forEach(v => { initTitles[v.id] = v.title; initSecs[v.id] = 0 })
-        setYtTitles(initTitles)
-        setYtStartSeconds(initSecs)
-      } else {
-        setYtError('找不到結果')
-      }
-    } catch {
-      setYtError('搜尋失敗，請重試')
-    } finally {
-      setYtSearching(false)
-    }
+        const initT = {}; const initS = {}
+        data.videos.forEach(v => { initT[v.id] = v.title; initS[v.id] = 0 })
+        setYtTitles(initT); setYtStartSeconds(initS)
+      } else { setYtError('找不到結果') }
+    } catch { setYtError('搜尋失敗，請重試') } finally { setYtSearching(false) }
   }
 
-  // 從 YouTube 結果加入遊戲
   const handleAddYt = async (video) => {
     const ytId = video.id
     const gsId = `yt_${ytId}`
     setYtAddingId(ytId)
     try {
-      const gsDoc = {
-        title: ytTitles[ytId] || video.title,
-        artistName: ARTIST_NAME_QUERY,
-        artistId: ARTIST_ID_DEFAULT,
-        youtubeUrl: `https://www.youtube.com/watch?v=${ytId}`,
-        gameStartSecond: ytStartSeconds[ytId] ?? 0,
-        source: 'youtube',
-        enabled: true,
-        addedAt: serverTimestamp(),
-      }
+      const gsDoc = { title: ytTitles[ytId] || video.title, artistName: selectedArtist.name, artistId: selectedArtist.artistId, youtubeUrl: `https://www.youtube.com/watch?v=${ytId}`, gameStartSecond: ytStartSeconds[ytId] ?? 0, source: 'youtube', enabled: true, addedAt: serverTimestamp() }
       await setDoc(doc(db, 'gameSongs', gsId), gsDoc)
       setGameSongs(p => [...p, { id: gsId, ...gsDoc }].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-Hant')))
       setStartSeconds(p => ({ ...p, [gsId]: ytStartSeconds[ytId] ?? 0 }))
-      // 從搜尋結果移除
       setYtResults(p => p.filter(v => v.id !== ytId))
-    } finally {
-      setYtAddingId(null)
-    }
+    } finally { setYtAddingId(null) }
   }
 
-  const filteredTabs = allTabs.filter(s =>
-    !tabSearch || s.title?.toLowerCase().includes(tabSearch.toLowerCase())
-  )
+  const filteredTabs = allTabs.filter(s => !tabSearch || s.title?.toLowerCase().includes(tabSearch.toLowerCase()))
 
   return (
     <AdminGuard>
@@ -272,293 +277,236 @@ export default function GameSettingsPage() {
         <div className="min-h-screen bg-black px-4 py-6 max-w-2xl mx-auto">
 
           {/* Header */}
-          <div className="mb-5">
+          <div className="mb-6">
             <p className="text-[#B3B3B3] text-sm mb-1">後台管理</p>
             <h1 className="text-white text-2xl font-bold">1秒前奏估歌仔設置</h1>
-            <p className="text-[#B3B3B3] text-sm mt-1">{ARTIST_NAME_QUERY}</p>
           </div>
 
-          {/* 遊戲歌單 */}
+          {/* ── 遊戲歌手管理 ── */}
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-white font-bold text-base">
-                遊戲歌單
-                <span className="ml-2 text-[#B3B3B3] text-sm font-normal">({gameSongs.length} 首)</span>
-              </h2>
-            </div>
+            <h2 className="text-white font-bold text-base mb-3">
+              遊戲歌手
+              <span className="ml-2 text-[#B3B3B3] text-sm font-normal">({gameArtists.length})</span>
+            </h2>
 
-            {loading && <p className="text-[#B3B3B3] text-sm py-4 text-center">載入中...</p>}
-
-            {!loading && gameSongs.length === 0 && (
-              <p className="text-[#B3B3B3] text-sm py-4 text-center">未有歌曲，請從下方加入</p>
-            )}
-
-            <div className="flex flex-col gap-2">
-              {gameSongs.map(song => {
-                const videoId = extractYouTubeId(song.youtubeUrl)
-                const isOpen = previewId === song.id
-                const curSec = startSeconds[song.id] ?? 0
-
-                return (
-                  <div key={song.id} className="bg-[#121212] rounded-xl border border-[#282828] overflow-hidden">
-                    <div className="flex items-center gap-3 px-3 py-2.5">
-                      <img
-                        src={`https://img.youtube.com/vi/${videoId}/default.jpg`}
-                        alt={song.title}
-                        className="w-9 h-9 rounded object-cover flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        {editingTitleId === song.id ? (
-                          <input
-                            autoFocus
-                            type="text"
-                            value={songTitles[song.id] ?? song.title ?? ''}
-                            onChange={e => setSongTitles(p => ({ ...p, [song.id]: e.target.value }))}
-                            onBlur={() => { setEditingTitleId(null); handleSaveSecond(song.id) }}
-                            onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { setEditingTitleId(null); handleSaveSecond(song.id) } }}
-                            className="w-full px-2 py-0.5 rounded-lg bg-[#1a1a1a] text-white text-sm font-medium border border-[#FFD700] focus:outline-none"
-                          />
-                        ) : (
-                          <p
-                            className="text-white text-sm font-medium truncate cursor-pointer hover:text-[#FFD700] transition-colors"
-                            onClick={() => setEditingTitleId(song.id)}
-                            title="點擊編輯歌名"
-                          >
-                            {songTitles[song.id] ?? song.title}
-                          </p>
-                        )}
-                        <p className="text-[#B3B3B3] text-xs">
-                          起始 <span className="text-[#FFD700] font-mono">{curSec}s</span>
-                          {song.source === 'youtube' && <span className="ml-1.5 text-xs text-blue-400">YT</span>}
-                        </p>
-                      </div>
-
-                      {/* 起始秒 */}
-                      <input
-                        type="number" min={0} step={1}
-                        value={curSec}
-                        onChange={e => setStartSeconds(p => ({ ...p, [song.id]: Number(e.target.value) }))}
-                        className="w-14 px-2 py-1 rounded-lg bg-[#1a1a1a] text-white text-sm text-center border border-[#282828] focus:outline-none focus:border-[#FFD700]"
-                      />
-
-                      {/* 儲存 */}
-                      <button
-                        onClick={() => handleSaveSecond(song.id)}
-                        disabled={saving[song.id]}
-                        className="px-2.5 py-1 rounded-lg text-xs font-bold text-black flex-shrink-0"
-                        style={{ background: savedMsg[song.id] ? '#22c55e' : '#FFD700', minWidth: 44 }}
-                      >
-                        {saving[song.id] ? '...' : savedMsg[song.id] ? '✓' : '儲存'}
-                      </button>
-
-                      {/* 預覽 */}
-                      <button
-                        onClick={() => setPreviewId(isOpen ? null : song.id)}
-                        className="px-2.5 py-1 rounded-lg text-xs border border-[#282828] text-[#B3B3B3] flex-shrink-0"
-                      >
-                        {isOpen ? '收起' : '▶'}
-                      </button>
-
-                      {/* 移除 */}
-                      <button
-                        onClick={() => handleRemove(song.id)}
-                        className="px-2 py-1 rounded-lg text-xs border border-red-900 text-red-400 flex-shrink-0"
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    {isOpen && (
-                      <div className="px-3 pb-3">
-                        <MiniPlayer
-                          videoId={videoId}
-                          startSecond={curSec}
-                          onUseTime={(t) => setStartSeconds(p => ({ ...p, [song.id]: t }))}
-                        />
-                        <p className="text-[#B3B3B3] text-xs mt-1.5">
-                          💡 拖動至歌曲正式開始位置 → 按「用 Xs 做起點」→ 儲存
-                        </p>
-                      </div>
-                    )}
+            {/* 歌手列表 */}
+            <div className="flex flex-col gap-2 mb-3">
+              {gameArtists.map((ga, i) => (
+                <div
+                  key={ga.id}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-all"
+                  style={{
+                    background: selectedArtist?.id === ga.id ? '#1a1a00' : '#121212',
+                    borderColor: selectedArtist?.id === ga.id ? '#FFD700' : '#282828',
+                  }}
+                  onClick={() => handleSelectArtist(ga)}
+                >
+                  {ga.photo ? (
+                    <img src={ga.photo} alt={ga.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-[#282828] flex items-center justify-center text-lg flex-shrink-0">🎸</div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium">{ga.name}</p>
+                    <p className="text-[#B3B3B3] text-xs">{ga.enabled ? '啟用中' : '已停用'}</p>
                   </div>
-                )
-              })}
+                  <button
+                    onClick={e => { e.stopPropagation(); handleToggleArtist(ga) }}
+                    className="px-2.5 py-1 rounded-lg text-xs border flex-shrink-0"
+                    style={{ borderColor: ga.enabled ? '#22c55e' : '#282828', color: ga.enabled ? '#22c55e' : '#B3B3B3' }}
+                  >
+                    {ga.enabled ? '啟用' : '停用'}
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); handleRemoveArtist(ga.id) }}
+                    className="px-2 py-1 rounded-lg text-xs border border-red-900 text-red-400 flex-shrink-0"
+                  >✕</button>
+                </div>
+              ))}
             </div>
-          </div>
 
-          {/* 分隔線 */}
-          <div className="border-t border-[#282828] mb-5" />
-
-          {/* Tab 切換 */}
-          <div className="flex gap-1 mb-4 bg-[#121212] rounded-xl p-1">
-            {[['songs', '從網站樂譜選歌'], ['youtube', 'YouTube 搜尋']].map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{
-                  background: tab === key ? '#FFD700' : 'transparent',
-                  color: tab === key ? '#000' : '#B3B3B3',
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* === 從樂譜選歌 === */}
-          {tab === 'songs' && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <input
-                  type="text"
-                  placeholder="搜尋歌名..."
-                  value={tabSearch}
-                  onChange={e => setTabSearch(e.target.value)}
-                  className="flex-1 px-4 py-2 rounded-xl bg-[#121212] text-white border border-[#282828] text-sm focus:outline-none focus:border-[#FFD700]"
-                />
-                {!loading && (
-                  <span className="text-[#B3B3B3] text-xs flex-shrink-0">
-                    共 {allTabs.length} 首
-                  </span>
-                )}
-              </div>
-              {loading && <p className="text-[#B3B3B3] text-sm text-center py-6">載入中...</p>}
-              <div className="flex flex-col gap-2">
-                {filteredTabs.map(song => {
-                  const inGame = gameSongIds.has(song.id)
-                  const videoId = extractYouTubeId(song.youtubeUrl)
-                  return (
-                    <div
-                      key={song.id}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl border"
-                      style={{
-                        background: inGame ? '#0d1f0d' : '#121212',
-                        borderColor: inGame ? '#22c55e' : '#282828',
-                      }}
+            {/* 搜尋加入歌手 */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="搜尋歌手加入遊戲..."
+                value={artistSearch}
+                onChange={e => handleArtistSearch(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl bg-[#121212] text-white border border-[#282828] text-sm focus:outline-none focus:border-[#FFD700]"
+              />
+              {artistSearchResults.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-[#1a1a1a] border border-[#282828] rounded-xl overflow-hidden z-10">
+                  {artistSearchResults.map(a => (
+                    <button
+                      key={a.id}
+                      onClick={() => handleAddArtist(a)}
+                      disabled={addingArtist === a.id}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#282828] transition-colors text-left"
                     >
-                      <img
-                        src={`https://img.youtube.com/vi/${videoId}/default.jpg`}
-                        alt={song.title}
-                        className="w-9 h-9 rounded object-cover flex-shrink-0"
-                      />
-                      <p className="flex-1 text-sm text-white truncate">{song.title}</p>
-                      {inGame ? (
-                        <span className="text-green-400 text-xs font-medium flex-shrink-0">✓ 已加入</span>
+                      {(a.photoURL || a.wikiPhotoURL) ? (
+                        <img src={a.photoURL || a.wikiPhotoURL} alt={a.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                       ) : (
-                        <button
-                          onClick={() => handleAddTab(song)}
-                          disabled={saving[`tab_${song.id}`]}
-                          className="px-3 py-1 rounded-lg text-xs font-bold text-black flex-shrink-0"
-                          style={{ background: '#FFD700' }}
-                        >
-                          {saving[`tab_${song.id}`] ? '...' : '+ 加入'}
-                        </button>
+                        <div className="w-8 h-8 rounded-full bg-[#282828] flex-shrink-0" />
                       )}
-                    </div>
-                  )
-                })}
-                {filteredTabs.length === 0 && !loading && (
-                  <p className="text-[#B3B3B3] text-sm text-center py-6">
-                    {tabSearch ? '找不到相關歌曲' : '未找到有 YouTube 連結的歌曲'}
-                  </p>
-                )}
-              </div>
+                      <span className="text-white text-sm flex-1">{a.name}</span>
+                      <span className="text-[#FFD700] text-xs">+ 加入</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* ── 歌單管理（選中歌手後顯示）── */}
+          {selectedArtist && (
+            <>
+              <div className="border-t border-[#282828] mb-5" />
+
+              <div className="flex items-center gap-2 mb-4">
+                <img src={selectedArtist.photo} alt={selectedArtist.name} className="w-8 h-8 rounded-full object-cover" />
+                <h2 className="text-white font-bold text-base">{selectedArtist.name} 的歌單</h2>
+                <span className="text-[#B3B3B3] text-sm">({gameSongs.length} 首)</span>
+              </div>
+
+              {/* 遊戲歌單 */}
+              {loading ? (
+                <p className="text-[#B3B3B3] text-sm text-center py-4">載入中...</p>
+              ) : (
+                <div className="flex flex-col gap-2 mb-5">
+                  {gameSongs.length === 0 && <p className="text-[#B3B3B3] text-sm text-center py-4">未有歌曲，請從下方加入</p>}
+                  {gameSongs.map(song => {
+                    const videoId = extractYouTubeId(song.youtubeUrl)
+                    const isOpen = previewId === song.id
+                    const curSec = startSeconds[song.id] ?? 0
+                    return (
+                      <div key={song.id} className="bg-[#121212] rounded-xl border border-[#282828] overflow-hidden">
+                        <div className="flex items-center gap-3 px-3 py-2.5">
+                          <img src={`https://img.youtube.com/vi/${videoId}/default.jpg`} alt={song.title} className="w-9 h-9 rounded object-cover flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            {editingTitleId === song.id ? (
+                              <input autoFocus type="text" value={songTitles[song.id] ?? song.title ?? ''} onChange={e => setSongTitles(p => ({ ...p, [song.id]: e.target.value }))}
+                                onBlur={() => { setEditingTitleId(null); handleSaveSecond(song.id) }}
+                                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { setEditingTitleId(null); handleSaveSecond(song.id) } }}
+                                className="w-full px-2 py-0.5 rounded-lg bg-[#1a1a1a] text-white text-sm font-medium border border-[#FFD700] focus:outline-none" />
+                            ) : (
+                              <p className="text-white text-sm font-medium truncate cursor-pointer hover:text-[#FFD700] transition-colors" onClick={() => setEditingTitleId(song.id)} title="點擊編輯歌名">
+                                {songTitles[song.id] ?? song.title}
+                              </p>
+                            )}
+                            <p className="text-[#B3B3B3] text-xs">起始 <span className="text-[#FFD700] font-mono">{curSec}s</span>{song.source === 'youtube' && <span className="ml-1.5 text-blue-400">YT</span>}</p>
+                          </div>
+                          <input type="number" min={0} step={1} value={curSec} onChange={e => setStartSeconds(p => ({ ...p, [song.id]: Number(e.target.value) }))} className="w-14 px-2 py-1 rounded-lg bg-[#1a1a1a] text-white text-sm text-center border border-[#282828] focus:outline-none focus:border-[#FFD700]" />
+                          <button onClick={() => handleSaveSecond(song.id)} disabled={saving[song.id]} className="px-2.5 py-1 rounded-lg text-xs font-bold text-black flex-shrink-0" style={{ background: savedMsg[song.id] ? '#22c55e' : '#FFD700', minWidth: 44 }}>
+                            {saving[song.id] ? '...' : savedMsg[song.id] ? '✓' : '儲存'}
+                          </button>
+                          <button onClick={() => setPreviewId(isOpen ? null : song.id)} className="px-2.5 py-1 rounded-lg text-xs border border-[#282828] text-[#B3B3B3] flex-shrink-0">{isOpen ? '收起' : '▶'}</button>
+                          <button onClick={() => handleRemoveSong(song.id)} className="px-2 py-1 rounded-lg text-xs border border-red-900 text-red-400 flex-shrink-0">✕</button>
+                        </div>
+                        {isOpen && (
+                          <div className="px-3 pb-3">
+                            <MiniPlayer videoId={videoId} startSecond={curSec} onUseTime={t => setStartSeconds(p => ({ ...p, [song.id]: t }))} />
+                            <p className="text-[#B3B3B3] text-xs mt-1.5">💡 拖動至歌曲正式開始位置 → 按「用 Xs 做起點」→ 儲存</p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Tab 切換 */}
+              <div className="border-t border-[#282828] mb-4" />
+              <div className="flex gap-1 mb-4 bg-[#121212] rounded-xl p-1">
+                {[['songs', '從網站樂譜選歌'], ['youtube', 'YouTube 搜尋']].map(([key, label]) => (
+                  <button key={key} onClick={() => setTab(key)} className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                    style={{ background: tab === key ? '#FFD700' : 'transparent', color: tab === key ? '#000' : '#B3B3B3' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 從網站樂譜選歌 */}
+              {tab === 'songs' && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <input type="text" placeholder="搜尋歌名..." value={tabSearch} onChange={e => setTabSearch(e.target.value)}
+                      className="flex-1 px-4 py-2 rounded-xl bg-[#121212] text-white border border-[#282828] text-sm focus:outline-none focus:border-[#FFD700]" />
+                    {!loading && <span className="text-[#B3B3B3] text-xs flex-shrink-0">共 {allTabs.length} 首</span>}
+                  </div>
+                  {loading && <p className="text-[#B3B3B3] text-sm text-center py-6">載入中...</p>}
+                  <div className="flex flex-col gap-2">
+                    {filteredTabs.map(song => {
+                      const inGame = gameSongIds.has(song.id)
+                      const videoId = extractYouTubeId(song.youtubeUrl)
+                      return (
+                        <div key={song.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border" style={{ background: inGame ? '#0d1f0d' : '#121212', borderColor: inGame ? '#22c55e' : '#282828' }}>
+                          <img src={`https://img.youtube.com/vi/${videoId}/default.jpg`} alt={song.title} className="w-9 h-9 rounded object-cover flex-shrink-0" />
+                          <p className="flex-1 text-sm text-white truncate">{song.title}</p>
+                          {inGame ? <span className="text-green-400 text-xs font-medium flex-shrink-0">✓ 已加入</span> : (
+                            <button onClick={() => handleAddTab(song)} disabled={saving[`tab_${song.id}`]} className="px-3 py-1 rounded-lg text-xs font-bold text-black flex-shrink-0" style={{ background: '#FFD700' }}>
+                              {saving[`tab_${song.id}`] ? '...' : '+ 加入'}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {filteredTabs.length === 0 && !loading && <p className="text-[#B3B3B3] text-sm text-center py-6">{tabSearch ? '找不到相關歌曲' : '未找到有 YouTube 連結的歌曲'}</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* YouTube 搜尋 */}
+              {tab === 'youtube' && (
+                <div>
+                  <form onSubmit={handleYtSearch} className="flex gap-2 mb-4">
+                    <input type="text" placeholder={`搜尋 YouTube，例如：${selectedArtist.name}`} value={ytQuery} onChange={e => setYtQuery(e.target.value)}
+                      className="flex-1 px-4 py-2 rounded-xl bg-[#121212] text-white border border-[#282828] text-sm focus:outline-none focus:border-[#FFD700]" />
+                    <button type="submit" disabled={ytSearching} className="px-4 py-2 rounded-xl text-sm font-bold text-black flex-shrink-0" style={{ background: '#FFD700' }}>
+                      {ytSearching ? '...' : '搜尋'}
+                    </button>
+                  </form>
+                  {ytError && <p className="text-red-400 text-sm mb-3">{ytError}</p>}
+                  <div className="flex flex-col gap-3">
+                    {ytResults.map(video => {
+                      const inGame = gameSongYtIds.has(video.id)
+                      const isOpen = ytPreviewId === video.id
+                      const curSec = ytStartSeconds[video.id] ?? 0
+                      return (
+                        <div key={video.id} className="bg-[#121212] rounded-xl border border-[#282828] overflow-hidden">
+                          <div className="flex items-start gap-3 px-3 py-2.5">
+                            <img src={video.thumbnail} alt={video.title} className="w-20 h-12 rounded object-cover flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <input type="text" value={ytTitles[video.id] ?? video.title} onChange={e => setYtTitles(p => ({ ...p, [video.id]: e.target.value }))}
+                                className="w-full px-2 py-1 rounded-lg bg-[#1a1a1a] text-white text-sm font-medium border border-[#3a3a3a] focus:outline-none focus:border-[#FFD700]" placeholder="歌名" />
+                              <p className="text-[#B3B3B3] text-xs mt-0.5 truncate">{video.channelTitle}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[#B3B3B3] text-xs">起始：</span>
+                                <input type="number" min={0} step={1} value={curSec} onChange={e => setYtStartSeconds(p => ({ ...p, [video.id]: Number(e.target.value) }))}
+                                  className="w-14 px-2 py-0.5 rounded bg-[#1a1a1a] text-white text-xs text-center border border-[#282828] focus:outline-none focus:border-[#FFD700]" />
+                                <span className="text-[#B3B3B3] text-xs">秒</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 px-3 pb-2.5">
+                            <button onClick={() => setYtPreviewId(isOpen ? null : video.id)} className="px-3 py-1 rounded-lg text-xs border border-[#282828] text-[#B3B3B3]">{isOpen ? '收起' : '▶ 預覽'}</button>
+                            {inGame ? <span className="text-green-400 text-xs font-medium self-center ml-auto">✓ 已加入</span> : (
+                              <button onClick={() => handleAddYt(video)} disabled={ytAddingId === video.id} className="ml-auto px-3 py-1 rounded-lg text-xs font-bold text-black" style={{ background: '#FFD700' }}>
+                                {ytAddingId === video.id ? '...' : '+ 加入遊戲'}
+                              </button>
+                            )}
+                          </div>
+                          {isOpen && <div className="px-3 pb-3"><MiniPlayer videoId={video.id} startSecond={curSec} onUseTime={t => setYtStartSeconds(p => ({ ...p, [video.id]: t }))} /></div>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
-          {/* === YouTube 搜尋 === */}
-          {tab === 'youtube' && (
-            <div>
-              <form onSubmit={handleYtSearch} className="flex gap-2 mb-4">
-                <input
-                  type="text"
-                  placeholder="搜尋 YouTube，例如：陳奕迅 富士山下"
-                  value={ytQuery}
-                  onChange={e => setYtQuery(e.target.value)}
-                  className="flex-1 px-4 py-2 rounded-xl bg-[#121212] text-white border border-[#282828] text-sm focus:outline-none focus:border-[#FFD700]"
-                />
-                <button
-                  type="submit"
-                  disabled={ytSearching}
-                  className="px-4 py-2 rounded-xl text-sm font-bold text-black flex-shrink-0"
-                  style={{ background: '#FFD700' }}
-                >
-                  {ytSearching ? '...' : '搜尋'}
-                </button>
-              </form>
-
-              {ytError && <p className="text-red-400 text-sm mb-3">{ytError}</p>}
-
-              <div className="flex flex-col gap-3">
-                {ytResults.map(video => {
-                  const inGame = gameSongYtIds.has(video.id)
-                  const isOpen = ytPreviewId === video.id
-                  const curSec = ytStartSeconds[video.id] ?? 0
-
-                  return (
-                    <div key={video.id} className="bg-[#121212] rounded-xl border border-[#282828] overflow-hidden">
-                      <div className="flex items-start gap-3 px-3 py-2.5">
-                        <img src={video.thumbnail} alt={video.title}
-                          className="w-20 h-12 rounded object-cover flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          {/* 可編輯歌名 */}
-                          <input
-                            type="text"
-                            value={ytTitles[video.id] ?? video.title}
-                            onChange={e => setYtTitles(p => ({ ...p, [video.id]: e.target.value }))}
-                            className="w-full px-2 py-1 rounded-lg bg-[#1a1a1a] text-white text-sm font-medium border border-[#3a3a3a] focus:outline-none focus:border-[#FFD700]"
-                            placeholder="歌名"
-                          />
-                          <p className="text-[#B3B3B3] text-xs mt-0.5 truncate">{video.channelTitle}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[#B3B3B3] text-xs">起始：</span>
-                            <input
-                              type="number" min={0} step={1}
-                              value={curSec}
-                              onChange={e => setYtStartSeconds(p => ({ ...p, [video.id]: Number(e.target.value) }))}
-                              className="w-14 px-2 py-0.5 rounded bg-[#1a1a1a] text-white text-xs text-center border border-[#282828] focus:outline-none focus:border-[#FFD700]"
-                            />
-                            <span className="text-[#B3B3B3] text-xs">秒</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 px-3 pb-2.5">
-                        <button
-                          onClick={() => setYtPreviewId(isOpen ? null : video.id)}
-                          className="px-3 py-1 rounded-lg text-xs border border-[#282828] text-[#B3B3B3]"
-                        >
-                          {isOpen ? '收起' : '▶ 預覽'}
-                        </button>
-                        {inGame ? (
-                          <span className="text-green-400 text-xs font-medium self-center ml-auto">✓ 已加入</span>
-                        ) : (
-                          <button
-                            onClick={() => handleAddYt(video)}
-                            disabled={ytAddingId === video.id}
-                            className="ml-auto px-3 py-1 rounded-lg text-xs font-bold text-black"
-                            style={{ background: '#FFD700' }}
-                          >
-                            {ytAddingId === video.id ? '...' : '+ 加入遊戲'}
-                          </button>
-                        )}
-                      </div>
-
-                      {isOpen && (
-                        <div className="px-3 pb-3">
-                          <MiniPlayer
-                            videoId={video.id}
-                            startSecond={curSec}
-                            onUseTime={(t) => setYtStartSeconds(p => ({ ...p, [video.id]: t }))}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+          {!selectedArtist && !loading && gameArtists.length > 0 && (
+            <p className="text-[#B3B3B3] text-sm text-center py-6">👆 點擊上方歌手來管理歌單</p>
           )}
 
         </div>

@@ -195,8 +195,12 @@ service cloud.firestore {
       allow write: if isAuthenticated() && isOwner(userId);
     }
 
-    // ==================== Game Songs (1秒前奏估歌仔) ====================
+    // ==================== Game (1秒前奏估歌仔) ====================
     match /gameSongs/{songId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+    match /gameArtists/{artistId} {
       allow read: if true;
       allow write: if isSuperAdmin();
     }
