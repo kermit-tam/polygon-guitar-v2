@@ -443,14 +443,23 @@ export default function GamePage() {
                   autoComplete="off"
                   className="w-full px-4 py-3 rounded-xl bg-[#121212] text-white border border-[#282828] text-base focus:outline-none focus:border-[#FFD700]"
                 />
-                <button
-                  type="submit"
-                  disabled={!userInput.trim()}
-                  className="w-full py-3 rounded-xl font-bold text-black text-sm disabled:opacity-40"
-                  style={{ background: '#FFD700' }}
-                >
-                  確認
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGiveUp}
+                    className="px-4 py-3 rounded-xl text-sm border border-[#282828] text-[#B3B3B3]"
+                  >
+                    棄權
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!userInput.trim()}
+                    className="flex-1 py-3 rounded-xl font-bold text-black text-sm disabled:opacity-40"
+                    style={{ background: '#FFD700' }}
+                  >
+                    確認
+                  </button>
+                </div>
               </form>
             ) : (
               <div className="flex flex-col gap-3 mt-1">
