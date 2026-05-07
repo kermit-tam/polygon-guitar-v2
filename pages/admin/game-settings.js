@@ -182,7 +182,7 @@ export default function GameSettingsPage() {
       // gameSongs
       const gsSnap = await getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', ga.artistId)))
       const gs = gsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-Hant'))
+        .sort((a, b) => (a.addedAt?.seconds ?? 0) - (b.addedAt?.seconds ?? 0))
       setGameSongs(gs)
       const init = {}; const initT = {}
       gs.forEach(s => { init[s.id] = s.gameStartSecond ?? 0; initT[s.id] = s.title || '' })
@@ -212,7 +212,7 @@ export default function GameSettingsPage() {
     try {
       const gsDoc = { title: song.title || '', artistName: selectedArtist.name, artistId: selectedArtist.artistId, youtubeUrl: song.youtubeUrl, gameStartSecond: 0, source: 'tab', tabId: song.id, enabled: true, addedAt: serverTimestamp() }
       await setDoc(doc(db, 'gameSongs', id), gsDoc)
-      setGameSongs(p => [...p, { id, ...gsDoc }].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-Hant')))
+      setGameSongs(p => [...p, { id, ...gsDoc }])
       setStartSeconds(p => ({ ...p, [id]: 0 })); setSongTitles(p => ({ ...p, [id]: song.title || '' }))
       flashSaved(id)
     } finally { setSaving(p => ({ ...p, [id]: false })) }
@@ -263,7 +263,7 @@ export default function GameSettingsPage() {
     try {
       const gsDoc = { title: ytTitles[ytId] || video.title, artistName: selectedArtist.name, artistId: selectedArtist.artistId, youtubeUrl: `https://www.youtube.com/watch?v=${ytId}`, gameStartSecond: ytStartSeconds[ytId] ?? 0, source: 'youtube', enabled: true, addedAt: serverTimestamp() }
       await setDoc(doc(db, 'gameSongs', gsId), gsDoc)
-      setGameSongs(p => [...p, { id: gsId, ...gsDoc }].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-Hant')))
+      setGameSongs(p => [...p, { id: gsId, ...gsDoc }])
       setStartSeconds(p => ({ ...p, [gsId]: ytStartSeconds[ytId] ?? 0 }))
       setYtResults(p => p.filter(v => v.id !== ytId))
     } finally { setYtAddingId(null) }
