@@ -528,7 +528,14 @@ export default function GamePage() {
               const offsetIdx = currentLvIdx - startLevelIdx
               const qInLevel = currentQIdx - offsetIdx * QUESTIONS_PER_LEVEL + 1
               return (
-                <span className="text-sm pr-1 font-medium" style={{ color: lv?.color || '#B3B3B3' }}>
+                <span
+                  className="text-xs font-bold rounded-lg px-2.5 py-1"
+                  style={{
+                    color: lv?.color || '#B3B3B3',
+                    background: `${lv?.color || '#fff'}15`,
+                    border: `1.5px solid ${lv?.color || '#B3B3B3'}`,
+                  }}
+                >
                   {lv?.label} {qInLevel}/{QUESTIONS_PER_LEVEL}
                 </span>
               )
