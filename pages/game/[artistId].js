@@ -39,6 +39,27 @@ function shuffle(arr) {
 const MAX_EXTRA = 3
 const TOTAL_QUESTIONS = 20
 
+// 計算歌名字數：CJK 每字算1個、連續英文/數字算1個 word、忽略空白同標點
+// 例：「孤獨探戈」= 4、「Lonely Christmas」= 2、「全民K歌」= 4、「明年今日」= 4、「U87」= 1
+function countTitle(title) {
+  if (!title) return 0
+  let count = 0
+  let inWord = false
+  for (const ch of title) {
+    const isCJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(ch)
+    const isAlphaNum = /[A-Za-z0-9]/.test(ch)
+    if (isCJK) {
+      count++
+      inWord = false
+    } else if (isAlphaNum) {
+      if (!inWord) { count++; inWord = true }
+    } else {
+      inWord = false
+    }
+  }
+  return count
+}
+
 const GRADES_EASON = [
   { min: 20, max: 20, label: () => '陳奕迅耳裏條蟲' },
   { min: 16, max: 19, label: () => '只差一點點...' },
@@ -589,7 +610,7 @@ export default function GamePage() {
                     </button>
                   ) : (
                     <span className="text-[#FFD700] text-sm font-medium">
-                      {answer.title.length} 個字
+                      {countTitle(answer.title)} 個字
                     </span>
                   )}
                 </div>
