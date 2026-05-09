@@ -370,9 +370,14 @@ export default function GamePage() {
     }
   }, [answer, isPlaying, isBuffering, secondsRevealed, guessed]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 正規化字串（比較用）：移除空格、標點、轉小寫
+  // 正規化字串（比較用）：轉小寫 + 移除所有空白、標點、特殊符號
+  // 例：「K歌之王」=「k歌之王」、「路...一直都在」=「路 一直都在」
   const normalize = (str) =>
-    (str || '').toLowerCase().replace(/[\s\u3000《》「」【】〈〉''"",.!?，。！？、]/g, '')
+    (str || '')
+      .toLowerCase()
+      .normalize('NFKC') // 全形 → 半形
+      .replace(/[\s\u3000\u00A0]/g, '') // 任何空白
+      .replace(/[\p{P}\p{S}]/gu, '') // 任何標點 + 符號（包括 ...、…、、、，。!?《》「」【】〈〉''"" 等）
 
   // 6. 用戶提交答案
   const handleSubmit = (e) => {
