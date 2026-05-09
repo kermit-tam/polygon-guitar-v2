@@ -556,13 +556,14 @@ export default function GamePage() {
         {!loading && !error && !gameOver && !levelTransition && !startLevel && songs.length > 0 && (
           <div className="w-full max-w-md flex flex-col items-center gap-5 mt-4">
             <p className="text-[#B3B3B3] text-sm">請選擇難度，每個難度設有10題</p>
-            <div className="flex flex-col gap-3 w-full">
+            <div className="flex flex-col gap-3 items-center w-full">
               {LEVELS.map(lv => (
                 <button
                   key={lv.key}
                   onClick={() => startGame(lv.key)}
-                  className="w-full px-5 py-4 rounded-xl font-bold text-center transition-all"
+                  className="px-5 py-3 rounded-xl font-bold text-center transition-all"
                   style={{
+                    minWidth: 200,
                     background: `${lv.color}15`,
                     border: `2px solid ${lv.color}`,
                     color: lv.color,
