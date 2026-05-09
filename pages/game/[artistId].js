@@ -393,14 +393,25 @@ export default function GamePage() {
     }
   }, [answer, isPlaying, isBuffering, secondsRevealed, guessed]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 正規化字串（比較用）：轉小寫 + 移除所有空白、標點、特殊符號
-  // 例：「K歌之王」=「k歌之王」、「路...一直都在」=「路 一直都在」
-  const normalize = (str) =>
-    (str || '')
-      .toLowerCase()
-      .normalize('NFKC') // 全形 → 半形
-      .replace(/[\s\u3000\u00A0]/g, '') // 任何空白
-      .replace(/[\p{P}\p{S}]/gu, '') // 任何標點 + 符號（包括 ...、…、、、，。!?《》「」【】〈〉''"" 等）
+  // 異體字對照（將不同寫法統一成同一個 canonical char）
+  // 例：「活着」=「活著」、「甚麼」=「什麼」
+  const VARIANT_MAP = {
+    '着': '著', '甚': '什', '麽': '麼', '裏': '裡', '為': '为',
+    '係': '系', '咁': '甘', '嘅': '的', '冇': '無',
+    '喺': '在', '俾': '給', '佢': '他', '哋': '們',
+    '裏': '裡', '羣': '群', '線': '綫',
+  }
+
+  // 正規化字串（比較用）：轉小寫 + 移除所有空白、標點、統一異體字
+  // 例：「K歌之王」=「k歌之王」、「活着多好」=「活著多好」
+  const normalize = (str) => {
+    let s = (str || '').toLowerCase().normalize('NFKC')
+    // 統一異體字
+    s = s.split('').map(ch => VARIANT_MAP[ch] || ch).join('')
+    return s
+      .replace(/[\s\u3000\u00A0]/g, '')
+      .replace(/[\p{P}\p{S}]/gu, '')
+  }
 
   // 6. 用戶提交答案
   const handleSubmit = (e) => {
