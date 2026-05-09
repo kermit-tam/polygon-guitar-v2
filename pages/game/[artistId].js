@@ -90,13 +90,14 @@ function getGrade(score, artistName) {
   return g ? g.label() : ''
 }
 
-// 依 level 順序建立隊列：每個 level 10 題
-function buildQueueByLevel(songs) {
+// 依 level 順序建立隊列：由 startLevel 開始，每個 level 10 題
+function buildQueueByLevel(songs, startLevel = 'easy') {
+  const startIdx = LEVELS.findIndex(l => l.key === startLevel)
+  const levelsToPlay = LEVELS.slice(startIdx >= 0 ? startIdx : 0)
   const queue = []
-  for (const lv of LEVELS) {
+  for (const lv of levelsToPlay) {
     let pool = songs.filter(s => (s.level || 'easy') === lv.key)
-    if (pool.length === 0) pool = songs // 該級冇歌就用所有歌做 fallback
-    const shuffled = shuffle(pool)
+    if (pool.length === 0) pool = songs
     const picked = []
     while (picked.length < QUESTIONS_PER_LEVEL) {
       picked.push(...shuffle(pool))
@@ -120,8 +121,9 @@ export default function GamePage() {
   const [currentQIdx, setCurrentQIdx] = useState(0)
   const [score, setScore] = useState(0)
   const [gameOver, setGameOver] = useState(false)
-  const [hintsLeft, setHintsLeft] = useState(TOTAL_HINTS) // 整個遊戲共用
-  const [levelTransition, setLevelTransition] = useState(null) // {finishedLevel, nextLevel}
+  const [hintsLeft, setHintsLeft] = useState(TOTAL_HINTS)
+  const [levelTransition, setLevelTransition] = useState(null)
+  const [startLevel, setStartLevel] = useState(null) // null = 未揀，開始畫面
 
   // 單題狀態
   const [answer, setAnswer] = useState(null)
@@ -338,12 +340,13 @@ export default function GamePage() {
   }
 
   // 3. 開始遊戲 / 重新開始
-  const startGame = useCallback((songList) => {
+  const startGame = useCallback((level = 'easy', songList) => {
     const list = songList || songs
     if (list.length < 1) return
     clearTimeout(stopTimerRef.current)
     try { playerRef.current?.pauseVideo() } catch {}
-    const q = buildQueueByLevel(list)
+    const q = buildQueueByLevel(list, level)
+    setStartLevel(level)
     setSongQueue(q)
     setCurrentQIdx(0)
     setScore(0)
@@ -364,7 +367,7 @@ export default function GamePage() {
   // 下一題
   const nextRound = useCallback(() => {
     const nextIdx = currentQIdx + 1
-    if (nextIdx >= TOTAL_QUESTIONS) {
+    if (nextIdx >= songQueue.length) {
       setGameOver(true)
       clearTimeout(stopTimerRef.current)
       try { playerRef.current?.pauseVideo() } catch {}
@@ -401,9 +404,7 @@ export default function GamePage() {
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [songQueue])
 
-  useEffect(() => {
-    if (songs.length >= 1) startGame(songs)
-  }, [songs]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 注意：唔再自動開始遊戲，等用戶喺 level 選擇畫面揀
 
   // 4. 播放按鈕（直接喺 user gesture 裡面叫 loadVideoById，iOS 有聲）
   const handlePlay = useCallback(() => {
@@ -488,6 +489,10 @@ export default function GamePage() {
     setHintsLeft(h => h - 1)
   }
 
+  // 由 startLevel 計算實際題數
+  const startLevelIdx = startLevel ? LEVELS.findIndex(l => l.key === startLevel) : 0
+  const totalQuestions = (LEVELS.length - Math.max(0, startLevelIdx)) * QUESTIONS_PER_LEVEL
+
   // 封面圖
   const getCover = (song) => {
     if (!song) return null
@@ -517,10 +522,11 @@ export default function GamePage() {
         <div className="w-full max-w-md mb-2">
           <div className="flex items-center justify-between mb-1">
             <Link href="/game" className="text-[#B3B3B3] text-sm px-1">← 返回</Link>
-            {!gameOver && !loading && answer && !levelTransition && (() => {
+            {!gameOver && !loading && answer && !levelTransition && startLevel && (() => {
               const lv = LEVELS.find(l => l.key === answer._level)
-              const lvIdx = LEVELS.findIndex(l => l.key === answer._level)
-              const qInLevel = currentQIdx - lvIdx * QUESTIONS_PER_LEVEL + 1
+              const currentLvIdx = LEVELS.findIndex(l => l.key === answer._level)
+              const offsetIdx = currentLvIdx - startLevelIdx
+              const qInLevel = currentQIdx - offsetIdx * QUESTIONS_PER_LEVEL + 1
               return (
                 <span className="text-sm pr-1 font-medium" style={{ color: lv?.color || '#B3B3B3' }}>
                   {lv?.label} {qInLevel}/{QUESTIONS_PER_LEVEL}
@@ -537,6 +543,36 @@ export default function GamePage() {
         )}
         {error && (
           <div className="text-red-400 text-center mt-20">{error}</div>
+        )}
+
+        {/* 揀難度開始畫面 */}
+        {!loading && !error && !gameOver && !levelTransition && !startLevel && songs.length > 0 && (
+          <div className="w-full max-w-md flex flex-col items-center gap-5 mt-4">
+            <p className="text-[#B3B3B3] text-sm">選擇難度開始</p>
+            <div className="flex flex-col gap-3 w-full">
+              {LEVELS.map((lv, i) => {
+                const remaining = LEVELS.length - i
+                const totalQ = remaining * QUESTIONS_PER_LEVEL
+                return (
+                  <button
+                    key={lv.key}
+                    onClick={() => startGame(lv.key)}
+                    className="w-full px-5 py-4 rounded-xl font-bold text-left flex items-center justify-between transition-all"
+                    style={{
+                      background: `${lv.color}15`,
+                      border: `2px solid ${lv.color}`,
+                      color: lv.color,
+                    }}
+                  >
+                    <span className="text-lg">{lv.label}</span>
+                    <span className="text-xs opacity-80 font-normal">
+                      共 {totalQ} 題（{remaining > 1 ? `${LEVELS.slice(i).map(l => l.label).join(' → ')}` : '只玩呢關'}）
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         )}
 
         {/* Level 過渡畫面 */}
@@ -575,23 +611,29 @@ export default function GamePage() {
                 style={{ width: 140, height: 140, borderColor: '#FFD700' }}
               >
                 <span className="text-[#FFD700] font-bold" style={{ fontSize: '2.5rem', lineHeight: 1 }}>{score}</span>
-                <span className="text-[#B3B3B3] text-sm">/ {TOTAL_QUESTIONS}</span>
+                <span className="text-[#B3B3B3] text-sm">/ {totalQuestions}</span>
               </div>
             </div>
 
-            {/* 級別 */}
+            {/* 級別（按比例計算） */}
             <div className="text-center">
-              <p className="text-white font-bold text-xl">{getGrade(score, artist?.name || '佢')}</p>
+              <p className="text-white font-bold text-xl">{getGrade(Math.round(score / totalQuestions * 30), artist?.name || '佢')}</p>
             </div>
 
             {/* 按鈕 */}
             <div className="flex flex-col gap-3 w-full">
               <button
-                onClick={() => startGame()}
+                onClick={() => startGame(startLevel)}
                 className="w-full py-3 rounded-xl font-bold text-black"
                 style={{ background: '#FFD700' }}
               >
                 再玩一次
+              </button>
+              <button
+                onClick={() => { setStartLevel(null); setGameOver(false); setAnswer(null) }}
+                className="w-full py-3 rounded-xl text-sm border border-[#282828] text-[#B3B3B3]"
+              >
+                揀其他難度
               </button>
               <Link
                 href="/game"
@@ -603,7 +645,7 @@ export default function GamePage() {
           </div>
         )}
 
-        {!loading && !error && !gameOver && !levelTransition && answer && (
+        {!loading && !error && !gameOver && !levelTransition && startLevel && answer && (
           <div className="w-full max-w-md flex flex-col gap-5">
 
             {/* 猜中前：問號；猜中後：顯示封面 */}
