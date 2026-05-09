@@ -13,6 +13,14 @@ function extractYouTubeId(url) {
   return match ? match[1] : null
 }
 
+const LEVELS = [
+  { key: 'easy', label: '入門級', color: '#22c55e' },
+  { key: 'medium', label: '難少少', color: '#f59e0b' },
+  { key: 'hell', label: '地獄級', color: '#ef4444' },
+]
+const LEVEL_LABELS = LEVELS.reduce((m, l) => ({ ...m, [l.key]: l.label }), {})
+const LEVEL_COLORS = LEVELS.reduce((m, l) => ({ ...m, [l.key]: l.color }), {})
+
 // 迷你 YouTube 預覽播放器
 function MiniPlayer({ videoId, startSecond, onUseTime }) {
   const containerRef = useRef(null)
@@ -210,7 +218,7 @@ export default function GameSettingsPage() {
     const id = `tab_${song.id}`
     setSaving(p => ({ ...p, [id]: true }))
     try {
-      const gsDoc = { title: song.title || '', artistName: selectedArtist.name, artistId: selectedArtist.artistId, youtubeUrl: song.youtubeUrl, gameStartSecond: 0, source: 'tab', tabId: song.id, enabled: true, addedAt: serverTimestamp() }
+      const gsDoc = { title: song.title || '', artistName: selectedArtist.name, artistId: selectedArtist.artistId, youtubeUrl: song.youtubeUrl, gameStartSecond: 0, source: 'tab', tabId: song.id, level: 'easy', enabled: true, addedAt: serverTimestamp() }
       await setDoc(doc(db, 'gameSongs', id), gsDoc)
       setGameSongs(p => [...p, { id, ...gsDoc }])
       setStartSeconds(p => ({ ...p, [id]: 0 })); setSongTitles(p => ({ ...p, [id]: song.title || '' }))
@@ -240,6 +248,11 @@ export default function GameSettingsPage() {
     setTimeout(() => setSavedMsg(p => ({ ...p, [id]: false })), 2000)
   }
 
+  const handleSetLevel = async (gsId, level) => {
+    await setDoc(doc(db, 'gameSongs', gsId), { level }, { merge: true })
+    setGameSongs(p => p.map(s => s.id === gsId ? { ...s, level } : s))
+  }
+
   const handleYtSearch = async (e) => {
     e.preventDefault()
     if (!ytQuery.trim()) return
@@ -261,7 +274,7 @@ export default function GameSettingsPage() {
     const gsId = `yt_${ytId}`
     setYtAddingId(ytId)
     try {
-      const gsDoc = { title: ytTitles[ytId] || video.title, artistName: selectedArtist.name, artistId: selectedArtist.artistId, youtubeUrl: `https://www.youtube.com/watch?v=${ytId}`, gameStartSecond: ytStartSeconds[ytId] ?? 0, source: 'youtube', enabled: true, addedAt: serverTimestamp() }
+      const gsDoc = { title: ytTitles[ytId] || video.title, artistName: selectedArtist.name, artistId: selectedArtist.artistId, youtubeUrl: `https://www.youtube.com/watch?v=${ytId}`, gameStartSecond: ytStartSeconds[ytId] ?? 0, source: 'youtube', level: 'easy', enabled: true, addedAt: serverTimestamp() }
       await setDoc(doc(db, 'gameSongs', gsId), gsDoc)
       setGameSongs(p => [...p, { id: gsId, ...gsDoc }])
       setStartSeconds(p => ({ ...p, [gsId]: ytStartSeconds[ytId] ?? 0 }))
@@ -398,7 +411,31 @@ export default function GameSettingsPage() {
                                 {(songTitles[song.id] || song.title) || '（點擊輸入歌名）'}
                               </p>
                             )}
-                            <p className="text-[#B3B3B3] text-xs">起始 <span className="text-[#FFD700] font-mono">{curSec}s</span>{song.source === 'youtube' && <span className="ml-1.5 text-blue-400">YT</span>}</p>
+                            <div className="flex items-center gap-1.5 text-xs flex-wrap">
+                              <span className="text-[#B3B3B3]">起始 <span className="text-[#FFD700] font-mono">{curSec}s</span></span>
+                              {song.source === 'youtube' && <span className="text-blue-400">YT</span>}
+                              {/* Level chips */}
+                              <div className="flex gap-1">
+                                {LEVELS.map(l => {
+                                  const active = (song.level || 'easy') === l.key
+                                  return (
+                                    <button
+                                      key={l.key}
+                                      onClick={e => { e.stopPropagation(); handleSetLevel(song.id, l.key) }}
+                                      className="px-1.5 py-0.5 rounded font-medium transition-all"
+                                      style={{
+                                        background: active ? l.color : 'transparent',
+                                        color: active ? '#000' : l.color,
+                                        border: `1px solid ${l.color}`,
+                                        fontSize: 10,
+                                      }}
+                                    >
+                                      {l.label}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
                           </div>
                           <input type="number" min={0} step={1} value={curSec} onChange={e => setStartSeconds(p => ({ ...p, [song.id]: Number(e.target.value) }))} className="w-14 px-2 py-1 rounded-lg bg-[#1a1a1a] text-white text-sm text-center border border-[#282828] focus:outline-none focus:border-[#FFD700]" />
                           <button onClick={() => handleSaveSecond(song.id)} disabled={saving[song.id]} className="px-2.5 py-1 rounded-lg text-xs font-bold text-black flex-shrink-0" style={{ background: savedMsg[song.id] ? '#22c55e' : '#FFD700', minWidth: 44 }}>

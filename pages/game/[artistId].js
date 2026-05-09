@@ -37,7 +37,13 @@ function shuffle(arr) {
 }
 
 const TOTAL_HINTS = 3 // 整個遊戲共 3 次提示
-const TOTAL_QUESTIONS = 20
+const QUESTIONS_PER_LEVEL = 10
+const LEVELS = [
+  { key: 'easy', label: '入門級', color: '#22c55e' },
+  { key: 'medium', label: '難少少', color: '#f59e0b' },
+  { key: 'hell', label: '地獄級', color: '#ef4444' },
+]
+const TOTAL_QUESTIONS = LEVELS.length * QUESTIONS_PER_LEVEL
 
 // 計算歌名字數：CJK 每字算1個、連續英文/數字算1個 word、忽略空白同標點
 // 例：「孤獨探戈」= 4、「Lonely Christmas」= 2、「全民K歌」= 4、「明年今日」= 4、「U87」= 1
@@ -60,20 +66,21 @@ function countTitle(title) {
   return count
 }
 
+// 30 題滿分；級別按比例分布
 const GRADES_EASON = [
-  { min: 20, max: 20, label: () => '陳奕迅耳裏條蟲' },
-  { min: 16, max: 19, label: () => '只差一點點...' },
-  { min: 11, max: 15, label: () => '繼續努力' },
-  { min: 6,  max: 10, label: () => '要睇返多啲醫生' },
-  { min: 0,  max: 5,  label: () => '我甚麼都沒有' },
+  { min: 30, max: 30, label: () => '陳奕迅耳裏條蟲' },
+  { min: 24, max: 29, label: () => '只差一點點...' },
+  { min: 16, max: 23, label: () => '繼續努力' },
+  { min: 9,  max: 15, label: () => '要睇返多啲醫生' },
+  { min: 0,  max: 8,  label: () => '我甚麼都沒有' },
 ]
 
 const GRADES_GENERIC = [
-  { min: 20, max: 20, label: () => '達人級樂迷' },
-  { min: 16, max: 19, label: () => '專業級樂迷' },
-  { min: 11, max: 15, label: () => '普通樂迷' },
-  { min: 6,  max: 10, label: () => '普通人' },
-  { min: 0,  max: 5,  label: () => '狠人' },
+  { min: 30, max: 30, label: () => '達人級樂迷' },
+  { min: 24, max: 29, label: () => '專業級樂迷' },
+  { min: 16, max: 23, label: () => '普通樂迷' },
+  { min: 9,  max: 15, label: () => '普通人' },
+  { min: 0,  max: 8,  label: () => '狠人' },
 ]
 
 function getGrade(score, artistName) {
@@ -83,15 +90,20 @@ function getGrade(score, artistName) {
   return g ? g.label() : ''
 }
 
-// 建立 N 題隊列（歌曲不夠就循環）
-function buildQueue(songs, n) {
-  if (songs.length === 0) return []
-  const q = []
-  const shuffled = shuffle([...songs])
-  while (q.length < n) {
-    q.push(...shuffle([...songs]))
+// 依 level 順序建立隊列：每個 level 10 題
+function buildQueueByLevel(songs) {
+  const queue = []
+  for (const lv of LEVELS) {
+    let pool = songs.filter(s => (s.level || 'easy') === lv.key)
+    if (pool.length === 0) pool = songs // 該級冇歌就用所有歌做 fallback
+    const shuffled = shuffle(pool)
+    const picked = []
+    while (picked.length < QUESTIONS_PER_LEVEL) {
+      picked.push(...shuffle(pool))
+    }
+    queue.push(...picked.slice(0, QUESTIONS_PER_LEVEL).map(s => ({ ...s, _level: lv.key })))
   }
-  return q.slice(0, n)
+  return queue
 }
 
 export default function GamePage() {
@@ -109,6 +121,7 @@ export default function GamePage() {
   const [score, setScore] = useState(0)
   const [gameOver, setGameOver] = useState(false)
   const [hintsLeft, setHintsLeft] = useState(TOTAL_HINTS) // 整個遊戲共用
+  const [levelTransition, setLevelTransition] = useState(null) // {finishedLevel, nextLevel}
 
   // 單題狀態
   const [answer, setAnswer] = useState(null)
@@ -330,12 +343,13 @@ export default function GamePage() {
     if (list.length < 1) return
     clearTimeout(stopTimerRef.current)
     try { playerRef.current?.pauseVideo() } catch {}
-    const q = buildQueue(list, TOTAL_QUESTIONS)
+    const q = buildQueueByLevel(list)
     setSongQueue(q)
     setCurrentQIdx(0)
     setScore(0)
     setGameOver(false)
-    setHintsLeft(TOTAL_HINTS) // 重置總提示數
+    setLevelTransition(null)
+    setHintsLeft(TOTAL_HINTS)
     setAnswer(q[0])
     setSecondsRevealed(1)
     setGuessed(false)
@@ -356,10 +370,26 @@ export default function GamePage() {
       try { playerRef.current?.pauseVideo() } catch {}
       return
     }
+    // 檢查係咪過咗一個 level
+    const currentLevel = songQueue[currentQIdx]?._level
+    const nextLevel = songQueue[nextIdx]?._level
+    if (currentLevel && nextLevel && currentLevel !== nextLevel) {
+      // 顯示 level transition 畫面
+      const finished = LEVELS.find(l => l.key === currentLevel)
+      const next = LEVELS.find(l => l.key === nextLevel)
+      setLevelTransition({ finished, next, nextIdx })
+      clearTimeout(stopTimerRef.current)
+      try { playerRef.current?.pauseVideo() } catch {}
+      return
+    }
+    advanceTo(nextIdx)
+  }, [currentQIdx, songQueue]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const advanceTo = useCallback((idx) => {
     clearTimeout(stopTimerRef.current)
     try { playerRef.current?.pauseVideo() } catch {}
-    setCurrentQIdx(nextIdx)
-    setAnswer(songQueue[nextIdx])
+    setCurrentQIdx(idx)
+    setAnswer(songQueue[idx])
     setSecondsRevealed(1)
     setGuessed(false)
     setCorrect(null)
@@ -367,8 +397,9 @@ export default function GamePage() {
     setIsPlaying(false)
     setIsBuffering(false)
     setHintUsed(false)
+    setLevelTransition(null)
     setTimeout(() => inputRef.current?.focus(), 100)
-  }, [currentQIdx, songQueue])
+  }, [songQueue])
 
   useEffect(() => {
     if (songs.length >= 1) startGame(songs)
@@ -486,9 +517,16 @@ export default function GamePage() {
         <div className="w-full max-w-md mb-2">
           <div className="flex items-center justify-between mb-1">
             <Link href="/game" className="text-[#B3B3B3] text-sm px-1">← 返回</Link>
-            {!gameOver && !loading && answer && (
-              <span className="text-[#B3B3B3] text-sm pr-1">{currentQIdx + 1} / {TOTAL_QUESTIONS}</span>
-            )}
+            {!gameOver && !loading && answer && !levelTransition && (() => {
+              const lv = LEVELS.find(l => l.key === answer._level)
+              const lvIdx = LEVELS.findIndex(l => l.key === answer._level)
+              const qInLevel = currentQIdx - lvIdx * QUESTIONS_PER_LEVEL + 1
+              return (
+                <span className="text-sm pr-1 font-medium" style={{ color: lv?.color || '#B3B3B3' }}>
+                  {lv?.label} {qInLevel}/{QUESTIONS_PER_LEVEL}
+                </span>
+              )
+            })()}
           </div>
           <img src="/game-logo.svg" alt="1秒前奏估歌仔" style={{ height: 80 }} className="mb-2 mx-auto" />
           <h1 className="text-white text-base font-medium text-center">{artist?.name || ''}</h1>
@@ -499,6 +537,32 @@ export default function GamePage() {
         )}
         {error && (
           <div className="text-red-400 text-center mt-20">{error}</div>
+        )}
+
+        {/* Level 過渡畫面 */}
+        {!loading && !error && !gameOver && levelTransition && (
+          <div className="w-full max-w-md flex flex-col items-center gap-6 mt-6">
+            <div className="text-center">
+              <p className="text-[#B3B3B3] text-sm mb-2">恭喜過關</p>
+              <p className="font-bold text-2xl" style={{ color: levelTransition.finished.color }}>
+                {levelTransition.finished.label} ✓
+              </p>
+            </div>
+            <div className="text-[#B3B3B3] text-2xl">↓</div>
+            <div className="text-center">
+              <p className="text-[#B3B3B3] text-sm mb-2">下一關</p>
+              <p className="font-bold text-3xl" style={{ color: levelTransition.next.color }}>
+                {levelTransition.next.label}
+              </p>
+            </div>
+            <button
+              onClick={() => advanceTo(levelTransition.nextIdx)}
+              className="mt-4 w-full py-3 rounded-xl font-bold text-black"
+              style={{ background: levelTransition.next.color }}
+            >
+              開始 →
+            </button>
+          </div>
         )}
 
         {/* 成績頁面 */}
@@ -539,7 +603,7 @@ export default function GamePage() {
           </div>
         )}
 
-        {!loading && !error && !gameOver && answer && (
+        {!loading && !error && !gameOver && !levelTransition && answer && (
           <div className="w-full max-w-md flex flex-col gap-5">
 
             {/* 猜中前：問號；猜中後：顯示封面 */}
