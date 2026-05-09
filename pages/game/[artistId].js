@@ -36,7 +36,7 @@ function shuffle(arr) {
   return a
 }
 
-const MAX_EXTRA = 3
+const TOTAL_HINTS = 3 // 整個遊戲共 3 次提示
 const TOTAL_QUESTIONS = 20
 
 // 計算歌名字數：CJK 每字算1個、連續英文/數字算1個 word、忽略空白同標點
@@ -108,6 +108,7 @@ export default function GamePage() {
   const [currentQIdx, setCurrentQIdx] = useState(0)
   const [score, setScore] = useState(0)
   const [gameOver, setGameOver] = useState(false)
+  const [hintsLeft, setHintsLeft] = useState(TOTAL_HINTS) // 整個遊戲共用
 
   // 單題狀態
   const [answer, setAnswer] = useState(null)
@@ -117,7 +118,7 @@ export default function GamePage() {
   const [userInput, setUserInput] = useState('')
   const [isPlaying, setIsPlaying] = useState(false)
   const [isBuffering, setIsBuffering] = useState(false)
-  const [hintUsed, setHintUsed] = useState(false)
+  const [hintUsed, setHintUsed] = useState(false) // 本題已用字數提示？
 
   const inputRef = useRef(null)
 
@@ -334,6 +335,7 @@ export default function GamePage() {
     setCurrentQIdx(0)
     setScore(0)
     setGameOver(false)
+    setHintsLeft(TOTAL_HINTS) // 重置總提示數
     setAnswer(q[0])
     setSecondsRevealed(1)
     setGuessed(false)
@@ -423,17 +425,25 @@ export default function GamePage() {
     setIsPlaying(false)
   }
 
-  // 7. 再聽多 1 秒（同樣直接喺 gesture 裡播）
+  // 7. 再聽多 1 秒（扣 1 個總提示）
   const handleMoreSeconds = () => {
-    if (secondsRevealed > MAX_EXTRA || guessed) return
+    if (guessed || hintsLeft <= 0) return
     const next = secondsRevealed + 1
     setSecondsRevealed(next)
+    setHintsLeft(h => h - 1)
     const videoId = extractYouTubeId(answer.youtubeUrl)
     if (!videoId || !playerRef.current) return
     clearTimeout(stopTimerRef.current)
     currentDurRef.current = next
     const startSecond = answer.gameStartSecond || 0
     _doPlay(videoId, startSecond)
+  }
+
+  // 字數提示（扣 1 個總提示）
+  const handleShowHint = () => {
+    if (hintUsed || hintsLeft <= 0) return
+    setHintUsed(true)
+    setHintsLeft(h => h - 1)
   }
 
   // 封面圖
@@ -446,8 +456,6 @@ export default function GamePage() {
     return null
   }
 
-  // 剩餘可以「再聽多1秒」嘅次數
-  const remainingChances = MAX_EXTRA - (secondsRevealed - 1)
 
   return (
     <Layout hideBottomNav hideFooter>
@@ -546,16 +554,16 @@ export default function GamePage() {
               )}
             </div>
 
-            {/* 3 條色條 = 剩餘再聽次數 */}
+            {/* 3 條色條 = 整個遊戲剩餘提示次數 */}
             <div className="flex gap-1.5 justify-center">
-              {Array.from({ length: MAX_EXTRA }).map((_, i) => (
+              {Array.from({ length: TOTAL_HINTS }).map((_, i) => (
                 <div
                   key={i}
                   className="h-1.5 rounded-full flex-1"
                   style={{
                     background: guessed
                       ? (correct ? '#22c55e' : '#ef4444')
-                      : i < remainingChances ? '#FFD700' : '#282828',
+                      : i < hintsLeft ? '#FFD700' : '#282828',
                     maxWidth: 48,
                   }}
                 />
@@ -592,19 +600,18 @@ export default function GamePage() {
               {/* 聽多1秒 + 字數提示（並排） */}
               {!guessed && (
                 <div className="flex items-center gap-3">
-                  {remainingChances > 0 && (
-                    <button
-                      onClick={handleMoreSeconds}
-                      disabled={isPlaying || isBuffering}
-                      className="text-[#B3B3B3] text-sm underline underline-offset-2 disabled:opacity-40"
-                    >
-                      聽多1秒
-                    </button>
-                  )}
+                  <button
+                    onClick={handleMoreSeconds}
+                    disabled={isPlaying || isBuffering || hintsLeft <= 0}
+                    className="text-[#B3B3B3] text-sm underline underline-offset-2 disabled:opacity-40 disabled:no-underline"
+                  >
+                    聽多1秒
+                  </button>
                   {!hintUsed ? (
                     <button
-                      onClick={() => setHintUsed(true)}
-                      className="text-[#B3B3B3] text-sm underline underline-offset-2"
+                      onClick={handleShowHint}
+                      disabled={hintsLeft <= 0}
+                      className="text-[#B3B3B3] text-sm underline underline-offset-2 disabled:opacity-40 disabled:no-underline"
                     >
                       字數提示
                     </button>
