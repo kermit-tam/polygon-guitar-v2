@@ -555,6 +555,14 @@ export default function GamePage() {
         {/* 揀難度開始畫面 */}
         {!loading && !error && !gameOver && !levelTransition && !startLevel && songs.length > 0 && (
           <div className="w-full max-w-md flex flex-col items-center gap-5 mt-4">
+            {/* 歌手相 */}
+            <div className="rounded-full overflow-hidden flex-shrink-0" style={{ width: 140, height: 140 }}>
+              {artist?.photo ? (
+                <img src={artist.photo} alt={artist.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-[#121212] flex items-center justify-center text-5xl">🎸</div>
+              )}
+            </div>
             <p className="text-[#B3B3B3] text-sm">請選擇難度，每個難度設有10題</p>
             <div className="flex flex-col gap-3 items-center w-full">
               {LEVELS.map(lv => (
