@@ -548,29 +548,22 @@ export default function GamePage() {
         {/* 揀難度開始畫面 */}
         {!loading && !error && !gameOver && !levelTransition && !startLevel && songs.length > 0 && (
           <div className="w-full max-w-md flex flex-col items-center gap-5 mt-4">
-            <p className="text-[#B3B3B3] text-sm">選擇難度開始</p>
+            <p className="text-[#B3B3B3] text-sm">請選擇難度，每個難度設有10題</p>
             <div className="flex flex-col gap-3 w-full">
-              {LEVELS.map((lv, i) => {
-                const remaining = LEVELS.length - i
-                const totalQ = remaining * QUESTIONS_PER_LEVEL
-                return (
-                  <button
-                    key={lv.key}
-                    onClick={() => startGame(lv.key)}
-                    className="w-full px-5 py-4 rounded-xl font-bold text-left flex items-center justify-between transition-all"
-                    style={{
-                      background: `${lv.color}15`,
-                      border: `2px solid ${lv.color}`,
-                      color: lv.color,
-                    }}
-                  >
-                    <span className="text-lg">{lv.label}</span>
-                    <span className="text-xs opacity-80 font-normal">
-                      共 {totalQ} 題（{remaining > 1 ? `${LEVELS.slice(i).map(l => l.label).join(' → ')}` : '只玩呢關'}）
-                    </span>
-                  </button>
-                )
-              })}
+              {LEVELS.map(lv => (
+                <button
+                  key={lv.key}
+                  onClick={() => startGame(lv.key)}
+                  className="w-full px-5 py-4 rounded-xl font-bold text-center transition-all"
+                  style={{
+                    background: `${lv.color}15`,
+                    border: `2px solid ${lv.color}`,
+                    color: lv.color,
+                  }}
+                >
+                  <span className="text-lg">{lv.label}</span>
+                </button>
+              ))}
             </div>
           </div>
         )}
