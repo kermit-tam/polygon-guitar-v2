@@ -389,8 +389,13 @@ export default function GameSettingsPage() {
                                 onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { setEditingTitleId(null); handleSaveSecond(song.id) } }}
                                 className="w-full px-2 py-0.5 rounded-lg bg-[#1a1a1a] text-white text-sm font-medium border border-[#FFD700] focus:outline-none" />
                             ) : (
-                              <p className="text-white text-sm font-medium truncate cursor-pointer hover:text-[#FFD700] transition-colors" onClick={() => setEditingTitleId(song.id)} title="點擊編輯歌名">
-                                {songTitles[song.id] ?? song.title}
+                              <p
+                                className="text-sm font-medium truncate cursor-pointer hover:text-[#FFD700] transition-colors"
+                                onClick={() => setEditingTitleId(song.id)}
+                                title="點擊編輯歌名"
+                                style={{ color: (songTitles[song.id] || song.title) ? '#fff' : '#666', fontStyle: (songTitles[song.id] || song.title) ? 'normal' : 'italic' }}
+                              >
+                                {(songTitles[song.id] || song.title) || '（點擊輸入歌名）'}
                               </p>
                             )}
                             <p className="text-[#B3B3B3] text-xs">起始 <span className="text-[#FFD700] font-mono">{curSec}s</span>{song.source === 'youtube' && <span className="ml-1.5 text-blue-400">YT</span>}</p>
