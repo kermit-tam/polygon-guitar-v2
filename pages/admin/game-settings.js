@@ -375,10 +375,24 @@ export default function GameSettingsPage() {
             <>
               <div className="border-t border-[#282828] mb-5" />
 
-              <div className="flex items-center gap-2 mb-4">
-                <img src={selectedArtist.photo} alt={selectedArtist.name} className="w-8 h-8 rounded-full object-cover" />
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
+                <img src={selectedArtist.photo} alt={selectedArtist.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                 <h2 className="text-white font-bold text-base">{selectedArtist.name} 的歌單</h2>
                 <span className="text-[#B3B3B3] text-sm">({gameSongs.length} 首)</span>
+                <div className="flex gap-1.5 ml-auto">
+                  {LEVELS.map(l => {
+                    const count = gameSongs.filter(s => (s.level || 'easy') === l.key).length
+                    return (
+                      <span
+                        key={l.key}
+                        className="px-2 py-0.5 rounded text-xs font-medium"
+                        style={{ background: `${l.color}22`, color: l.color, border: `1px solid ${l.color}66` }}
+                      >
+                        {l.label} {count}
+                      </span>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* 遊戲歌單 */}
