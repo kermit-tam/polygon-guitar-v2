@@ -605,7 +605,7 @@ export default function GamePage() {
                 <div className="w-full h-full bg-[#121212] flex items-center justify-center text-5xl">🎸</div>
               )}
             </div>
-            <p className="text-[#B3B3B3] text-sm">請選擇難度，每個難度設有10題</p>
+            <p className="text-[#B3B3B3] text-sm">請選擇難度，每個難度設有6題</p>
             <div className="flex flex-col gap-3 items-center w-full">
               {LEVELS.map(lv => (
                 <button
