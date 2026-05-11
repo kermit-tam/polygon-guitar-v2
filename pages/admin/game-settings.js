@@ -3,9 +3,13 @@ import Layout from '@/components/Layout'
 import AdminGuard from '@/components/AdminGuard'
 import { db } from '@/lib/firebase'
 import {
-  collection, getDocs, doc, setDoc, deleteDoc,
+  collection, getDocs, doc, setDoc, deleteDoc, updateDoc, writeBatch,
   query, where, or, serverTimestamp
 } from '@/lib/firestore-tracked'
+
+function slugify(name) {
+  return (name || '').trim().replace(/\s+/g, '-').replace(/[\\\/\?\#\&]/g, '') || 'mixed'
+}
 
 function extractYouTubeId(url) {
   if (!url) return null
@@ -169,15 +173,20 @@ export default function GameSettingsPage() {
     }
   }
 
-  // 建立雜錦歌單（可建多個，獨立 ID）
+  // 建立雜錦歌單（可建多個，獨立 ID，URL slug 由名嚟）
   const handleCreateMixed = async () => {
-    const ts = Date.now()
-    const id = `ga_mixed_${ts}`
-    const mixedArtistId = `mixed_${ts}`
     const existingMixedCount = gameArtists.filter(a => a.isMixed).length
+    const defaultName = existingMixedCount === 0 ? '雜錦歌單' : `雜錦歌單 ${existingMixedCount + 1}`
+    // 確保 slug 唯一
+    let slug = slugify(defaultName)
+    let counter = 2
+    while (gameArtists.some(a => a.artistId === slug)) {
+      slug = `${slugify(defaultName)}-${counter++}`
+    }
+    const id = `ga_mixed_${Date.now()}`
     const data = {
-      artistId: mixedArtistId,
-      name: existingMixedCount === 0 ? '雜錦歌單' : `雜錦歌單 ${existingMixedCount + 1}`,
+      artistId: slug,
+      name: defaultName,
       photo: '',
       isMixed: true,
       enabled: true,
@@ -191,17 +200,56 @@ export default function GameSettingsPage() {
   // 改名（雜錦歌單）
   const [editingNameId, setEditingNameId] = useState(null)
   const [editingNameValue, setEditingNameValue] = useState('')
+  const [renameSaving, setRenameSaving] = useState(false)
   const handleStartRename = (ga) => {
     setEditingNameId(ga.id)
     setEditingNameValue(ga.name || '')
   }
+  // 共用：執行 rename + slug sync（newName 為新名，可以等同舊名只更 slug）
+  const doRename = async (gaId, newName) => {
+    const ga = gameArtists.find(a => a.id === gaId)
+    if (!ga) return
+    let newSlug = slugify(newName)
+    const others = gameArtists.filter(a => a.id !== gaId)
+    let counter = 2
+    while (others.some(o => o.artistId === newSlug)) {
+      newSlug = `${slugify(newName)}-${counter++}`
+    }
+    const oldArtistId = ga.artistId
+    if (oldArtistId === newSlug && newName === ga.name) return
+
+    setRenameSaving(true)
+    try {
+      const batch = writeBatch(db)
+      batch.update(doc(db, 'gameArtists', gaId), { name: newName, artistId: newSlug })
+      if (oldArtistId !== newSlug) {
+        const songsSnap = await getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', oldArtistId)))
+        songsSnap.docs.forEach(d => batch.update(d.ref, { artistId: newSlug }))
+        // 清舊 sessionStorage 快取
+        try { sessionStorage.removeItem(`gameSongs_${oldArtistId}`) } catch {}
+      }
+      await batch.commit()
+
+      setGameArtists(p => p.map(a => a.id === gaId ? { ...a, name: newName, artistId: newSlug } : a))
+      if (selectedArtist?.id === gaId) setSelectedArtist(a => ({ ...a, name: newName, artistId: newSlug }))
+      setGameSongs(p => p.map(s => s.artistId === oldArtistId ? { ...s, artistId: newSlug } : s))
+    } catch (e) {
+      console.error('rename failed', e)
+      alert('改名失敗：' + (e.message || e))
+    } finally {
+      setRenameSaving(false)
+    }
+  }
+
   const handleSaveRename = async (gaId) => {
     const newName = editingNameValue.trim()
     if (!newName) { setEditingNameId(null); return }
-    await setDoc(doc(db, 'gameArtists', gaId), { name: newName }, { merge: true })
-    setGameArtists(p => p.map(a => a.id === gaId ? { ...a, name: newName } : a))
-    if (selectedArtist?.id === gaId) setSelectedArtist(a => ({ ...a, name: newName }))
+    await doRename(gaId, newName)
     setEditingNameId(null)
+  }
+
+  const handleSyncSlug = async (ga) => {
+    await doRename(ga.id, ga.name)
   }
 
   // 移除遊戲歌手
@@ -426,6 +474,7 @@ export default function GameSettingsPage() {
                         autoFocus
                         type="text"
                         value={editingNameValue}
+                        disabled={renameSaving}
                         onChange={e => setEditingNameValue(e.target.value)}
                         onClick={e => e.stopPropagation()}
                         onBlur={() => handleSaveRename(ga.id)}
@@ -434,7 +483,8 @@ export default function GameSettingsPage() {
                           if (e.key === 'Enter') handleSaveRename(ga.id)
                           if (e.key === 'Escape') setEditingNameId(null)
                         }}
-                        className="w-full px-2 py-0.5 rounded-lg bg-[#1a1a1a] text-white text-sm font-medium border border-pink-500 focus:outline-none"
+                        placeholder={renameSaving ? '儲存中…' : ''}
+                        className="w-full px-2 py-0.5 rounded-lg bg-[#1a1a1a] text-white text-sm font-medium border border-pink-500 focus:outline-none disabled:opacity-60"
                       />
                     ) : (
                       <p className="text-white text-sm font-medium flex items-center gap-1.5">
@@ -443,12 +493,26 @@ export default function GameSettingsPage() {
                           onClick={ga.isMixed ? (e => { e.stopPropagation(); handleStartRename(ga) }) : undefined}
                           title={ga.isMixed ? '點擊改名' : undefined}
                         >
-                          {ga.name}
+                          {ga.name}{ga.isMixed && <span className="ml-1 text-pink-300/60">✏️</span>}
                         </span>
                         {ga.isMixed && <span className="text-xs px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 font-normal">雜錦</span>}
                       </p>
                     )}
-                    <p className="text-[#B3B3B3] text-xs">{ga.enabled ? '啟用中' : '已停用'}</p>
+                    {ga.isMixed ? (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[#B3B3B3] text-xs font-mono truncate">/game/{ga.artistId}</span>
+                        {slugify(ga.name) !== ga.artistId && (
+                          <button
+                            onClick={e => { e.stopPropagation(); handleSyncSlug(ga) }}
+                            disabled={renameSaving}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium border border-yellow-500/50 text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20 flex-shrink-0"
+                            title="將 URL slug 同步為現時歌單名"
+                          >🔄 更新 URL</button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[#B3B3B3] text-xs">{ga.enabled ? '啟用中' : '已停用'}</p>
+                    )}
                   </div>
                   <button
                     onClick={e => { e.stopPropagation(); handleToggleArtist(ga) }}
