@@ -37,7 +37,7 @@ function shuffle(arr) {
 }
 
 const TOTAL_HINTS = 3 // 整個遊戲共 3 次提示
-const QUESTIONS_PER_LEVEL = 10
+const QUESTIONS_PER_LEVEL = 6
 const LEVELS = [
   { key: 'easy', label: '入門級', color: '#22c55e' },
   { key: 'medium', label: '難少少', color: '#f59e0b' },
@@ -66,27 +66,28 @@ function countTitle(title) {
   return count
 }
 
-// 30 題滿分；級別按比例分布
+// 級別按比例分布（用百分比，0-100）
 const GRADES_EASON = [
-  { min: 30, max: 30, label: () => '陳奕迅耳裏條蟲' },
-  { min: 24, max: 29, label: () => '只差一點點...' },
-  { min: 16, max: 23, label: () => '繼續努力' },
-  { min: 9,  max: 15, label: () => '要睇返多啲醫生' },
-  { min: 0,  max: 8,  label: () => '我甚麼都沒有' },
+  { min: 100, max: 100, label: () => '陳奕迅耳裏條蟲' },
+  { min: 80,  max: 99,  label: () => '只差一點點...' },
+  { min: 50,  max: 79,  label: () => '繼續努力' },
+  { min: 30,  max: 49,  label: () => '要睇返多啲醫生' },
+  { min: 0,   max: 29,  label: () => '我甚麼都沒有' },
 ]
 
 const GRADES_GENERIC = [
-  { min: 30, max: 30, label: () => '達人級樂迷' },
-  { min: 24, max: 29, label: () => '專業級樂迷' },
-  { min: 16, max: 23, label: () => '普通樂迷' },
-  { min: 9,  max: 15, label: () => '普通人' },
-  { min: 0,  max: 8,  label: () => '狠人' },
+  { min: 100, max: 100, label: () => '達人級樂迷' },
+  { min: 80,  max: 99,  label: () => '專業級樂迷' },
+  { min: 50,  max: 79,  label: () => '普通樂迷' },
+  { min: 30,  max: 49,  label: () => '普通人' },
+  { min: 0,   max: 29,  label: () => '狠人' },
 ]
 
-function getGrade(score, artistName) {
+function getGrade(score, total, artistName) {
+  const pct = total > 0 ? (score / total) * 100 : 0
   const isEason = (artistName || '').includes('陳奕迅')
   const grades = isEason ? GRADES_EASON : GRADES_GENERIC
-  const g = grades.find(g => score >= g.min && score <= g.max)
+  const g = grades.find(g => pct >= g.min && pct <= g.max)
   return g ? g.label() : ''
 }
 
@@ -144,6 +145,8 @@ export default function GamePage() {
   const playerReadyRef = useRef(false)  // Player 本身是否已 ready
   const pendingPlayRef = useRef(null)   // 等待 player ready 嘅播放請求
   const currentDurRef = useRef(1)       // 呢次要播幾秒
+  const levelStartScoreRef = useRef(0)  // 開始當前 level 時嘅總分（用嚟計本關得分）
+  const levelStartIdxRef = useRef(0)    // 開始當前 level 時嘅題目 index
 
   // 1. 載入資料（sessionStorage 快取 + 只查 gameSongs 一個 collection）
   useEffect(() => {
@@ -350,6 +353,8 @@ export default function GamePage() {
     setSongQueue(q)
     setCurrentQIdx(0)
     setScore(0)
+    levelStartScoreRef.current = 0
+    levelStartIdxRef.current = 0
     setGameOver(false)
     setLevelTransition(null)
     setHintsLeft(TOTAL_HINTS)
@@ -367,30 +372,34 @@ export default function GamePage() {
   // 下一題
   const nextRound = useCallback(() => {
     const nextIdx = currentQIdx + 1
-    if (nextIdx >= songQueue.length) {
-      setGameOver(true)
-      clearTimeout(stopTimerRef.current)
-      try { playerRef.current?.pauseVideo() } catch {}
-      return
-    }
-    // 檢查係咪過咗一個 level
     const currentLevel = songQueue[currentQIdx]?._level
     const nextLevel = songQueue[nextIdx]?._level
-    if (currentLevel && nextLevel && currentLevel !== nextLevel) {
-      // 顯示 level transition 畫面
+    const isLastQuestion = nextIdx >= songQueue.length
+    const isLevelEnd = isLastQuestion || (currentLevel && nextLevel && currentLevel !== nextLevel)
+
+    if (isLevelEnd) {
+      // 顯示本關成績畫面（包括最後一關）
       const finished = LEVELS.find(l => l.key === currentLevel)
-      const next = LEVELS.find(l => l.key === nextLevel)
-      setLevelTransition({ finished, next, nextIdx })
+      const next = isLastQuestion ? null : LEVELS.find(l => l.key === nextLevel)
+      const levelScore = score - levelStartScoreRef.current
+      setLevelTransition({ finished, next, nextIdx, levelScore, isLastLevel: isLastQuestion })
       clearTimeout(stopTimerRef.current)
       try { playerRef.current?.pauseVideo() } catch {}
       return
     }
     advanceTo(nextIdx)
-  }, [currentQIdx, songQueue]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentQIdx, songQueue, score]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const advanceTo = useCallback((idx) => {
     clearTimeout(stopTimerRef.current)
     try { playerRef.current?.pauseVideo() } catch {}
+    // 若 idx 係新 level 嘅第一題，記錄起點
+    const prevLevel = songQueue[idx - 1]?._level
+    const curLevel = songQueue[idx]?._level
+    if (idx === 0 || (prevLevel && curLevel && prevLevel !== curLevel)) {
+      levelStartIdxRef.current = idx
+      levelStartScoreRef.current = score
+    }
     setCurrentQIdx(idx)
     setAnswer(songQueue[idx])
     setSecondsRevealed(1)
@@ -402,7 +411,40 @@ export default function GamePage() {
     setHintUsed(false)
     setLevelTransition(null)
     setTimeout(() => inputRef.current?.focus(), 100)
-  }, [songQueue])
+  }, [songQueue, score])
+
+  // 重玩當前關（重新洗牌該 level 嘅題目）
+  const retryLevel = useCallback(() => {
+    const lvKey = songQueue[levelStartIdxRef.current]?._level
+    if (!lvKey) return
+    // 重新揀該 level 嘅 6 題
+    let pool = songs.filter(s => (s.level || 'easy') === lvKey)
+    if (pool.length === 0) pool = songs
+    const picked = []
+    while (picked.length < QUESTIONS_PER_LEVEL) {
+      picked.push(...shuffle(pool))
+    }
+    const newQs = picked.slice(0, QUESTIONS_PER_LEVEL).map(s => ({ ...s, _level: lvKey }))
+    const startIdx = levelStartIdxRef.current
+    const newQueue = [...songQueue]
+    for (let i = 0; i < QUESTIONS_PER_LEVEL; i++) newQueue[startIdx + i] = newQs[i]
+    setSongQueue(newQueue)
+    // 重置分數同 idx 返到本關開頭
+    setScore(levelStartScoreRef.current)
+    setCurrentQIdx(startIdx)
+    setAnswer(newQs[0])
+    setSecondsRevealed(1)
+    setGuessed(false)
+    setCorrect(null)
+    setUserInput('')
+    setIsPlaying(false)
+    setIsBuffering(false)
+    setHintUsed(false)
+    setLevelTransition(null)
+    clearTimeout(stopTimerRef.current)
+    try { playerRef.current?.pauseVideo() } catch {}
+    setTimeout(() => inputRef.current?.focus(), 100)
+  }, [songQueue, songs])
 
   // 注意：唔再自動開始遊戲，等用戶喺 level 選擇畫面揀
 
@@ -584,29 +626,50 @@ export default function GamePage() {
           </div>
         )}
 
-        {/* Level 過渡畫面 */}
+        {/* 本關成績畫面 */}
         {!loading && !error && !gameOver && levelTransition && (
           <div className="w-full max-w-md flex flex-col items-center gap-6 mt-6">
-            <div className="text-center">
-              <p className="text-[#B3B3B3] text-sm mb-2">恭喜過關</p>
-              <p className="font-bold text-2xl" style={{ color: levelTransition.finished.color }}>
-                {levelTransition.finished.label} ✓
-              </p>
-            </div>
-            <div className="text-[#B3B3B3] text-2xl">↓</div>
-            <div className="text-center">
-              <p className="text-[#B3B3B3] text-sm mb-2">下一關</p>
-              <p className="font-bold text-3xl" style={{ color: levelTransition.next.color }}>
-                {levelTransition.next.label}
-              </p>
-            </div>
-            <button
-              onClick={() => advanceTo(levelTransition.nextIdx)}
-              className="mt-4 w-full py-3 rounded-xl font-bold text-black"
-              style={{ background: levelTransition.next.color }}
+            {/* 本關級別 */}
+            <p className="font-bold text-2xl" style={{ color: levelTransition.finished.color }}>
+              {levelTransition.finished.label}
+            </p>
+
+            {/* 本關得分圓圈 */}
+            <div
+              className="flex flex-col items-center justify-center rounded-full border-4"
+              style={{ width: 140, height: 140, borderColor: levelTransition.finished.color }}
             >
-              開始 →
-            </button>
+              <span className="font-bold" style={{ fontSize: '2.5rem', lineHeight: 1, color: levelTransition.finished.color }}>{levelTransition.levelScore}</span>
+              <span className="text-[#B3B3B3] text-sm">/ {QUESTIONS_PER_LEVEL}</span>
+            </div>
+
+            {/* 按鈕 */}
+            <div className="flex flex-col gap-3 w-full">
+              <button
+                onClick={retryLevel}
+                className="w-full py-3 rounded-xl text-sm border text-white font-medium"
+                style={{ borderColor: levelTransition.finished.color, background: `${levelTransition.finished.color}15` }}
+              >
+                🔄 重新挑戰
+              </button>
+              {levelTransition.isLastLevel ? (
+                <button
+                  onClick={() => { setGameOver(true); setLevelTransition(null) }}
+                  className="w-full py-3 rounded-xl font-bold text-black"
+                  style={{ background: '#FFD700' }}
+                >
+                  睇總成績 →
+                </button>
+              ) : (
+                <button
+                  onClick={() => advanceTo(levelTransition.nextIdx)}
+                  className="w-full py-3 rounded-xl font-bold text-black"
+                  style={{ background: levelTransition.next?.color || '#FFD700' }}
+                >
+                  去下一關（{levelTransition.next?.label}） →
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -626,7 +689,7 @@ export default function GamePage() {
 
             {/* 級別（按比例計算） */}
             <div className="text-center">
-              <p className="text-white font-bold text-xl">{getGrade(Math.round(score / totalQuestions * 30), artist?.name || '佢')}</p>
+              <p className="text-white font-bold text-xl">{getGrade(score, totalQuestions, artist?.name || '佢')}</p>
             </div>
 
             {/* 按鈕 */}
