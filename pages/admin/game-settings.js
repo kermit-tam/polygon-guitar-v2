@@ -82,6 +82,10 @@ export default function GameSettingsPage() {
   // ── 選中歌手（管理歌單）──
   const [selectedArtist, setSelectedArtist] = useState(null)
 
+  // ── 雜錦模式：當前喺「從網站樂譜選歌」入面揀緊邊個歌手嘅歌
+  const [mixedTabArtist, setMixedTabArtist] = useState(null) // {id, name, photo}
+  const [mixedArtistSearch, setMixedArtistSearch] = useState('')
+
   // ── 歌單管理 ──
   const [tab, setTab] = useState('songs')
   const [loading, setLoading] = useState(true)
@@ -165,6 +169,41 @@ export default function GameSettingsPage() {
     }
   }
 
+  // 建立雜錦歌單（可建多個，獨立 ID）
+  const handleCreateMixed = async () => {
+    const ts = Date.now()
+    const id = `ga_mixed_${ts}`
+    const mixedArtistId = `mixed_${ts}`
+    const existingMixedCount = gameArtists.filter(a => a.isMixed).length
+    const data = {
+      artistId: mixedArtistId,
+      name: existingMixedCount === 0 ? '雜錦歌單' : `雜錦歌單 ${existingMixedCount + 1}`,
+      photo: '',
+      isMixed: true,
+      enabled: true,
+      displayOrder: gameArtists.length,
+      addedAt: serverTimestamp(),
+    }
+    await setDoc(doc(db, 'gameArtists', id), data)
+    setGameArtists(p => [...p, { id, ...data }])
+  }
+
+  // 改名（雜錦歌單）
+  const [editingNameId, setEditingNameId] = useState(null)
+  const [editingNameValue, setEditingNameValue] = useState('')
+  const handleStartRename = (ga) => {
+    setEditingNameId(ga.id)
+    setEditingNameValue(ga.name || '')
+  }
+  const handleSaveRename = async (gaId) => {
+    const newName = editingNameValue.trim()
+    if (!newName) { setEditingNameId(null); return }
+    await setDoc(doc(db, 'gameArtists', gaId), { name: newName }, { merge: true })
+    setGameArtists(p => p.map(a => a.id === gaId ? { ...a, name: newName } : a))
+    if (selectedArtist?.id === gaId) setSelectedArtist(a => ({ ...a, name: newName }))
+    setEditingNameId(null)
+  }
+
   // 移除遊戲歌手
   const handleRemoveArtist = async (gaId) => {
     if (!confirm('確定移除？')) return
@@ -184,6 +223,8 @@ export default function GameSettingsPage() {
     setSelectedArtist(ga)
     setGameSongs([])
     setAllTabs([])
+    setMixedTabArtist(null)
+    setMixedArtistSearch('')
     setTab('songs')
     setLoading(true)
     try {
@@ -195,6 +236,12 @@ export default function GameSettingsPage() {
       const init = {}; const initT = {}
       gs.forEach(s => { init[s.id] = s.gameStartSecond ?? 0; initT[s.id] = s.title || '' })
       setStartSeconds(init); setSongTitles(initT)
+
+      // 雜錦模式唔自動載 tabs（等用戶搜尋歌手）
+      if (ga.isMixed) {
+        setLoading(false)
+        return
+      }
 
       // tabs
       const aSnap = await getDocs(collection(db, 'artists'))
@@ -211,14 +258,50 @@ export default function GameSettingsPage() {
     }
   }
 
+  // 雜錦模式：揀某個歌手後載入該歌手嘅 tabs
+  const handlePickMixedArtist = async (a) => {
+    setMixedTabArtist(a)
+    setMixedArtistSearch('')
+    setAllTabs([])
+    setLoading(true)
+    try {
+      const conditions = [where('artistId', '==', a.id), where('artistIds', 'array-contains', a.id)]
+      const tabsSnap = await getDocs(query(collection(db, 'tabs'), or(...conditions)))
+      const tabs = tabsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.youtubeUrl && extractYouTubeId(s.youtubeUrl))
+      const seen = new Set()
+      setAllTabs(tabs.filter(s => { const k = s.title?.trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+        .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-Hant')))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const gameSongIds = new Set(gameSongs.map(s => s.tabId).filter(Boolean))
   const gameSongYtIds = new Set(gameSongs.map(s => extractYouTubeId(s.youtubeUrl)).filter(Boolean))
 
   const handleAddTab = async (song) => {
-    const id = `tab_${song.id}`
+    const isMixed = selectedArtist.isMixed
+    // 雜錦模式：同一首歌可能加多次，所以 id 加埋當前歌手做區分
+    const id = isMixed ? `tab_mixed_${song.id}` : `tab_${song.id}`
     setSaving(p => ({ ...p, [id]: true }))
     try {
-      const gsDoc = { title: song.title || '', artistName: selectedArtist.name, artistId: selectedArtist.artistId, youtubeUrl: song.youtubeUrl, gameStartSecond: 0, source: 'tab', tabId: song.id, level: 'easy', enabled: true, addedAt: serverTimestamp() }
+      const gsDoc = {
+        title: song.title || '',
+        artistName: isMixed ? (mixedTabArtist?.name || song.artistName || '') : selectedArtist.name,
+        artistId: selectedArtist.artistId,
+        youtubeUrl: song.youtubeUrl,
+        gameStartSecond: 0,
+        source: 'tab',
+        tabId: song.id,
+        level: 'easy',
+        enabled: true,
+        addedAt: serverTimestamp(),
+        ...(isMixed && {
+          originalArtistId: mixedTabArtist?.id || '',
+          originalArtistName: mixedTabArtist?.name || '',
+          originalArtistPhoto: mixedTabArtist?.photoURL || mixedTabArtist?.wikiPhotoURL || '',
+        }),
+      }
       await setDoc(doc(db, 'gameSongs', id), gsDoc)
       setGameSongs(p => [...p, { id, ...gsDoc }])
       setStartSeconds(p => ({ ...p, [id]: 0 })); setSongTitles(p => ({ ...p, [id]: song.title || '' }))
@@ -274,7 +357,23 @@ export default function GameSettingsPage() {
     const gsId = `yt_${ytId}`
     setYtAddingId(ytId)
     try {
-      const gsDoc = { title: ytTitles[ytId] || video.title, artistName: selectedArtist.name, artistId: selectedArtist.artistId, youtubeUrl: `https://www.youtube.com/watch?v=${ytId}`, gameStartSecond: ytStartSeconds[ytId] ?? 0, source: 'youtube', level: 'easy', enabled: true, addedAt: serverTimestamp() }
+      const isMixed = selectedArtist.isMixed
+      const gsDoc = {
+        title: ytTitles[ytId] || video.title,
+        artistName: isMixed ? (mixedTabArtist?.name || '') : selectedArtist.name,
+        artistId: selectedArtist.artistId,
+        youtubeUrl: `https://www.youtube.com/watch?v=${ytId}`,
+        gameStartSecond: ytStartSeconds[ytId] ?? 0,
+        source: 'youtube',
+        level: 'easy',
+        enabled: true,
+        addedAt: serverTimestamp(),
+        ...(isMixed && {
+          originalArtistId: mixedTabArtist?.id || '',
+          originalArtistName: mixedTabArtist?.name || '',
+          originalArtistPhoto: mixedTabArtist?.photoURL || mixedTabArtist?.wikiPhotoURL || '',
+        }),
+      }
       await setDoc(doc(db, 'gameSongs', gsId), gsDoc)
       setGameSongs(p => [...p, { id: gsId, ...gsDoc }])
       setStartSeconds(p => ({ ...p, [gsId]: ytStartSeconds[ytId] ?? 0 }))
@@ -314,13 +413,41 @@ export default function GameSettingsPage() {
                   }}
                   onClick={() => handleSelectArtist(ga)}
                 >
-                  {ga.photo ? (
+                  {ga.isMixed ? (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-lg flex-shrink-0">🎵</div>
+                  ) : ga.photo ? (
                     <img src={ga.photo} alt={ga.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-[#282828] flex items-center justify-center text-lg flex-shrink-0">🎸</div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium">{ga.name}</p>
+                    {editingNameId === ga.id ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        value={editingNameValue}
+                        onChange={e => setEditingNameValue(e.target.value)}
+                        onClick={e => e.stopPropagation()}
+                        onBlur={() => handleSaveRename(ga.id)}
+                        onKeyDown={e => {
+                          e.stopPropagation()
+                          if (e.key === 'Enter') handleSaveRename(ga.id)
+                          if (e.key === 'Escape') setEditingNameId(null)
+                        }}
+                        className="w-full px-2 py-0.5 rounded-lg bg-[#1a1a1a] text-white text-sm font-medium border border-pink-500 focus:outline-none"
+                      />
+                    ) : (
+                      <p className="text-white text-sm font-medium flex items-center gap-1.5">
+                        <span
+                          className={ga.isMixed ? 'cursor-text hover:text-pink-300' : ''}
+                          onClick={ga.isMixed ? (e => { e.stopPropagation(); handleStartRename(ga) }) : undefined}
+                          title={ga.isMixed ? '點擊改名' : undefined}
+                        >
+                          {ga.name}
+                        </span>
+                        {ga.isMixed && <span className="text-xs px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 font-normal">雜錦</span>}
+                      </p>
+                    )}
                     <p className="text-[#B3B3B3] text-xs">{ga.enabled ? '啟用中' : '已停用'}</p>
                   </div>
                   <button
@@ -337,6 +464,14 @@ export default function GameSettingsPage() {
                 </div>
               ))}
             </div>
+
+            {/* 建立雜錦歌單按鈕（可建多個） */}
+            <button
+              onClick={handleCreateMixed}
+              className="w-full mb-2 px-4 py-2 rounded-xl text-sm font-medium border border-pink-500/50 text-pink-300 bg-pink-500/10 hover:bg-pink-500/20 transition-colors"
+            >
+              🎵 + 建立雜錦歌單
+            </button>
 
             {/* 搜尋加入歌手 */}
             <div className="relative">
@@ -422,6 +557,9 @@ export default function GameSettingsPage() {
                                 title="點擊編輯歌名"
                                 style={{ color: (songTitles[song.id] || song.title) ? '#fff' : '#666', fontStyle: (songTitles[song.id] || song.title) ? 'normal' : 'italic' }}
                               >
+                                {selectedArtist?.isMixed && song.originalArtistName && (
+                                  <span className="text-pink-300 mr-1">[{song.originalArtistName}]</span>
+                                )}
                                 {(songTitles[song.id] || song.title) || '（點擊輸入歌名）'}
                               </p>
                             )}
@@ -484,38 +622,123 @@ export default function GameSettingsPage() {
               {/* 從網站樂譜選歌 */}
               {tab === 'songs' && (
                 <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <input type="text" placeholder="搜尋歌名..." value={tabSearch} onChange={e => setTabSearch(e.target.value)}
-                      className="flex-1 px-4 py-2 rounded-xl bg-[#121212] text-white border border-[#282828] text-sm focus:outline-none focus:border-[#FFD700]" />
-                    {!loading && <span className="text-[#B3B3B3] text-xs flex-shrink-0">共 {allTabs.length} 首</span>}
-                  </div>
-                  {loading && <p className="text-[#B3B3B3] text-sm text-center py-6">載入中...</p>}
-                  <div className="flex flex-col gap-2">
-                    {filteredTabs.map(song => {
-                      const inGame = gameSongIds.has(song.id)
-                      const videoId = extractYouTubeId(song.youtubeUrl)
-                      return (
-                        <div key={song.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border" style={{ background: inGame ? '#0d1f0d' : '#121212', borderColor: inGame ? '#22c55e' : '#282828' }}>
-                          <img src={`https://img.youtube.com/vi/${videoId}/default.jpg`} alt={song.title} className="w-9 h-9 rounded object-cover flex-shrink-0" />
-                          <p className="flex-1 text-sm text-white truncate">{song.title}</p>
-                          {inGame ? <span className="text-green-400 text-xs font-medium flex-shrink-0">✓ 已加入</span> : (
-                            <button onClick={() => handleAddTab(song)} disabled={saving[`tab_${song.id}`]} className="px-3 py-1 rounded-lg text-xs font-bold text-black flex-shrink-0" style={{ background: '#FFD700' }}>
-                              {saving[`tab_${song.id}`] ? '...' : '+ 加入'}
-                            </button>
+                  {/* 雜錦模式：先揀歌手 */}
+                  {selectedArtist.isMixed && (
+                    <div className="mb-3">
+                      {mixedTabArtist ? (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-pink-500/10 border border-pink-500/50">
+                          {(mixedTabArtist.photoURL || mixedTabArtist.wikiPhotoURL) ? (
+                            <img src={mixedTabArtist.photoURL || mixedTabArtist.wikiPhotoURL} alt={mixedTabArtist.name} className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-[#282828]" />
+                          )}
+                          <span className="flex-1 text-white text-sm">揀緊：<span className="font-bold">{mixedTabArtist.name}</span></span>
+                          <button onClick={() => { setMixedTabArtist(null); setAllTabs([]) }} className="px-2 py-1 rounded text-xs text-pink-300 border border-pink-500/50">換歌手</button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="搜尋歌手然後揀..."
+                            value={mixedArtistSearch}
+                            onChange={e => setMixedArtistSearch(e.target.value)}
+                            className="w-full px-4 py-2 rounded-xl bg-[#121212] text-white border border-pink-500/30 text-sm focus:outline-none focus:border-pink-500"
+                          />
+                          {mixedArtistSearch.trim() && (
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-[#1a1a1a] border border-[#282828] rounded-xl overflow-hidden z-10 max-h-60 overflow-y-auto">
+                              {allArtists.filter(a => a.name?.toLowerCase().includes(mixedArtistSearch.toLowerCase())).slice(0, 8).map(a => (
+                                <button key={a.id} onClick={() => handlePickMixedArtist(a)} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#282828] text-left">
+                                  {(a.photoURL || a.wikiPhotoURL) ? (
+                                    <img src={a.photoURL || a.wikiPhotoURL} alt={a.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-[#282828] flex-shrink-0" />
+                                  )}
+                                  <span className="text-white text-sm">{a.name}</span>
+                                </button>
+                              ))}
+                            </div>
                           )}
                         </div>
-                      )
-                    })}
-                    {filteredTabs.length === 0 && !loading && <p className="text-[#B3B3B3] text-sm text-center py-6">{tabSearch ? '找不到相關歌曲' : '未找到有 YouTube 連結的歌曲'}</p>}
-                  </div>
+                      )}
+                    </div>
+                  )}
+
+                  {(!selectedArtist.isMixed || mixedTabArtist) && (
+                    <>
+                      <div className="flex items-center gap-2 mb-3">
+                        <input type="text" placeholder="搜尋歌名..." value={tabSearch} onChange={e => setTabSearch(e.target.value)}
+                          className="flex-1 px-4 py-2 rounded-xl bg-[#121212] text-white border border-[#282828] text-sm focus:outline-none focus:border-[#FFD700]" />
+                        {!loading && <span className="text-[#B3B3B3] text-xs flex-shrink-0">共 {allTabs.length} 首</span>}
+                      </div>
+                      {loading && <p className="text-[#B3B3B3] text-sm text-center py-6">載入中...</p>}
+                      <div className="flex flex-col gap-2">
+                        {filteredTabs.map(song => {
+                          const inGameKey = selectedArtist.isMixed ? `tab_mixed_${song.id}` : `tab_${song.id}`
+                          const inGame = gameSongs.some(g => g.id === inGameKey)
+                          const videoId = extractYouTubeId(song.youtubeUrl)
+                          return (
+                            <div key={song.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border" style={{ background: inGame ? '#0d1f0d' : '#121212', borderColor: inGame ? '#22c55e' : '#282828' }}>
+                              <img src={`https://img.youtube.com/vi/${videoId}/default.jpg`} alt={song.title} className="w-9 h-9 rounded object-cover flex-shrink-0" />
+                              <p className="flex-1 text-sm text-white truncate">{song.title}</p>
+                              {inGame ? <span className="text-green-400 text-xs font-medium flex-shrink-0">✓ 已加入</span> : (
+                                <button onClick={() => handleAddTab(song)} disabled={saving[inGameKey]} className="px-3 py-1 rounded-lg text-xs font-bold text-black flex-shrink-0" style={{ background: '#FFD700' }}>
+                                  {saving[inGameKey] ? '...' : '+ 加入'}
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
+                        {filteredTabs.length === 0 && !loading && <p className="text-[#B3B3B3] text-sm text-center py-6">{tabSearch ? '找不到相關歌曲' : '未找到有 YouTube 連結的歌曲'}</p>}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
               {/* YouTube 搜尋 */}
               {tab === 'youtube' && (
                 <div>
+                  {selectedArtist.isMixed && (
+                    <div className="mb-3">
+                      {mixedTabArtist ? (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-pink-500/10 border border-pink-500/50">
+                          {(mixedTabArtist.photoURL || mixedTabArtist.wikiPhotoURL) ? (
+                            <img src={mixedTabArtist.photoURL || mixedTabArtist.wikiPhotoURL} alt={mixedTabArtist.name} className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-[#282828]" />
+                          )}
+                          <span className="flex-1 text-white text-sm">將加入：<span className="font-bold">{mixedTabArtist.name}</span> 嘅歌</span>
+                          <button onClick={() => setMixedTabArtist(null)} className="px-2 py-1 rounded text-xs text-pink-300 border border-pink-500/50">換歌手</button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="先揀歌手（將會記錄為原本歌手）..."
+                            value={mixedArtistSearch}
+                            onChange={e => setMixedArtistSearch(e.target.value)}
+                            className="w-full px-4 py-2 rounded-xl bg-[#121212] text-white border border-pink-500/30 text-sm focus:outline-none focus:border-pink-500"
+                          />
+                          {mixedArtistSearch.trim() && (
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-[#1a1a1a] border border-[#282828] rounded-xl overflow-hidden z-10 max-h-60 overflow-y-auto">
+                              {allArtists.filter(a => a.name?.toLowerCase().includes(mixedArtistSearch.toLowerCase())).slice(0, 8).map(a => (
+                                <button key={a.id} onClick={() => { setMixedTabArtist(a); setMixedArtistSearch('') }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#282828] text-left">
+                                  {(a.photoURL || a.wikiPhotoURL) ? (
+                                    <img src={a.photoURL || a.wikiPhotoURL} alt={a.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-[#282828] flex-shrink-0" />
+                                  )}
+                                  <span className="text-white text-sm">{a.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <form onSubmit={handleYtSearch} className="flex gap-2 mb-4">
-                    <input type="text" placeholder={`搜尋 YouTube，例如：${selectedArtist.name}`} value={ytQuery} onChange={e => setYtQuery(e.target.value)}
+                    <input type="text" placeholder={`搜尋 YouTube${selectedArtist.isMixed ? '' : `，例如：${selectedArtist.name}`}`} value={ytQuery} onChange={e => setYtQuery(e.target.value)}
                       className="flex-1 px-4 py-2 rounded-xl bg-[#121212] text-white border border-[#282828] text-sm focus:outline-none focus:border-[#FFD700]" />
                     <button type="submit" disabled={ytSearching} className="px-4 py-2 rounded-xl text-sm font-bold text-black flex-shrink-0" style={{ background: '#FFD700' }}>
                       {ytSearching ? '...' : '搜尋'}

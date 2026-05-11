@@ -85,7 +85,6 @@ export default function GameHomePage() {
         {/* Logo */}
         <div className="pt-10 pb-6 flex flex-col items-center">
           <img src="/game-logo.svg" alt="1秒前奏估歌仔" style={{ height: 80 }} />
-          <p className="text-[#B3B3B3] text-sm mt-3">選擇歌手開始遊戲</p>
         </div>
 
         {loading && (
@@ -112,7 +111,9 @@ export default function GameHomePage() {
                 className="rounded-full overflow-hidden border-2 border-transparent group-active:border-[#FFD700] transition-all"
                 style={{ width: 100, height: 100 }}
               >
-                {artist.photo ? (
+                {artist.isMixed ? (
+                  <div className="w-full h-full flex items-center justify-center text-4xl" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>🎵</div>
+                ) : artist.photo ? (
                   <img
                     src={artist.photo}
                     alt={artist.name}

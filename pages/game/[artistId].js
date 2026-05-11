@@ -164,12 +164,42 @@ export default function GamePage() {
       }
     } catch {}
 
+    const SONG_CACHE_KEY = `gameSongs_${artistId}`
+
+    // 背景補 originalArtistPhoto（雜錦模式專用）
+    const backfillPhotos = (songsList) => {
+      const looksMixed = artistId === 'mixed' || String(artistId).startsWith('mixed_')
+      if (!looksMixed) return
+      const missing = [...new Set(songsList.filter(s => s.originalArtistId && !s.originalArtistPhoto).map(s => s.originalArtistId))]
+      if (missing.length === 0) return
+      Promise.all(missing.map(id => getArtistByIdOrSlug(id).catch(() => null)))
+        .then(results => {
+          const photoMap = {}
+          results.forEach((r, i) => { if (r?.photo) photoMap[missing[i]] = r.photo })
+          if (Object.keys(photoMap).length === 0) return
+          const patch = s => (s.originalArtistId && !s.originalArtistPhoto && photoMap[s.originalArtistId])
+            ? { ...s, originalArtistPhoto: photoMap[s.originalArtistId] } : s
+          setSongs(prev => prev.map(patch))
+          setSongQueue(q => q.map(patch))
+          setAnswer(a => a ? patch(a) : a)
+          try {
+            const sc = sessionStorage.getItem(SONG_CACHE_KEY)
+            if (sc) {
+              const parsed = JSON.parse(sc)
+              sessionStorage.setItem(SONG_CACHE_KEY, JSON.stringify({
+                ...parsed,
+                songs: (parsed.songs || []).map(patch),
+              }))
+            }
+          } catch {}
+        })
+    }
+
     async function loadSongs() {
       try {
         setLoading(true)
 
         // 嘗試讀 gameSongs 快取（10分鐘有效）
-        const SONG_CACHE_KEY = `gameSongs_${artistId}`
         const CACHE_TTL = 10 * 60 * 1000
         try {
           const sc = sessionStorage.getItem(SONG_CACHE_KEY)
@@ -182,7 +212,9 @@ export default function GamePage() {
               setArtist(a => ({
                 name: a?.name || cacheParsed.artistName || cachedSongs[0]?.artistName || '',
                 photo: a?.photo || cacheParsed.artistPhoto || '',
+                isMixed: a?.isMixed || cacheParsed.isMixed || artistId === 'mixed' || String(artistId).startsWith('mixed_'),
               }))
+              backfillPhotos(cachedSongs)
               setLoading(false)
               return
             }
@@ -199,6 +231,7 @@ export default function GamePage() {
         setArtist(a => ({
           name: a?.name || all[0]?.artistName || '',
           photo: a?.photo || '',
+          isMixed: a?.isMixed || artistId === 'mixed' || String(artistId).startsWith('mixed_'),
         }))
 
         // 寫入 sessionStorage 快取
@@ -207,18 +240,22 @@ export default function GamePage() {
         } catch {}
 
         setSongs(all)
+        backfillPhotos(all)
 
         // 並行背景查 gameArtists（取全名，例如「陳奕迅 Eason Chan」）+ artists（取相片）
+        const looksMixed = artistId === 'mixed' || String(artistId).startsWith('mixed_')
         Promise.all([
           getDocs(query(collection(db, 'gameArtists'), where('artistId', '==', artistId))).catch(() => null),
-          getArtistByIdOrSlug(artistId).catch(() => null),
+          looksMixed ? Promise.resolve(null) : getArtistByIdOrSlug(artistId).catch(() => null),
         ]).then(([gaSnap, artistData]) => {
           const gameArtistDoc = gaSnap?.docs?.[0]?.data()
-          const fullName = gameArtistDoc?.name // 「陳奕迅 Eason Chan」
+          const fullName = gameArtistDoc?.name
           const photo = gameArtistDoc?.photo || artistData?.photo || ''
+          const isMixed = !!gameArtistDoc?.isMixed || looksMixed
           setArtist(a => ({
             name: fullName || a?.name || '',
             photo: photo || a?.photo || '',
+            isMixed,
           }))
           // 存埋落 sessionStorage 快取
           try {
@@ -229,6 +266,7 @@ export default function GamePage() {
                 ...parsed,
                 artistName: fullName || parsed.artistName,
                 artistPhoto: photo || parsed.artistPhoto,
+                isMixed,
               }))
             }
           } catch {}
@@ -599,12 +637,17 @@ export default function GamePage() {
           <div className="w-full max-w-md flex flex-col items-center gap-5 mt-4">
             {/* 歌手相 */}
             <div className="rounded-full overflow-hidden flex-shrink-0" style={{ width: 140, height: 140 }}>
-              {artist?.photo ? (
+              {artist?.isMixed ? (
+                <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>🎵</div>
+              ) : artist?.photo ? (
                 <img src={artist.photo} alt={artist.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full bg-[#121212] flex items-center justify-center text-5xl">🎸</div>
               )}
             </div>
+            {artist?.isMixed && (
+              <p className="text-white text-lg font-bold">{artist.name}</p>
+            )}
             <p className="text-[#B3B3B3] text-sm">請選擇難度，每個難度設有6題</p>
             <div className="flex flex-col gap-3 items-center w-full">
               {LEVELS.map(lv => (
@@ -730,7 +773,15 @@ export default function GamePage() {
                 />
               ) : (
                 <div className="w-full h-full rounded-full overflow-hidden">
-                  {artist?.photo ? (
+                  {artist?.isMixed && answer?.originalArtistPhoto ? (
+                    <img
+                      src={answer.originalArtistPhoto}
+                      alt={answer.originalArtistName || ''}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : artist?.isMixed ? (
+                    <div className="w-full h-full flex items-center justify-center text-6xl" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>🎵</div>
+                  ) : artist?.photo ? (
                     <img
                       src={artist.photo}
                       alt={artist.name}
@@ -857,6 +908,9 @@ export default function GamePage() {
                   {correct
                     ? `🎉 答啱喇！《${answer.title}》`
                     : `😅 答案係《${answer.title}》`}
+                  {artist?.isMixed && answer.originalArtistName && (
+                    <div className="text-xs mt-1 opacity-80">— {answer.originalArtistName}</div>
+                  )}
                 </div>
                 {/* 下一題 / 睇成績 */}
                 <button
