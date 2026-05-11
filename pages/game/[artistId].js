@@ -91,6 +91,35 @@ function getGrade(score, total, artistName) {
   return g ? g.label() : ''
 }
 
+// 雜錦模式嘅 avatar：有相用相，圖出錯或冇相時改為顯示歌手名（仍係 hint）
+function MixedArtistAvatar({ photo, name }) {
+  const [failed, setFailed] = useState(false)
+  if (photo && !failed) {
+    return (
+      <img
+        src={photo}
+        alt={name || ''}
+        className="w-full h-full object-cover"
+        onError={() => setFailed(true)}
+      />
+    )
+  }
+  // 文字 avatar：保留歌手名作為 hint
+  return (
+    <div
+      className="w-full h-full flex items-center justify-center text-center font-bold text-white px-3"
+      style={{
+        background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+        fontSize: name && name.length > 6 ? '1.1rem' : '1.5rem',
+        lineHeight: 1.2,
+        wordBreak: 'break-word',
+      }}
+    >
+      {name || '🎵'}
+    </div>
+  )
+}
+
 // 依 level 順序建立隊列：由 startLevel 開始，每個 level 10 題
 function buildQueueByLevel(songs, startLevel = 'easy') {
   const startIdx = LEVELS.findIndex(l => l.key === startLevel)
@@ -166,19 +195,40 @@ export default function GamePage() {
 
     const SONG_CACHE_KEY = `gameSongs_${artistId}`
 
-    // 背景補 originalArtistPhoto（雜錦模式專用）
+    // 背景補 originalArtistPhoto（雜錦模式專用）— 先用 id 查，唔到再用名查
     const backfillPhotos = (songsList) => {
-      const looksMixed = artistId === 'mixed' || String(artistId).startsWith('mixed_')
+      const looksMixed = artist?.isMixed || artistId === 'mixed' || String(artistId).startsWith('mixed_') || songsList.some(s => s.originalArtistId || s.originalArtistName)
       if (!looksMixed) return
-      const missing = [...new Set(songsList.filter(s => s.originalArtistId && !s.originalArtistPhoto).map(s => s.originalArtistId))]
-      if (missing.length === 0) return
-      Promise.all(missing.map(id => getArtistByIdOrSlug(id).catch(() => null)))
+      const missingSongs = songsList.filter(s => (s.originalArtistId || s.originalArtistName) && !s.originalArtistPhoto)
+      if (missingSongs.length === 0) return
+
+      const lookupOne = async (s) => {
+        let photo = null
+        if (s.originalArtistId) {
+          const a = await getArtistByIdOrSlug(s.originalArtistId).catch(() => null)
+          photo = a?.photo || null
+        }
+        if (!photo && s.originalArtistName) {
+          const snap = await getDocs(query(collection(db, 'artists'), where('name', '==', s.originalArtistName))).catch(() => null)
+          const d = snap?.docs?.[0]
+          if (d) {
+            const data = d.data()
+            photo = data.photoURL || data.wikiPhotoURL || data.photo || null
+          }
+        }
+        return { key: s.originalArtistId || s.originalArtistName, photo }
+      }
+
+      Promise.all(missingSongs.map(lookupOne))
         .then(results => {
           const photoMap = {}
-          results.forEach((r, i) => { if (r?.photo) photoMap[missing[i]] = r.photo })
+          results.forEach(r => { if (r.photo) photoMap[r.key] = r.photo })
           if (Object.keys(photoMap).length === 0) return
-          const patch = s => (s.originalArtistId && !s.originalArtistPhoto && photoMap[s.originalArtistId])
-            ? { ...s, originalArtistPhoto: photoMap[s.originalArtistId] } : s
+          const patch = s => {
+            const k = s.originalArtistId || s.originalArtistName
+            return (k && !s.originalArtistPhoto && photoMap[k])
+              ? { ...s, originalArtistPhoto: photoMap[k] } : s
+          }
           setSongs(prev => prev.map(patch))
           setSongQueue(q => q.map(patch))
           setAnswer(a => a ? patch(a) : a)
@@ -773,14 +823,8 @@ export default function GamePage() {
                 />
               ) : (
                 <div className="w-full h-full rounded-full overflow-hidden">
-                  {artist?.isMixed && answer?.originalArtistPhoto ? (
-                    <img
-                      src={answer.originalArtistPhoto}
-                      alt={answer.originalArtistName || ''}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : artist?.isMixed ? (
-                    <div className="w-full h-full flex items-center justify-center text-6xl" style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)' }}>🎵</div>
+                  {artist?.isMixed ? (
+                    <MixedArtistAvatar photo={answer?.originalArtistPhoto} name={answer?.originalArtistName} />
                   ) : artist?.photo ? (
                     <img
                       src={artist.photo}

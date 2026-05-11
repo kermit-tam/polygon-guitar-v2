@@ -3,7 +3,7 @@ import Layout from '@/components/Layout'
 import AdminGuard from '@/components/AdminGuard'
 import { db } from '@/lib/firebase'
 import {
-  collection, getDocs, doc, setDoc, deleteDoc, updateDoc, writeBatch,
+  collection, getDocs, getDoc, doc, setDoc, deleteDoc, updateDoc, writeBatch,
   query, where, or, serverTimestamp
 } from '@/lib/firestore-tracked'
 
@@ -252,6 +252,78 @@ export default function GameSettingsPage() {
     await doRename(ga.id, ga.name)
   }
 
+  // 修復雜錦歌單嘅 missing 歌手資料
+  const [fixingPhotos, setFixingPhotos] = useState(false)
+  const [fixResult, setFixResult] = useState('')
+  const handleFixMissingArtistInfo = async () => {
+    if (!selectedArtist?.isMixed) return
+    setFixingPhotos(true)
+    setFixResult('')
+    try {
+      // 收齊所有問題歌：冇 originalArtistId 或 冇 originalArtistPhoto
+      const needsFix = gameSongs.filter(s => !s.originalArtistId || !s.originalArtistPhoto || !s.originalArtistName)
+      if (needsFix.length === 0) {
+        setFixResult('所有歌都有完整歌手資料 ✓')
+        return
+      }
+
+      let fixed = 0
+      let cantFix = 0
+      const batch = writeBatch(db)
+
+      for (const song of needsFix) {
+        let artist = null
+        // 1) 試用 originalArtistId
+        if (song.originalArtistId) {
+          const ref = doc(db, 'artists', song.originalArtistId)
+          const snap = await getDoc(ref).catch(() => null)
+          if (snap?.exists()) artist = { id: snap.id, ...snap.data() }
+        }
+        // 2) 試用 originalArtistName / song.artistName 喺 artists 集合搜尋
+        if (!artist) {
+          const lookupName = song.originalArtistName || song.artistName
+          if (lookupName) {
+            const snap = await getDocs(query(collection(db, 'artists'), where('name', '==', lookupName))).catch(() => null)
+            const d = snap?.docs?.[0]
+            if (d) artist = { id: d.id, ...d.data() }
+          }
+        }
+        if (!artist) { cantFix++; continue }
+
+        const photo = artist.photoURL || artist.wikiPhotoURL || artist.photo || ''
+        const update = {
+          originalArtistId: artist.id,
+          originalArtistName: artist.name || song.originalArtistName || song.artistName || '',
+          originalArtistPhoto: photo || '',
+        }
+        batch.update(doc(db, 'gameSongs', song.id), update)
+        fixed++
+      }
+      if (fixed > 0) await batch.commit()
+
+      // local state
+      setGameSongs(prev => prev.map(s => {
+        if (!needsFix.find(x => x.id === s.id)) return s
+        // we need to re-evaluate from latest data — simplest: re-read
+        return s
+      }))
+      // 重新讀一次 gameSongs 嚟更新畫面
+      const reSnap = await getDocs(query(collection(db, 'gameSongs'), where('artistId', '==', selectedArtist.artistId)))
+      const reGs = reSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.addedAt?.seconds ?? 0) - (b.addedAt?.seconds ?? 0))
+      setGameSongs(reGs)
+      // 清雜錦歌單嘅 sessionStorage 快取
+      try { sessionStorage.removeItem(`gameSongs_${selectedArtist.artistId}`) } catch {}
+
+      setFixResult(`修復完成：成功 ${fixed} 首${cantFix ? `、找唔到歌手 ${cantFix} 首` : ''}`)
+    } catch (e) {
+      console.error(e)
+      setFixResult('修復失敗：' + (e.message || e))
+    } finally {
+      setFixingPhotos(false)
+    }
+  }
+
   // 移除遊戲歌手
   const handleRemoveArtist = async (gaId) => {
     if (!confirm('確定移除？')) return
@@ -329,6 +401,10 @@ export default function GameSettingsPage() {
 
   const handleAddTab = async (song) => {
     const isMixed = selectedArtist.isMixed
+    if (isMixed && !mixedTabArtist) {
+      alert('請先揀返呢首歌嘅原本歌手')
+      return
+    }
     // 雜錦模式：同一首歌可能加多次，所以 id 加埋當前歌手做區分
     const id = isMixed ? `tab_mixed_${song.id}` : `tab_${song.id}`
     setSaving(p => ({ ...p, [id]: true }))
@@ -401,11 +477,15 @@ export default function GameSettingsPage() {
   }
 
   const handleAddYt = async (video) => {
+    const isMixed = selectedArtist.isMixed
+    if (isMixed && !mixedTabArtist) {
+      alert('請先揀返呢首歌嘅原本歌手')
+      return
+    }
     const ytId = video.id
     const gsId = `yt_${ytId}`
     setYtAddingId(ytId)
     try {
-      const isMixed = selectedArtist.isMixed
       const gsDoc = {
         title: ytTitles[ytId] || video.title,
         artistName: isMixed ? (mixedTabArtist?.name || '') : selectedArtist.name,
@@ -593,6 +673,31 @@ export default function GameSettingsPage() {
                   })}
                 </div>
               </div>
+
+              {/* 雜錦歌單：修復缺失歌手資料 */}
+              {selectedArtist.isMixed && (() => {
+                const broken = gameSongs.filter(s => !s.originalArtistId || !s.originalArtistName || !s.originalArtistPhoto)
+                if (broken.length === 0 && !fixResult) return null
+                return (
+                  <div className="mb-4 px-3 py-2.5 rounded-xl border border-yellow-500/50 bg-yellow-500/10 flex items-center gap-2 flex-wrap">
+                    <span className="text-yellow-300 text-xs flex-1">
+                      {broken.length > 0
+                        ? `⚠️ ${broken.length} 首歌缺失原本歌手資料（包括歌手相）`
+                        : fixResult}
+                    </span>
+                    {broken.length > 0 && (
+                      <button
+                        onClick={handleFixMissingArtistInfo}
+                        disabled={fixingPhotos}
+                        className="px-3 py-1 rounded-lg text-xs font-bold text-black"
+                        style={{ background: '#FFD700' }}
+                      >
+                        {fixingPhotos ? '修復中...' : '🔄 一鍵修復'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* 遊戲歌單 */}
               {loading ? (
