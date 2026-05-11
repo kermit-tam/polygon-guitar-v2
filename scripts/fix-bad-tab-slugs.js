@@ -1,19 +1,31 @@
 #!/usr/bin/env node
 /**
- * Backfill `slug` field on all existing tab documents that are missing it.
- * Slug format: "{primary-artist-name}-{song-title}" (Chinese chars kept as-is, ASCII lowercased)
- * If the base slug is already taken, appends "-{docId.slice(-4)}" as a suffix.
+ * 修復 Firestore tabs 入面 slug 含有 URL 不安全字符（`/`、`(`、`)`、`?` 等）嘅文檔。
+ *
+ * 早期 `backfill-tab-slugs.js` 嘅 slugify 冇剝走呢啲字符，導致部分舊譜嘅 slug 入面有 `/`、
+ * `()` 等，例如：`family-of-the-year-hero-(boyhood-/沒關係-這是愛情-插曲)`。
+ *
+ * 後果：
+ *   - Vercel/Next.js 喺 `[id].js` 收到 `%2F` 會 throw（doc 路徑分隔符衝突）→ 404。
+ *   - 即使 slug query fallback，亦因 throw 喺前面而入唔到。
+ *
+ * 修復步驟：
+ *   1. 掃描所有 tabs。
+ *   2. 搵出 slug 含 `[?!.,;:'"()\[\]{}@#$%^&*+=|\\/<>~`]` 嘅文檔。
+ *   3. 用 `lib/tabs.js` 同款 sanitize 規則重新生成 slug。
+ *   4. 將舊 slug 寫入 `previousSlugs` 陣列（方便將來 redirect 用），新 slug 寫入 `slug`。
+ *   5. 衝突時加 docId 後 4 位作後綴。
  *
  * Usage:
- *   node scripts/backfill-tab-slugs.js --dry-run     # preview changes, no writes
- *   node scripts/backfill-tab-slugs.js --write        # apply changes
- *   node scripts/backfill-tab-slugs.js --write --limit=50
+ *   node scripts/fix-bad-tab-slugs.js --dry-run     # 預覽變更
+ *   node scripts/fix-bad-tab-slugs.js --write        # 寫入
+ *   node scripts/fix-bad-tab-slugs.js --write --limit=50
  *
  * Requires FIREBASE_SERVICE_ACCOUNT in .env.local
  */
 
 const { initializeApp, cert } = require('firebase-admin/app')
-const { getFirestore } = require('firebase-admin/firestore')
+const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 require('dotenv').config({ path: '.env.local' })
 
 const path = require('path')
@@ -29,14 +41,15 @@ const fullPath = path.resolve(rootDir, serviceAccountPath)
 const serviceAccount = require(fullPath)
 
 const dryRun = !process.argv.includes('--write')
-const limitArg = process.argv.find(a => a.startsWith('--limit='))
+const limitArg = process.argv.find((a) => a.startsWith('--limit='))
 const limit = limitArg ? parseInt(limitArg.split('=')[1], 10) : null
 
 const app = initializeApp({ credential: cert(serviceAccount) })
 const db = getFirestore(app)
 
-// Keep in sync with lib/tabs.js generateTabSlug — must strip URL-unsafe chars
-// (parens, slashes, etc.) so the slug doesn't break Next.js / Firestore lookup.
+// 必須同 lib/tabs.js generateTabSlug 完全一致
+const BAD_CHAR_RE = /[?!.,;:'"()\[\]{}@#$%^&*+=|\\/<>~`]/
+
 function generateTabSlug(artistName, title) {
   const slugify = (s) =>
     (s || '')
@@ -56,7 +69,6 @@ async function main() {
   console.log(`Mode: ${dryRun ? 'DRY RUN (no writes)' : 'WRITE'}`)
   if (limit) console.log(`Limit: ${limit}`)
 
-  // Pre-fetch all artists for name resolution
   console.log('Fetching all artists...')
   const artistSnap = await db.collection('artists').get()
   const artistMap = new Map()
@@ -66,24 +78,30 @@ async function main() {
   }
   console.log(`Loaded ${artistMap.size} artists`)
 
-  // Load all existing tabs
   console.log('Fetching all tabs...')
   const allSnap = await db.collection('tabs').get()
   console.log(`Total tabs: ${allSnap.docs.length}`)
 
-  // Build a map of slug → docId for existing slugs
+  // 全 slug map（包括 good slug），用嚟避免 collision
   const slugMap = new Map()
   for (const d of allSnap.docs) {
     const slug = d.data().slug
     if (slug) slugMap.set(slug, d.id)
   }
-  console.log(`Tabs already with slug: ${slugMap.size}`)
 
-  // Find tabs without slugs
-  const missing = allSnap.docs.filter(d => !d.data().slug)
-  console.log(`Tabs needing slug: ${missing.length}`)
+  // 篩出 bad slug
+  const bad = allSnap.docs.filter((d) => {
+    const slug = d.data().slug
+    return slug && BAD_CHAR_RE.test(slug)
+  })
+  console.log(`Tabs with bad slug: ${bad.length}`)
 
-  const toProcess = limit ? missing.slice(0, limit) : missing
+  if (bad.length === 0) {
+    console.log('Nothing to fix. ✅')
+    process.exit(0)
+  }
+
+  const toProcess = limit ? bad.slice(0, limit) : bad
 
   let written = 0
   let skipped = 0
@@ -91,6 +109,7 @@ async function main() {
 
   for (const d of toProcess) {
     const data = d.data()
+    const oldSlug = data.slug
 
     // Resolve primary artist name
     let artistName = ''
@@ -106,13 +125,6 @@ async function main() {
     }
 
     const title = data.title || ''
-
-    if (!artistName && !title) {
-      console.log(`  SKIP ${d.id} — no artist or title`)
-      skipped++
-      continue
-    }
-
     const baseSlug = generateTabSlug(artistName, title)
     if (!baseSlug) {
       console.log(`  SKIP ${d.id} — could not generate slug (artist="${artistName}", title="${title}")`)
@@ -120,24 +132,33 @@ async function main() {
       continue
     }
 
-    let slug = baseSlug
+    let newSlug = baseSlug
     if (slugMap.has(baseSlug) && slugMap.get(baseSlug) !== d.id) {
-      slug = `${baseSlug}-${d.id.slice(-4)}`
+      newSlug = `${baseSlug}-${d.id.slice(-4)}`
       conflicts++
-      // If still conflicts (very unlikely), use longer suffix
-      if (slugMap.has(slug) && slugMap.get(slug) !== d.id) {
-        slug = `${baseSlug}-${d.id.slice(-6)}`
+      if (slugMap.has(newSlug) && slugMap.get(newSlug) !== d.id) {
+        newSlug = `${baseSlug}-${d.id.slice(-6)}`
       }
     }
 
-    // Register slug in map to prevent subsequent docs from using it
-    slugMap.set(slug, d.id)
+    if (newSlug === oldSlug) {
+      console.log(`  NOOP ${d.id} — slug unchanged ("${oldSlug}")`)
+      skipped++
+      continue
+    }
+
+    // 釋放舊 slug，註冊新 slug
+    if (slugMap.get(oldSlug) === d.id) slugMap.delete(oldSlug)
+    slugMap.set(newSlug, d.id)
 
     if (dryRun) {
-      console.log(`  [DRY] ${d.id} → "${slug}" (artist="${artistName}", title="${title}")`)
+      console.log(`  [DRY] ${d.id}\n      old: "${oldSlug}"\n      new: "${newSlug}"`)
     } else {
-      await db.collection('tabs').doc(d.id).update({ slug })
-      console.log(`  [WRITE] ${d.id} → "${slug}"`)
+      await db.collection('tabs').doc(d.id).update({
+        slug: newSlug,
+        previousSlugs: FieldValue.arrayUnion(oldSlug),
+      })
+      console.log(`  [WRITE] ${d.id}\n      old: "${oldSlug}"\n      new: "${newSlug}"`)
     }
     written++
   }
