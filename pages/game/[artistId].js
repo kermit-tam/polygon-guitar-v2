@@ -647,8 +647,8 @@ export default function GamePage() {
             <div className="flex flex-col gap-3 w-full">
               <button
                 onClick={retryLevel}
-                className="w-full py-3 rounded-xl text-sm border text-white font-medium"
-                style={{ borderColor: levelTransition.finished.color, background: `${levelTransition.finished.color}15` }}
+                className="w-full py-3 rounded-xl font-bold text-black"
+                style={{ background: levelTransition.finished.color }}
               >
                 🔄 重新挑戰
               </button>
